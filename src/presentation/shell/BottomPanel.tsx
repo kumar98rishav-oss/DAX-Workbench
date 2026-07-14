@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Lightbulb, FunctionSquare, TableProperties } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { DataGrid } from '@/presentation/data/DataGrid'
+import { BottomDax } from '@/presentation/dax/BottomDax'
 
 type Tab = 'insights' | 'dax' | 'data'
 
@@ -38,7 +39,7 @@ export function BottomPanel() {
       </div>
 
       <div
-        className={`pbs-bottom__body ${tab === 'data' ? 'pbs-bottom__body--flush' : 'pbs-scroll'}`}
+        className={`pbs-bottom__body ${tab === 'data' || tab === 'dax' ? 'pbs-bottom__body--flush' : 'pbs-scroll'}`}
       >
         {tab === 'insights' && (
           <ul style={{ display: 'grid', gap: 10, listStyle: 'none' }}>
@@ -47,23 +48,7 @@ export function BottomPanel() {
             <InsightRow text="3 of 42 columns look like unused foreign keys." tone="info" />
           </ul>
         )}
-        {tab === 'dax' && (
-          <pre
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--text-base)',
-              color: 'var(--text)',
-              lineHeight: 1.7,
-              margin: 0,
-            }}
-          >
-{`Total Revenue =
-    SUMX (
-        Sales,
-        Sales[Quantity] * Sales[Unit Price]
-    )`}
-          </pre>
-        )}
+        {tab === 'dax' && <BottomDax />}
         {tab === 'data' &&
           (active ? (
             <DataGrid columns={active.columns} rows={active.rows} compact />

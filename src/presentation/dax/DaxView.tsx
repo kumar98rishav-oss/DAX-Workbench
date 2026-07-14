@@ -7,6 +7,7 @@ import { evaluateDax } from '@/application/dax/evaluator'
 import { generateDaxFromNL } from '@/application/dax/nl-templates'
 import { searchDax, DAX_CATALOG } from '@/application/dax/functions'
 import type { DaxFunction } from '@/application/dax/functions'
+import { DependencyGraph } from './DependencyGraph'
 import './dax.css'
 
 function formatByString(v: number, fmt: string): string {
@@ -53,15 +54,12 @@ export function DaxView() {
   const generate = () => {
     const g = generateDaxFromNL(prompt, model)
     if (!g) return
-    let id = selectedId
-    if (!id) {
-      addMeasure()
-      id = useApp.getState().selectedMeasureId
-    }
-    if (id) {
-      updateMeasure(id, { name: g.name, expression: g.expression, formatString: g.formatString })
-      setExplanation(g.explanation)
-    }
+    // Always create a NEW measure (never overwrite the selected one).
+    addMeasure()
+    const id = useApp.getState().selectedMeasureId
+    if (id) updateMeasure(id, { name: g.name, expression: g.expression, formatString: g.formatString })
+    setExplanation(g.explanation)
+    setPrompt('')
   }
 
   const insertFn = (fn: DaxFunction) => {
@@ -200,6 +198,11 @@ export function DaxView() {
                 <strong>Why this DAX:</strong> {explanation}
               </div>
             )}
+
+            <div className="dax-field">
+              <span className="dax-field__label">Dependency Graph</span>
+              <DependencyGraph expression={selected.expression} name={selected.name} model={model} />
+            </div>
 
             <Button
               variant="ghost"
