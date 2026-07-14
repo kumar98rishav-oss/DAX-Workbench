@@ -1,0 +1,148 @@
+import {
+  Home,
+  LayoutDashboard,
+  Upload,
+  Moon,
+  PanelLeft,
+  PanelRight,
+  PanelBottom,
+  PenTool,
+  Eye,
+  Share2,
+  FunctionSquare,
+  Sparkles,
+  Puzzle,
+} from 'lucide-react'
+import type { Command } from '@/design-system/components'
+import { useApp } from './store'
+
+/** Builds the command registry from the current store API. */
+export function buildCommands(): Command[] {
+  const s = useApp.getState()
+
+  return [
+    {
+      id: 'nav.home',
+      title: 'Go to Home',
+      group: 'Navigation',
+      icon: <Home size={16} />,
+      keywords: ['launcher', 'start'],
+      run: () => s.goHome(),
+    },
+    {
+      id: 'project.new',
+      title: 'New Dashboard',
+      group: 'Project',
+      icon: <LayoutDashboard size={16} />,
+      hint: 'Blank canvas',
+      run: () => s.openStudio('Untitled Dashboard'),
+    },
+    {
+      id: 'data.import',
+      title: 'Import Data…',
+      group: 'Project',
+      icon: <Upload size={16} />,
+      keywords: ['csv', 'excel', 'parquet', 'sql', 'open', 'file'],
+      run: () => s.requestImport(),
+    },
+    {
+      id: 'mode.design',
+      title: 'Switch to Design',
+      group: 'View',
+      icon: <PenTool size={16} />,
+      run: () => s.setMode('design'),
+    },
+    {
+      id: 'mode.data',
+      title: 'Open Data View',
+      group: 'View',
+      icon: <Eye size={16} />,
+      keywords: ['preview', 'rows', 'table'],
+      run: () => s.setMode('data'),
+    },
+    {
+      id: 'mode.model',
+      title: 'Open Model View',
+      group: 'View',
+      icon: <Share2 size={16} />,
+      keywords: ['relationships', 'schema'],
+      run: () => s.setMode('model'),
+    },
+    {
+      id: 'mode.dax',
+      title: 'Open DAX Architect',
+      group: 'View',
+      icon: <FunctionSquare size={16} />,
+      keywords: ['measure', 'formula'],
+      run: () => s.setMode('dax'),
+    },
+    {
+      id: 'panel.left',
+      title: 'Toggle Assets Panel',
+      group: 'Panels',
+      icon: <PanelLeft size={16} />,
+      run: () => s.togglePanel('left'),
+    },
+    {
+      id: 'panel.right',
+      title: 'Toggle Properties Panel',
+      group: 'Panels',
+      icon: <PanelRight size={16} />,
+      run: () => s.togglePanel('right'),
+    },
+    {
+      id: 'panel.bottom',
+      title: 'Toggle Insights Panel',
+      group: 'Panels',
+      icon: <PanelBottom size={16} />,
+      run: () => s.togglePanel('bottom'),
+    },
+    {
+      id: 'export.open',
+      title: 'Export…',
+      group: 'Project',
+      icon: <Upload size={16} />,
+      keywords: ['tmdl', 'pbip', 'html', 'markdown', 'theme', 'download', 'json'],
+      run: () => s.toggleExport(true),
+    },
+    {
+      id: 'plugins.open',
+      title: 'Plugins & Model Health…',
+      group: 'Preferences',
+      icon: <Puzzle size={16} />,
+      keywords: ['sdk', 'extension', 'validate', 'health', 'lint', 'rules'],
+      run: () => s.togglePlugins(true),
+    },
+    {
+      id: 'theme.toggle',
+      title: 'Toggle Light / Dark Theme',
+      group: 'Preferences',
+      icon: <Moon size={16} />,
+      run: () => s.toggleTheme(),
+    },
+    {
+      id: 'ai.analyst',
+      title: 'Ask the Analyst',
+      group: 'Assistant',
+      icon: <Sparkles size={16} />,
+      keywords: ['ai', 'insight', 'why', 'chat', 'question'],
+      run: () => s.toggleAnalyst(true),
+    },
+    {
+      id: 'ai.generate',
+      title: 'Generate Dashboard',
+      group: 'Assistant',
+      icon: <Sparkles size={16} />,
+      keywords: ['auto', 'magic', 'recommend', 'dashboard', 'kpi', 'visual'],
+      run: () => s.generateDashboard(),
+    },
+    {
+      id: 'model.rerun',
+      title: 'Re-run Auto-Model',
+      group: 'Assistant',
+      icon: <Share2 size={16} />,
+      keywords: ['relationship', 'keys', 'detect'],
+      run: () => s.runAutoModel(),
+    },
+  ]
+}

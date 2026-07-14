@@ -1,0 +1,58 @@
+import { useEffect, useMemo } from 'react'
+import { useApp } from './store'
+import { buildCommands } from './commands'
+import { HomeScreen } from '@/presentation/home/HomeScreen'
+import { AppShell } from '@/presentation/shell/AppShell'
+import { ImportHost } from '@/presentation/data/ImportHost'
+import { ImportPreviewDialog } from '@/presentation/data/ImportPreviewDialog'
+import { AnalystPanel } from '@/presentation/analyst/AnalystPanel'
+import { ExportDialog } from '@/presentation/export/ExportDialog'
+import { PluginsDialog } from '@/presentation/plugins/PluginsDialog'
+import { CommandPalette } from '@/design-system/components'
+
+export function App() {
+  const view = useApp((s) => s.view)
+  const paletteOpen = useApp((s) => s.commandPaletteOpen)
+  const setCommandPalette = useApp((s) => s.setCommandPalette)
+
+  // Rebuild commands when the palette opens so hints reflect current state.
+  const commands = useMemo(() => buildCommands(), [paletteOpen])
+
+  // Global keyboard shortcuts: ⌘K palette, ⌘Z / ⌘⇧Z undo-redo.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setCommandPalette(!useApp.getState().commandPaletteOpen)
+      } else if (mod && e.key.toLowerCase() === 'z') {
+        const tag = (e.target as HTMLElement)?.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return
+        e.preventDefault()
+        if (e.shiftKey) useApp.getState().redo()
+        else useApp.getState().undo()
+      } else if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        useApp.getState().redo()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setCommandPalette])
+
+  return (
+    <>
+      {view === 'home' ? <HomeScreen /> : <AppShell />}
+      <ImportHost />
+      <ImportPreviewDialog />
+      <AnalystPanel />
+      <ExportDialog />
+      <PluginsDialog />
+      <CommandPalette
+        open={paletteOpen}
+        commands={commands}
+        onClose={() => setCommandPalette(false)}
+      />
+    </>
+  )
+}

@@ -1,0 +1,180 @@
+/* ============================================================================
+   AI BUSINESS ANALYST — chat drawer
+   ========================================================================== */
+
+.analyst {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-modal);
+  width: min(420px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+  animation: analyst-in var(--dur) var(--ease);
+}
+@keyframes analyst-in {
+  from { transform: translateX(100%); opacity: 0.4; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.analyst__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--topbar-h);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.analyst__logo {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  color: var(--text-onaccent);
+  background: linear-gradient(140deg, var(--accent), #7aa2ff);
+}
+.analyst__title {
+  font-weight: var(--weight-semibold);
+}
+.analyst__sub {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+.analyst__spacer { flex: 1; }
+
+.analyst__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.analyst__empty {
+  margin: auto 0;
+  text-align: center;
+  color: var(--text-muted);
+}
+.analyst__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto var(--space-4);
+  border-radius: var(--radius-lg);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.analyst__starters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.analyst-msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 92%;
+}
+.analyst-msg--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.analyst-msg__bubble {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+.analyst-msg--user .analyst-msg__bubble {
+  background: var(--accent);
+  color: var(--text-onaccent);
+  border-bottom-right-radius: var(--radius-xs);
+}
+.analyst-msg--assistant .analyst-msg__bubble {
+  background: var(--surface-2);
+  color: var(--text);
+  border-bottom-left-radius: var(--radius-xs);
+}
+.analyst-line { margin: 0; }
+.analyst-bullet { margin: 2px 0; padding-left: 4px; }
+
+.analyst-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.analyst-chip {
+  padding: 5px 11px;
+  font-size: var(--text-sm);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+}
+.analyst-chip:hover {
+  border-color: var(--accent);
+}
+
+.analyst__thinking {
+  display: flex;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  align-self: flex-start;
+}
+.analyst__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-subtle);
+  animation: analyst-blink 1.2s infinite;
+}
+.analyst__dot:nth-child(2) { animation-delay: 0.2s; }
+.analyst__dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes analyst-blink {
+  0%, 60%, 100% { opacity: 0.25; }
+  30% { opacity: 1; }
+}
+
+.analyst__foot {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.analyst__input {
+  flex: 1;
+  height: 38px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-md);
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  outline: none;
+}
+.analyst__input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.analyst__send {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius);
+  color: var(--text-onaccent);
+  background: var(--accent);
+}
+.analyst__send:hover { background: var(--accent-hover); }
+.analyst__send:disabled { opacity: 0.5; }

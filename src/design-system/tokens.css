@@ -1,0 +1,195 @@
+/* ============================================================================
+   POWER BI STUDIO — DESIGN TOKENS
+   The single source of truth for the visual language.
+   Monochromatic baseline + one purposeful blue accent. Strict 8pt grid.
+   ========================================================================== */
+
+:root {
+  /* ---- Spacing — 8pt grid (4px half-step) ---- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  /* ---- Radii ---- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  /* ---- Typography ---- */
+  --font-sans: "Inter", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system,
+    BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", "Cascadia Code", Consolas,
+    "Liberation Mono", Menlo, monospace;
+
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+  --text-3xl: 34px;
+  --text-4xl: 44px;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.55;
+
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+
+  /* ---- Motion ---- */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 260ms;
+
+  /* ---- Z-index scale ---- */
+  --z-canvas: 0;
+  --z-panel: 10;
+  --z-docked: 20;
+  --z-overlay: 100;
+  --z-popover: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+
+  /* ---- Layout metrics ---- */
+  --topbar-h: 48px;
+  --sidebar-w: 264px;
+  --rightpanel-w: 300px;
+  --bottompanel-h: 240px;
+  --sidebar-w-collapsed: 0px;
+}
+
+/* ============================================================================
+   LIGHT THEME (default)
+   ========================================================================== */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #fbfbfd;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f5f6f8;
+  --surface-3: #eef0f3;
+  --surface-inset: #f7f8fa;
+
+  --border: #e9e9ee;
+  --border-strong: #dcdde3;
+  --border-focus: #b9c8ff;
+
+  --text: #17181b;
+  --text-muted: #64686f;
+  --text-subtle: #969aa2;
+  --text-onaccent: #ffffff;
+
+  --accent: #3b6ef6;
+  --accent-hover: #2f5fe6;
+  --accent-active: #274fd0;
+  --accent-soft: rgba(59, 110, 246, 0.1);
+  --accent-soft-hover: rgba(59, 110, 246, 0.16);
+  --accent-ring: rgba(59, 110, 246, 0.32);
+
+  --success: #17a673;
+  --success-soft: rgba(23, 166, 115, 0.12);
+  --warning: #d98a15;
+  --warning-soft: rgba(217, 138, 21, 0.14);
+  --danger: #e5484d;
+  --danger-soft: rgba(229, 72, 77, 0.12);
+
+  /* Data-viz categorical ramp (used by generated visuals) */
+  --viz-1: #3b6ef6;
+  --viz-2: #17a673;
+  --viz-3: #d98a15;
+  --viz-4: #8b5cf6;
+  --viz-5: #e5484d;
+  --viz-6: #0ea5e9;
+  --viz-7: #ec4899;
+  --viz-8: #64748b;
+
+  --shadow-sm: 0 1px 2px rgba(16, 18, 23, 0.05), 0 1px 3px rgba(16, 18, 23, 0.05);
+  --shadow-md: 0 4px 14px rgba(16, 18, 23, 0.08);
+  --shadow-lg: 0 14px 36px rgba(16, 18, 23, 0.14);
+  --shadow-pop: 0 10px 34px rgba(16, 18, 23, 0.18);
+
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --scrim: rgba(23, 24, 27, 0.32);
+
+  --grid-dot: rgba(23, 24, 27, 0.08);
+}
+
+/* ============================================================================
+   DARK THEME
+   ========================================================================== */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0c0d10;
+  --bg-elevated: #141519;
+  --surface: #141519;
+  --surface-2: #1a1c21;
+  --surface-3: #22242a;
+  --surface-inset: #101115;
+
+  --border: #24262c;
+  --border-strong: #2f313a;
+  --border-focus: #38508f;
+
+  --text: #f3f4f7;
+  --text-muted: #9ba0a9;
+  --text-subtle: #676c75;
+  --text-onaccent: #ffffff;
+
+  --accent: #5b84ff;
+  --accent-hover: #6f93ff;
+  --accent-active: #4a76f5;
+  --accent-soft: rgba(91, 132, 255, 0.14);
+  --accent-soft-hover: rgba(91, 132, 255, 0.22);
+  --accent-ring: rgba(91, 132, 255, 0.4);
+
+  --success: #2dd4a0;
+  --success-soft: rgba(45, 212, 160, 0.14);
+  --warning: #e2a336;
+  --warning-soft: rgba(226, 163, 54, 0.16);
+  --danger: #ff6369;
+  --danger-soft: rgba(255, 99, 105, 0.14);
+
+  --viz-1: #5b84ff;
+  --viz-2: #2dd4a0;
+  --viz-3: #e2a336;
+  --viz-4: #a78bfa;
+  --viz-5: #ff6369;
+  --viz-6: #38bdf8;
+  --viz-7: #f472b6;
+  --viz-8: #94a3b8;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.44);
+  --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.56);
+  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.62);
+
+  --glass-bg: rgba(20, 21, 25, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --scrim: rgba(0, 0, 0, 0.5);
+
+  --grid-dot: rgba(255, 255, 255, 0.06);
+}

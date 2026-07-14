@@ -1,0 +1,110 @@
+/// Template 01 — Medical Operations · Provider Data Parsing (OCR pipeline)
+/// Star schema: Fact_ParseJob (event grain = one document parse) → Dim_Date, Dim_Provider.
+/// Backend model is folding-optimised: the partition M pushes filter + typing to SQL.
+
+expression ServerParam = "sql-fabric-prod.database.windows.net" meta [IsParameterQuery=true, Type="Text"]
+expression DatabaseParam = "OpsWarehouse" meta [IsParameterQuery=true, Type="Text"]
+expression RangeStart = #datetime(2024, 1, 1, 0, 0, 0) meta [IsParameterQuery=true, Type="DateTime"]
+expression RangeEnd   = #datetime(2026, 1, 1, 0, 0, 0) meta [IsParameterQuery=true, Type="DateTime"]
+
+table Fact_ParseJob
+	lineageTag: fact-parsejob
+
+	measure 'Parse Accuracy %' =
+			DIVIDE (
+			    SUM ( Fact_ParseJob[FieldsCorrect] ),
+			    SUM ( Fact_ParseJob[FieldsExtracted] )
+			)
+		formatString: 0.0%
+		displayFolder: 01 Quality
+
+	measure 'Throughput (pages/min)' =
+			DIVIDE (
+			    SUM ( Fact_ParseJob[PagesParsed] ),
+			    DIVIDE ( SUM ( Fact_ParseJob[DurationSeconds] ), 60 )
+			)
+		formatString: #,##0.0
+		displayFolder: 02 Throughput
+
+	measure 'Manual Review Rate %' =
+			DIVIDE (
+			    CALCULATE ( COUNTROWS ( Fact_ParseJob ), Fact_ParseJob[RequiresReview] = 1 ),
+			    COUNTROWS ( Fact_ParseJob )
+			)
+		formatString: 0.0%
+		displayFolder: 01 Quality
+
+	column JobKey            { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: JobKey }
+	column ProviderKey       { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: ProviderKey }
+	column SubmittedDateKey  { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: SubmittedDateKey }
+	column DocumentType      { dataType: string; summarizeBy: none; sourceColumn: DocumentType }
+	column PipelineStage     { dataType: string; summarizeBy: none; sourceColumn: PipelineStage }
+	column PagesParsed       { dataType: int64;  isHidden; summarizeBy: sum;  sourceColumn: PagesParsed }
+	column FieldsExtracted   { dataType: int64;  isHidden; summarizeBy: sum;  sourceColumn: FieldsExtracted }
+	column FieldsCorrect     { dataType: int64;  isHidden; summarizeBy: sum;  sourceColumn: FieldsCorrect }
+	column DurationSeconds   { dataType: int64;  isHidden; summarizeBy: sum;  sourceColumn: DurationSeconds }
+	column RequiresReview    { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: RequiresReview }
+	column OcrConfidence     { dataType: double; summarizeBy: average; sourceColumn: OcrConfidence; formatString: 0.0% }
+
+	partition Fact_ParseJob = m
+		mode: import
+		source =
+				let
+				    // 1) Foldable source — a warehouse VIEW keeps heavy joins server-side
+				    Source   = Sql.Database ( ServerParam, DatabaseParam ),
+				    View     = Source{[Schema = "ops", Item = "vw_ParseJob"]}[Data],
+				    // 2) Incremental-refresh window — folds to WHERE SubmittedDate >= @p1 AND < @p2
+				    Windowed = Table.SelectRows ( View, each [SubmittedDate] >= RangeStart and [SubmittedDate] < RangeEnd ),
+				    // 3) Column pruning + typing — fold to SELECT list + CAST
+				    Pruned   = Table.SelectColumns ( Windowed, {"JobKey","ProviderKey","SubmittedDateKey","DocumentType","PipelineStage","PagesParsed","FieldsExtracted","FieldsCorrect","DurationSeconds","RequiresReview","OcrConfidence"} ),
+				    Typed    = Table.TransformColumnTypes ( Pruned, {{"OcrConfidence", type number}} )
+				in
+				    Typed   // View Native Query stays enabled through every step ⇒ 1 SQL statement
+
+table Dim_Provider
+	lineageTag: dim-provider
+
+	column ProviderKey  { dataType: int64;  isHidden; isKey; summarizeBy: none; sourceColumn: ProviderKey }
+	column ProviderNPI  { dataType: string; summarizeBy: none; sourceColumn: ProviderNPI }
+	column ProviderName { dataType: string; summarizeBy: none; sourceColumn: ProviderName }
+	column Specialty    { dataType: string; summarizeBy: none; sourceColumn: Specialty }
+	column Region       { dataType: string; dataCategory: StateOrProvince; summarizeBy: none; sourceColumn: Region }
+
+	partition Dim_Provider = m
+		mode: import
+		source =
+				let
+				    Source = Sql.Database ( ServerParam, DatabaseParam ),
+				    View   = Source{[Schema = "ops", Item = "dim_Provider"]}[Data]
+				in
+				    View   // thin lookup — fully folded
+
+table Dim_Date
+	lineageTag: dim-date
+	dataCategory: Time
+
+	column Date       { dataType: dateTime; isKey; summarizeBy: none; sourceColumn: Date; formatString: yyyy-mm-dd }
+	column DateKey    { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: DateKey }
+	column Year       { dataType: int64;  summarizeBy: none; sourceColumn: Year }
+	column MonthNumber{ dataType: int64;  isHidden; summarizeBy: none; sourceColumn: MonthNumber }
+	column MonthName  { dataType: string; summarizeBy: none; sourceColumn: MonthName; sortByColumn: MonthNumber }
+	column Quarter    { dataType: string; summarizeBy: none; sourceColumn: Quarter }
+	column IsWeekend  { dataType: boolean; summarizeBy: none; sourceColumn: IsWeekend }
+
+	partition Dim_Date = calculated
+		mode: import
+		source = ```
+				ADDCOLUMNS (
+				    CALENDARAUTO ( 12 ),
+				    "DateKey",     VALUE ( FORMAT ( [Date], "yyyymmdd" ) ),
+				    "Year",        YEAR ( [Date] ),
+				    "MonthNumber", MONTH ( [Date] ),
+				    "MonthName",   FORMAT ( [Date], "mmm" ),
+				    "Quarter",     "Q" & FORMAT ( [Date], "q" ),
+				    "IsWeekend",   WEEKDAY ( [Date], 2 ) > 5
+				)
+				```
+
+/// Relationships — single direction, many(fact) → one(dim), single active path
+relationship Fact_ParseJob_Date    { fromColumn: Fact_ParseJob.SubmittedDateKey; toColumn: Dim_Date.DateKey }
+relationship Fact_ParseJob_Provider { fromColumn: Fact_ParseJob.ProviderKey;      toColumn: Dim_Provider.ProviderKey }

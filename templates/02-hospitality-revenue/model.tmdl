@@ -1,0 +1,112 @@
+/// Template 02 — Hospitality Revenue Management · Booking Velocity & Web Conversion
+/// Two facts share one date dim: Fact_Booking (grain = booking) + Fact_WebFunnel (grain = day×channel).
+/// Web Conversion % joins the two through Dim_Date, so the star stays clean and foldable.
+
+expression ServerParam   = "sql-fabric-prod.database.windows.net" meta [IsParameterQuery=true, Type="Text"]
+expression DatabaseParam = "RevenueWarehouse" meta [IsParameterQuery=true, Type="Text"]
+expression RangeStart = #datetime(2024, 1, 1, 0, 0, 0) meta [IsParameterQuery=true, Type="DateTime"]
+expression RangeEnd   = #datetime(2026, 1, 1, 0, 0, 0) meta [IsParameterQuery=true, Type="DateTime"]
+
+table Fact_Booking
+	lineageTag: fact-booking
+
+	/// base (helper) measure — cancelled bookings excluded
+	measure 'Total Bookings' =
+			CALCULATE ( COUNTROWS ( Fact_Booking ), Fact_Booking[IsCancelled] = 0 )
+		formatString: #,##0
+		displayFolder: 00 Base
+
+	/// CORE 1 — digital/direct revenue
+	measure 'Direct Revenue' =
+			CALCULATE (
+			    SUM ( Fact_Booking[NetRevenue] ),
+			    KEEPFILTERS ( Fact_Booking[ChannelGroup] = "Direct" ),
+			    Fact_Booking[IsCancelled] = 0
+			)
+		formatString: \$#,##0
+		displayFolder: 01 Revenue
+
+	/// CORE 2 — booking pace vs. same period last year
+	measure 'Booking Pace (YoY %)' =
+			VAR Cur = [Total Bookings]
+			VAR Ly  = CALCULATE ( [Total Bookings], SAMEPERIODLASTYEAR ( Dim_Date[Date] ) )
+			RETURN DIVIDE ( Cur - Ly, Ly )
+		formatString: +0.0%;-0.0%;0.0%
+		displayFolder: 02 Velocity
+
+	/// CORE 3 — website conversion (bookings ÷ sessions, cross-fact through Dim_Date)
+	measure 'Website Conversion %' =
+			DIVIDE ( [Total Bookings], [Website Sessions] )
+		formatString: 0.00%
+		displayFolder: 03 Web
+
+	column BookingKey    { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: BookingKey }
+	column PropertyKey   { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: PropertyKey }
+	column BookedDateKey { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: BookedDateKey }
+	column ArrivalDateKey{ dataType: int64;  isHidden; summarizeBy: none; sourceColumn: ArrivalDateKey }
+	column ChannelGroup  { dataType: string; summarizeBy: none; sourceColumn: ChannelGroup }
+	column Nights        { dataType: int64;  isHidden; summarizeBy: sum;  sourceColumn: Nights }
+	column NetRevenue    { dataType: double; isHidden; summarizeBy: sum;  sourceColumn: NetRevenue; formatString: \$#,##0 }
+	column LeadTimeDays  { dataType: int64;  summarizeBy: average; sourceColumn: LeadTimeDays }
+	column IsCancelled   { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: IsCancelled }
+
+	partition Fact_Booking = m
+		mode: import
+		source =
+				let
+				    Source   = Sql.Database ( ServerParam, DatabaseParam ),
+				    View     = Source{[Schema = "rev", Item = "vw_Booking"]}[Data],
+				    Windowed = Table.SelectRows ( View, each [BookedDate] >= RangeStart and [BookedDate] < RangeEnd ),
+				    Pruned   = Table.SelectColumns ( View, {"BookingKey","PropertyKey","BookedDateKey","ArrivalDateKey","ChannelGroup","Nights","NetRevenue","LeadTimeDays","IsCancelled"} ),
+				    Typed    = Table.TransformColumnTypes ( Pruned, {{"NetRevenue", type number}} )
+				in
+				    Typed   // folds to one SELECT … WHERE BookedDate >= @p1 AND < @p2
+
+table Fact_WebFunnel
+	lineageTag: fact-webfunnel
+
+	measure 'Website Sessions' = SUM ( Fact_WebFunnel[Sessions] )
+		formatString: #,##0
+		displayFolder: 03 Web
+
+	column WebKey     { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: WebKey }
+	column DateKey    { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: DateKey }
+	column ChannelGroup { dataType: string; summarizeBy: none; sourceColumn: ChannelGroup }
+	column Sessions   { dataType: int64;  isHidden; summarizeBy: sum; sourceColumn: Sessions }
+	column Searches   { dataType: int64;  isHidden; summarizeBy: sum; sourceColumn: Searches }
+
+	partition Fact_WebFunnel = m
+		mode: import
+		source =
+				let
+				    Source = Sql.Database ( ServerParam, DatabaseParam ),
+				    View   = Source{[Schema = "rev", Item = "vw_WebFunnelDaily"]}[Data]
+				in
+				    View
+
+table Dim_Date
+	lineageTag: dim-date
+	dataCategory: Time
+
+	column Date        { dataType: dateTime; isKey; summarizeBy: none; sourceColumn: Date; formatString: yyyy-mm-dd }
+	column DateKey     { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: DateKey }
+	column Year        { dataType: int64;  summarizeBy: none; sourceColumn: Year }
+	column MonthNumber { dataType: int64;  isHidden; summarizeBy: none; sourceColumn: MonthNumber }
+	column MonthName   { dataType: string; summarizeBy: none; sourceColumn: MonthName; sortByColumn: MonthNumber }
+
+	partition Dim_Date = calculated
+		mode: import
+		source = ```
+				ADDCOLUMNS (
+				    CALENDARAUTO ( 12 ),
+				    "DateKey",     VALUE ( FORMAT ( [Date], "yyyymmdd" ) ),
+				    "Year",        YEAR ( [Date] ),
+				    "MonthNumber", MONTH ( [Date] ),
+				    "MonthName",   FORMAT ( [Date], "mmm" )
+				)
+				```
+
+/// BookedDateKey = active; ArrivalDateKey = inactive (activate via USERELATIONSHIP for stay-date analysis)
+relationship Booking_BookedDate  { fromColumn: Fact_Booking.BookedDateKey;  toColumn: Dim_Date.DateKey }
+relationship Booking_ArrivalDate { fromColumn: Fact_Booking.ArrivalDateKey; toColumn: Dim_Date.DateKey; isActive: false }
+relationship Web_Date            { fromColumn: Fact_WebFunnel.DateKey;      toColumn: Dim_Date.DateKey }

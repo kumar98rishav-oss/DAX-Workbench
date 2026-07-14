@@ -1,0 +1,187 @@
+/* ============================================================================
+   MODEL VIEW — relationship graph
+   ========================================================================== */
+
+.modelview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg);
+}
+
+.modelview__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 46px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.modelview__stats {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.modelview__stat strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.modelview__spacer {
+  flex: 1;
+}
+
+/* graph surface */
+.mgraph {
+  flex: 1;
+  position: relative;
+  overflow: auto;
+  min-height: 0;
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.mgraph__canvas {
+  position: relative;
+}
+.mgraph__lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.mgraph__line {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+  fill: none;
+}
+.mgraph__line--active {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.mgraph__line--inactive {
+  stroke-dasharray: 5 4;
+  opacity: 0.7;
+}
+.mgraph__card-label {
+  fill: var(--surface);
+  stroke: var(--border-strong);
+}
+.mgraph__card-text {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  dominant-baseline: central;
+  text-anchor: middle;
+}
+
+/* table node */
+.mnode {
+  position: absolute;
+  width: 232px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  user-select: none;
+  transition: box-shadow var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.mnode:hover {
+  box-shadow: var(--shadow-lg);
+}
+.mnode[data-selected='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring), var(--shadow-lg);
+}
+.mnode__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-3);
+  cursor: grab;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-onaccent);
+}
+.mnode__head:active {
+  cursor: grabbing;
+}
+.mnode__head[data-role='fact'] {
+  background: linear-gradient(135deg, var(--accent), #6f93ff);
+}
+.mnode__head[data-role='dimension'] {
+  background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+}
+.mnode__head[data-role='date'] {
+  background: linear-gradient(135deg, #17a673, #2dd4a0);
+}
+.mnode__head[data-role='unknown'],
+.mnode__head[data-role='bridge'] {
+  background: linear-gradient(135deg, #64748b, #94a3b8);
+}
+.mnode__title {
+  flex: 1;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mnode__rolebadge {
+  font-size: 10px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.22);
+}
+.mnode__cols {
+  list-style: none;
+  padding: var(--space-1) 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.mnode__col {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 3px var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.mnode__col[data-key='true'] {
+  font-weight: var(--weight-semibold);
+}
+.mnode__col-icon {
+  display: inline-flex;
+  width: 14px;
+  color: var(--text-subtle);
+  flex-shrink: 0;
+}
+.mnode__col[data-key='true'] .mnode__col-icon {
+  color: var(--warning);
+}
+.mnode__col[data-fk='true'] .mnode__col-icon {
+  color: var(--accent);
+}
+.mnode__col-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mnode__col-type {
+  font-size: 10px;
+  color: var(--text-subtle);
+}
+.mnode__more {
+  padding: 4px var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}

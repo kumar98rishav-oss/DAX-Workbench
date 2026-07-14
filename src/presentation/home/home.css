@@ -1,0 +1,194 @@
+/* ============================================================================
+   HOME / LAUNCHER
+   ========================================================================== */
+
+.pbs-home {
+  flex: 1;
+  overflow-y: auto;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, var(--accent-soft), transparent 70%),
+    var(--bg);
+}
+
+.pbs-home__topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-docked);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--topbar-h);
+  padding: 0 var(--space-5);
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+.pbs-home__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  font-size: var(--text-lg);
+}
+.pbs-home__logo {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--text-onaccent);
+  background: linear-gradient(140deg, var(--accent), #7aa2ff);
+  box-shadow: var(--shadow-sm);
+}
+
+.pbs-home__inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-9);
+}
+
+.pbs-home__hero {
+  text-align: center;
+  margin-bottom: var(--space-8);
+}
+.pbs-home__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding: 4px 12px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-full);
+}
+.pbs-home__title {
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--text);
+}
+.pbs-home__title em {
+  font-style: normal;
+  background: linear-gradient(120deg, var(--accent), #8ab0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.pbs-home__lede {
+  max-width: 560px;
+  margin: var(--space-4) auto 0;
+  font-size: var(--text-lg);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
+}
+
+/* ---- Quick actions ---- */
+.pbs-home__actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+.pbs-action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  text-align: left;
+}
+.pbs-action__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.pbs-action__title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.pbs-action__desc {
+  font-size: var(--text-base);
+  color: var(--text-muted);
+  line-height: var(--leading-snug);
+}
+
+/* ---- Section header ---- */
+.pbs-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+.pbs-section-head__title {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.pbs-section-head__link {
+  font-size: var(--text-base);
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+.pbs-home__section {
+  margin-bottom: var(--space-8);
+}
+
+/* ---- Templates ---- */
+.pbs-templates {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+}
+.pbs-template {
+  overflow: hidden;
+}
+.pbs-template__thumb {
+  position: relative;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+}
+.pbs-template__mode {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: var(--radius-full);
+  backdrop-filter: blur(4px);
+}
+.pbs-template__body {
+  padding: var(--space-4);
+}
+.pbs-template__name {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.pbs-template__meta {
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+}
+
+@media (max-width: 900px) {
+  .pbs-home__actions,
+  .pbs-templates {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

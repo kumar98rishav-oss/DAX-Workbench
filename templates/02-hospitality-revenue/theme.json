@@ -1,0 +1,71 @@
+{
+  "name": "Studio — Hospitality Revenue · Luxe Neon",
+  "$schema": "https://raw.githubusercontent.com/microsoft/powerbi-desktop-samples/main/Report%20Theme%20JSON%20Schema/reportThemeSchema-2.114.json",
+  "dataColors": ["#E8B45A", "#D98A4B", "#7BA7A0", "#C05C6E", "#8C7BE0", "#4F9DB0", "#E0A96D", "#9AA870"],
+  "foreground": "#F5EEE0",
+  "foregroundNeutralSecondary": "#B7A98F",
+  "foregroundNeutralTertiary": "#7A6E58",
+  "background": "#0B0A08",
+  "backgroundLight": "#17130D",
+  "backgroundNeutral": "#2A2118",
+  "tableAccent": "#E8B45A",
+  "good": "#9AA870",
+  "neutral": "#E8B45A",
+  "bad": "#C05C6E",
+  "maximum": "#E8B45A",
+  "minimum": "#2A2118",
+  "textClasses": {
+    "callout": { "fontFace": "DIN", "fontSize": 30, "color": "#FBF6EC" },
+    "title":   { "fontFace": "Segoe UI Semibold", "fontSize": 14, "color": "#F5EEE0" },
+    "header":  { "fontFace": "Segoe UI Semibold", "fontSize": 12, "color": "#B7A98F" },
+    "label":   { "fontFace": "Segoe UI", "fontSize": 10, "color": "#B7A98F" }
+  },
+  "visualStyles": {
+    "*": {
+      "*": {
+        "background": [{ "show": true, "color": { "solid": { "color": "#17130D" } }, "transparency": 0 }],
+        "border": [{ "show": true, "color": { "solid": { "color": "#2A2118" } }, "radius": 8 }],
+        "dropShadow": [{ "show": true, "preset": "Custom", "color": { "solid": { "color": "#000000" } }, "position": "Outer", "angle": 90, "shadowSpread": 4, "shadowBlur": 30, "transparency": 50 }],
+        "visualHeader": [{ "show": false }],
+        "padding": [{ "top": 12, "bottom": 12, "left": 16, "right": 16 }],
+        "title": [{ "show": true, "fontColor": { "solid": { "color": "#F5EEE0" } }, "fontSize": 12, "fontFamily": "Segoe UI Semibold", "alignment": "left", "background": { "solid": { "color": "#17130D" } } }],
+        "visualTooltip": [{ "type": "Default", "titleFontColor": { "solid": { "color": "#F5EEE0" } }, "valueFontColor": { "solid": { "color": "#B7A98F" } }, "background": { "solid": { "color": "#0B0A08" } } }]
+      }
+    },
+    "page": {
+      "*": {
+        "background": [{ "color": { "solid": { "color": "#0B0A08" } }, "transparency": 0 }],
+        "outspace": [{ "color": { "solid": { "color": "#0B0A08" } }, "transparency": 0 }]
+      }
+    },
+    "card": {
+      "*": {
+        "background": [{ "show": true, "color": { "solid": { "color": "#17130D" } } }],
+        "border": [{ "show": true, "color": { "solid": { "color": "#2A2118" } }, "radius": 12 }],
+        "labels": [{ "color": { "solid": { "color": "#FBF6EC" } }, "fontSize": 32, "fontFamily": "DIN" }],
+        "categoryLabels": [{ "show": true, "color": { "solid": { "color": "#B7A98F" } }, "fontSize": 10, "fontFamily": "Segoe UI" }]
+      }
+    },
+    "lineChart": {
+      "*": {
+        "lineStyles": [{ "strokeWidth": 3, "showMarker": false }],
+        "categoryAxis": [{ "showAxisTitle": false, "labelColor": { "solid": { "color": "#7A6E58" } }, "gridlineShow": false }],
+        "valueAxis": [{ "showAxisTitle": false, "labelColor": { "solid": { "color": "#7A6E58" } }, "gridlineColor": { "solid": { "color": "#2A2118" } }, "gridlineStyle": "dotted" }]
+      }
+    },
+    "columnChart": {
+      "*": {
+        "dataPoint": [{ "fill": { "solid": { "color": "#E8B45A" } } }],
+        "categoryAxis": [{ "gridlineShow": false, "labelColor": { "solid": { "color": "#7A6E58" } } }],
+        "valueAxis": [{ "gridlineColor": { "solid": { "color": "#2A2118" } }, "gridlineStyle": "dotted" }]
+      }
+    },
+    "slicer": {
+      "*": {
+        "background": [{ "show": false }],
+        "border": [{ "show": true, "color": { "solid": { "color": "#2A2118" } }, "radius": 999 }],
+        "items": [{ "fontColor": { "solid": { "color": "#B7A98F" } }, "background": { "solid": { "color": "#17130D" } } }]
+      }
+    }
+  }
+}
