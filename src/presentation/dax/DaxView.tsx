@@ -77,6 +77,8 @@ export function DaxView() {
 
   const [prompt, setPrompt] = useState('')
   const [explanation, setExplanation] = useState<string | null>(null)
+  const [plan, setPlan] = useState<{ stepNumber: number; name: string; dax: string; reason: string }[]>([])
+  const [warnings, setWarnings] = useState<string[]>([])
   const [query, setQuery] = useState('')
   const codeRef = useRef<HTMLTextAreaElement>(null)
 
@@ -103,7 +105,11 @@ export function DaxView() {
   const runGenerate = (text: string = prompt) => {
     if (!text.trim()) return
     const r = generateMeasure(text)
-    if (r) setExplanation(r.explanation)
+    if (r) {
+      setExplanation(r.explanation)
+      setPlan(r.plan ?? [])
+      setWarnings(r.validationErrors ?? [])
+    }
   }
 
   const insertFn = (fn: DaxFunction) => {
@@ -246,9 +252,40 @@ export function DaxView() {
               )}
             </div>
 
+            {warnings.length > 0 && (
+              <div className="dax-warnings">
+                {warnings.map((w, i) => (
+                  <div key={i} className="dax-warning">⚠ {w}</div>
+                ))}
+              </div>
+            )}
+
             {explanation && (
               <div className="dax-explain">
                 <strong>Why this DAX:</strong> {explanation}
+              </div>
+            )}
+
+            {plan.length > 1 && (
+              <div className="dax-field">
+                <span className="dax-field__label">Build plan · {plan.length} measures (branched)</span>
+                <ol className="dax-plan">
+                  {plan.map((st) => {
+                    const m = measures.find((x) => x.name === st.name)
+                    return (
+                      <li
+                        key={st.stepNumber}
+                        className="dax-plan__step"
+                        data-active={m && m.id === selectedId ? 'true' : undefined}
+                        onClick={() => m && selectMeasure(m.id)}
+                      >
+                        <div className="dax-plan__name">{st.name}</div>
+                        <code className="dax-plan__dax">{st.dax}</code>
+                        {st.reason && <div className="dax-plan__reason">{st.reason}</div>}
+                      </li>
+                    )
+                  })}
+                </ol>
               </div>
             )}
 

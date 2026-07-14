@@ -27,3 +27,7 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+
+# Local test fixtures (real user data — never committed)
+public/*.xlsx
+public/*.csv
