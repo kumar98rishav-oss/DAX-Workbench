@@ -4,7 +4,6 @@ import { useApp } from '@/app/store'
 import { Button, EmptyState } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
 import { evaluateDax } from '@/application/dax/evaluator'
-import { generateDaxFromNL } from '@/application/dax/nl-templates'
 import { searchDax, DAX_CATALOG } from '@/application/dax/functions'
 import type { DaxFunction } from '@/application/dax/functions'
 import { DependencyGraph } from './DependencyGraph'
@@ -17,6 +16,55 @@ function formatByString(v: number, fmt: string): string {
   return fmt.includes('$') ? `$${num}` : num
 }
 
+const EXAMPLES = [
+  'Total Amount',
+  'Count Shipments where Order_Status = Delivered',
+  'Average Boxes',
+  'YTD Amount',
+  'Distinct Product',
+  'Amount % of total',
+]
+
+const FORMATS: { label: string; value: string }[] = [
+  { label: 'Whole number', value: '#,##0' },
+  { label: 'Decimal (2 dp)', value: '#,##0.00' },
+  { label: 'Currency', value: '\\$#,##0' },
+  { label: 'Currency (2 dp)', value: '\\$#,##0.00' },
+  { label: 'Percentage', value: '0.0%' },
+  { label: 'Percentage (2 dp)', value: '0.00%' },
+  { label: 'Thousands (K)', value: '#,##0,"K"' },
+  { label: 'Millions (M)', value: '#,##0,,"M"' },
+  { label: 'Date', value: 'yyyy-mm-dd' },
+]
+
+function FormatField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const isPreset = FORMATS.some((f) => f.value === value)
+  const [custom, setCustom] = useState(!isPreset && value !== '' && value !== '#,##0')
+  if (custom) {
+    return (
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input className="dax-input" style={{ flex: 1 }} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Custom format string" />
+        <button type="button" className="dax-format-preset" onClick={() => setCustom(false)} title="Use a preset">⟲</button>
+      </div>
+    )
+  }
+  return (
+    <select
+      className="dax-select"
+      value={isPreset ? value : '__custom__'}
+      onChange={(e) => {
+        if (e.target.value === '__custom__') setCustom(true)
+        else onChange(e.target.value)
+      }}
+    >
+      {FORMATS.map((f) => (
+        <option key={f.value} value={f.value}>{f.label}</option>
+      ))}
+      <option value="__custom__">Custom…</option>
+    </select>
+  )
+}
+
 export function DaxView() {
   const model = useApp((s) => s.model)
   const datasets = useApp((s) => s.datasets)
@@ -25,6 +73,7 @@ export function DaxView() {
   const addMeasure = useApp((s) => s.addMeasure)
   const updateMeasure = useApp((s) => s.updateMeasure)
   const deleteMeasure = useApp((s) => s.deleteMeasure)
+  const generateMeasure = useApp((s) => s.generateMeasure)
 
   const [prompt, setPrompt] = useState('')
   const [explanation, setExplanation] = useState<string | null>(null)
@@ -51,15 +100,10 @@ export function DaxView() {
     [selected, ctx],
   )
 
-  const generate = () => {
-    const g = generateDaxFromNL(prompt, model)
-    if (!g) return
-    // Always create a NEW measure (never overwrite the selected one).
-    addMeasure()
-    const id = useApp.getState().selectedMeasureId
-    if (id) updateMeasure(id, { name: g.name, expression: g.expression, formatString: g.formatString })
-    setExplanation(g.explanation)
-    setPrompt('')
+  const runGenerate = (text: string = prompt) => {
+    if (!text.trim()) return
+    const r = generateMeasure(text)
+    if (r) setExplanation(r.explanation)
   }
 
   const insertFn = (fn: DaxFunction) => {
@@ -137,14 +181,27 @@ export function DaxView() {
             <div className="dax-nl">
               <input
                 className="dax-nl__input"
-                placeholder="Describe a measure — e.g. “YTD revenue”, “rolling 3-month average”, “% of total”"
+                placeholder="Describe a measure — e.g. “count Shipments where Order_Status = Delivered”"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && generate()}
+                onKeyDown={(e) => e.key === 'Enter' && runGenerate()}
               />
-              <Button variant="primary" icon={<Sparkles size={15} />} onClick={generate}>
+              <Button variant="primary" icon={<Sparkles size={15} />} onClick={() => runGenerate()}>
                 Generate
               </Button>
+            </div>
+
+            <div className="dax-hint">
+              <span className="dax-hint__syntax">
+                <strong>Structure:</strong> [sum · count · average · distinct · min · max] <em>field</em> [where <em>field</em> = <em>value</em>] [ytd · running · yoy · % of total · per]
+              </span>
+              <div className="dax-examples">
+                {EXAMPLES.map((ex) => (
+                  <button key={ex} className="dax-example" onClick={() => { setPrompt(ex); runGenerate(ex) }}>
+                    {ex}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="dax-row">
@@ -156,13 +213,9 @@ export function DaxView() {
                   onChange={(e) => updateMeasure(selected.id, { name: e.target.value })}
                 />
               </label>
-              <label className="dax-field" style={{ maxWidth: 160 }}>
+              <label className="dax-field" style={{ maxWidth: 200 }}>
                 <span className="dax-field__label">Format</span>
-                <input
-                  className="dax-input"
-                  value={selected.formatString ?? ''}
-                  onChange={(e) => updateMeasure(selected.id, { formatString: e.target.value })}
-                />
+                <FormatField value={selected.formatString ?? ''} onChange={(v) => updateMeasure(selected.id, { formatString: v })} />
               </label>
             </div>
 

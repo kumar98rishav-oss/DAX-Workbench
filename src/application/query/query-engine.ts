@@ -161,3 +161,57 @@ export function scalar(ctx: QueryCtx, measure: MeasureRef): number {
   const pts = groupBy(ctx, measure)
   return pts[0]?.value ?? 0
 }
+
+// ---------------------------------------------------------------------------
+// Filtered scalar — supports CALCULATE(...) with same-table predicates
+// ---------------------------------------------------------------------------
+export interface Predicate {
+  columnIndex: number
+  op: string
+  value: string | number
+}
+
+function matchPred(cell: unknown, op: string, value: string | number): boolean {
+  if (cell === null || cell === undefined) return false
+  if (typeof value === 'number') {
+    const n = Number(cell)
+    if (Number.isNaN(n)) return false
+    switch (op) {
+      case '=': return n === value
+      case '<>': return n !== value
+      case '>': return n > value
+      case '<': return n < value
+      case '>=': return n >= value
+      case '<=': return n <= value
+      default: return false
+    }
+  }
+  const s = String(cell).toLowerCase()
+  const v = String(value).toLowerCase()
+  return op === '<>' ? s !== v : s === v
+}
+
+/** Aggregate a measure over rows matching all predicates (same table). */
+export function scalarWhere(ctx: QueryCtx, measure: MeasureRef, predicates: Predicate[]): number {
+  const data = ctx.byId[measure.tableId]
+  if (!data) return 0
+  const mIdx = colIndex(ctx, measure.tableId, measure.columnId)
+  const nums: number[] = []
+  let count = 0
+  for (const row of data.rows) {
+    let ok = true
+    for (const p of predicates) {
+      if (!matchPred(row[p.columnIndex], p.op, p.value)) {
+        ok = false
+        break
+      }
+    }
+    if (!ok) continue
+    count++
+    if (measure.agg !== 'count' && mIdx >= 0) {
+      const v = Number(row[mIdx])
+      if (!Number.isNaN(v)) nums.push(v)
+    }
+  }
+  return measure.agg === 'count' ? count : aggregate(nums, measure.agg)
+}

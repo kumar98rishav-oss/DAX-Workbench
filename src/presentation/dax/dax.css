@@ -121,6 +121,60 @@
   box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
+.dax-select {
+  height: 34px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-md);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+}
+.dax-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.dax-format-preset {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: var(--surface);
+}
+.dax-format-preset:hover { color: var(--text); background: var(--surface-2); }
+
+/* NL structure hint + examples */
+.dax-hint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: -6px;
+}
+.dax-hint__syntax {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-snug);
+}
+.dax-hint__syntax strong { color: var(--text); }
+.dax-hint__syntax em { color: var(--accent); font-style: normal; }
+.dax-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dax-example {
+  padding: 5px 11px;
+  font-size: var(--text-sm);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+}
+.dax-example:hover { border-color: var(--accent); }
+
 /* NL prompt */
 .dax-nl {
   display: flex;

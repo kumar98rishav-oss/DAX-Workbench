@@ -1,9 +1,17 @@
 /**
  * APPLICATION — Natural-language → DAX generation (heuristic, offline)
- * Maps a plain-language request to a best-practice DAX measure using the
- * model's real tables/columns. Returns the measure + an explanation.
+ *
+ * Supported structure (any order, brackets optional):
+ *   [sum|total|count|average|min|max|distinct] <field>
+ *   [where|for <field> = <value> [and <field> <op> <value> …]]
+ *   [ytd|qtd|mtd|running|yoy|rolling avg|% of total|per]
+ *
+ * Filter values are resolved against the real column values in the data, so
+ * "count shipments where order delivered" →
+ *   CALCULATE ( COUNTROWS ( 'Shipments' ), 'Shipments'[Order_Status] = "Delivered" )
  */
 import type { Column, SemanticModel, Table } from '@/domain/model'
+import type { DatasetData } from '@/application/import/types'
 
 export interface GeneratedDax {
   name: string
@@ -13,6 +21,7 @@ export interface GeneratedDax {
 }
 
 const CUR = '\\$#,##0'
+const escapeReg = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 function factTable(model: SemanticModel): Table | undefined {
   return (
@@ -21,117 +30,189 @@ function factTable(model: SemanticModel): Table | undefined {
     model.tables[0]
   )
 }
-
 function dateColumn(model: SemanticModel): { table: string; col: string } | null {
-  const dateTbl = model.tables.find((t) => t.role === 'date')
-  if (dateTbl) {
-    const c = dateTbl.columns.find((x) => x.dataType === 'date' || x.dataType === 'dateTime')
-    if (c) return { table: dateTbl.name, col: c.name }
-  }
+  const dt = model.tables.find((t) => t.role === 'date')
+  const from = (t?: Table) => t?.columns.find((x) => x.dataType === 'date' || x.dataType === 'dateTime')
+  const c = from(dt) ?? model.tables.map((t) => ({ t, c: from(t) })).find((x) => x.c)
+  if (dt && from(dt)) return { table: dt.name, col: from(dt)!.name }
+  for (const t of model.tables) { const col = from(t); if (col) return { table: t.name, col: col.name } }
+  return c ? null : null
+}
+const numericCols = (t: Table): Column[] => t.columns.filter((c) => c.dataType === 'integer' || c.dataType === 'decimal')
+const ref = (t: string, c: string) => `'${t}'[${c}]`
+
+// ---- value index for filter resolution ----
+interface ValueEntry { value: string; low: string; table: string; column: string }
+function buildValueIndex(model: SemanticModel, datasets: DatasetData[]): ValueEntry[] {
+  const byId: Record<string, DatasetData> = {}
+  for (const d of datasets) byId[d.id] = d
+  const out: ValueEntry[] = []
   for (const t of model.tables) {
-    const c = t.columns.find((x) => x.dataType === 'date' || x.dataType === 'dateTime')
-    if (c) return { table: t.name, col: c.name }
+    const data = byId[t.id]
+    if (!data) continue
+    t.columns.forEach((col, idx) => {
+      if (col.dataType !== 'string' || col.role === 'key') return
+      if ((col.distinctCount ?? 999) > 40) return
+      const seen = new Set<string>()
+      for (const row of data.rows) {
+        const v = row[idx]
+        if (v == null) continue
+        const s = String(v)
+        if (seen.has(s)) continue
+        seen.add(s)
+        out.push({ value: s, low: s.toLowerCase(), table: t.name, column: col.name })
+        if (seen.size > 40) break
+      }
+    })
   }
-  return null
+  return out
 }
 
-const numericCols = (t: Table): Column[] => t.columns.filter((c) => c.dataType === 'integer' || c.dataType === 'decimal')
+interface StrFilter { table: string; column: string; value: string }
+interface NumFilter { table: string; column: string; op: string; value: number }
 
-/** Score numeric columns against the prompt and pick the best match. */
-function pickColumn(prompt: string, table: Table): { col: string; currency: boolean } | null {
+function matchStringFilters(text: string, index: ValueEntry[], excludeCol?: string): StrFilter[] {
+  const t = ` ${text.toLowerCase()} `
+  const sorted = [...index].sort((a, b) => b.low.length - a.low.length)
+  const used = new Set<string>()
+  const out: StrFilter[] = []
+  for (const e of sorted) {
+    if (e.low.length < 2 || e.column === excludeCol) continue
+    if (new RegExp(`[^a-z0-9]${escapeReg(e.low)}[^a-z0-9]`).test(t)) {
+      const key = `${e.table}|${e.column}`
+      if (used.has(key)) continue
+      used.add(key)
+      out.push({ table: e.table, column: e.column, value: e.value })
+      if (out.length >= 3) break
+    }
+  }
+  return out
+}
+
+function matchNumericFilters(text: string, fact: Table): NumFilter[] {
+  const out: NumFilter[] = []
+  const re = /([a-z][a-z0-9 _]*?)\s*(>=|<=|<>|=|>|<)\s*([\d][\d.,]*)/g
+  let m: RegExpExecArray | null
+  const p = text.toLowerCase()
+  while ((m = re.exec(p))) {
+    const nameFrag = m[1].trim()
+    const col = fact.columns.find((c) => c.name.toLowerCase().replace(/_/g, ' ') === nameFrag || c.name.toLowerCase().includes(nameFrag.split(' ').pop() ?? ''))
+    if (col && (col.dataType === 'integer' || col.dataType === 'decimal')) {
+      out.push({ table: fact.name, column: col.name, op: m[2], value: Number(m[3].replace(/,/g, '')) })
+    }
+  }
+  return out
+}
+
+function pickColumn(text: string, table: Table): { col: string; currency: boolean } | null {
   const nums = numericCols(table)
   if (nums.length === 0) return null
-  const p = prompt.toLowerCase()
+  const p = text.toLowerCase()
   const ptoks = p.split(/[^a-z0-9]+/).filter(Boolean)
-
   let best: Column | null = null
   let bestScore = -1
   for (const c of nums) {
     const cname = c.name.toLowerCase().replace(/_/g, ' ')
-    const ctoks = cname.split(/[^a-z0-9]+/).filter(Boolean)
     let score = 0
     if (p.includes(cname)) score += 6
-    for (const tk of ctoks) if (tk.length > 2 && ptoks.includes(tk)) score += 2
+    for (const tk of cname.split(/[^a-z0-9]+/).filter(Boolean)) if (tk.length > 2 && ptoks.includes(tk)) score += 2
     if (c.role === 'measureCandidate') score += 0.5
-    if (score > bestScore) {
-      bestScore = score
-      best = c
-    }
+    if (score > bestScore) { bestScore = score; best = c }
   }
   const chosen = bestScore > 0 ? best! : nums.find((c) => c.role === 'measureCandidate') ?? nums[0]
-  const currency = /amount|revenue|sales|price|cost|profit|value|total|spend|margin|income|gmv/i.test(chosen.name)
-  return { col: chosen.name, currency }
+  return { col: chosen.name, currency: /amount|revenue|sales|price|cost|profit|value|total|spend|margin|income|gmv/i.test(chosen.name) }
 }
 
-const ref = (t: string, c: string) => `'${t}'[${c}]`
-
-export function generateDaxFromNL(prompt: string, model: SemanticModel): GeneratedDax | null {
+export function generateDaxFromNL(prompt: string, model: SemanticModel, datasets: DatasetData[] = []): GeneratedDax | null {
   const fact = factTable(model)
   if (!fact) return null
-  const p = prompt.toLowerCase().trim()
+  const raw = prompt.trim()
+  const p = raw.toLowerCase()
   if (!p) return null
 
-  const picked = pickColumn(prompt, fact)
+  // split measure text vs filter text on where/for
+  const wm = p.match(/\b(where|for which|filtered by|only where|only for|\bfor\b)\b/)
+  const measureText = wm ? raw.slice(0, wm.index) : raw
+  const filterText = wm ? raw.slice((wm.index ?? 0) + wm[0].length) : raw
+
+  const picked = pickColumn(measureText, fact)
   const colName = picked?.col ?? numericCols(fact)[0]?.name
-  if (!colName) return null
-  const base = ref(fact.name, colName)
   const isCurrency = picked?.currency ?? false
-  const fmt = isCurrency ? CUR : '#,##0'
+  const fmtNum = isCurrency ? CUR : '#,##0'
   const date = dateColumn(model)
-  const pretty = colName.replace(/_/g, ' ')
+  const pretty = (colName ?? 'Value').replace(/_/g, ' ')
 
-  // ---- pattern matching, most-specific first ----
+  // filters
+  const index = buildValueIndex(model, datasets)
+  const strF = matchStringFilters(filterText, index, colName)
+  const numF = matchNumericFilters(filterText, fact)
+  const hasFilters = strF.length + numF.length > 0
+  const predStrings = [
+    ...strF.map((f) => `${ref(f.table, f.column)} = "${f.value}"`),
+    ...numF.map((f) => `${ref(f.table, f.column)} ${f.op} ${f.value}`),
+  ]
+  const filterLabel = [...strF.map((f) => f.value), ...numF.map((f) => `${f.column} ${f.op} ${f.value}`)].join(', ')
 
-  if (/(year.?to.?date|\bytd\b)/.test(p) && date) {
-    return { name: `YTD ${pretty}`, expression: `TOTALYTD ( SUM ( ${base} ), ${ref(date.table, date.col)} )`, explanation: `Year-to-date total of ${pretty}: TOTALYTD accumulates SUM(${colName}) from the start of the year through the dates in context, over ${date.table}.`, formatString: fmt }
-  }
-  if (/(quarter.?to.?date|\bqtd\b)/.test(p) && date) {
-    return { name: `QTD ${pretty}`, expression: `TOTALQTD ( SUM ( ${base} ), ${ref(date.table, date.col)} )`, explanation: `Quarter-to-date total of ${pretty}.`, formatString: fmt }
-  }
-  if (/(month.?to.?date|\bmtd\b)/.test(p) && date) {
-    return { name: `MTD ${pretty}`, expression: `TOTALMTD ( SUM ( ${base} ), ${ref(date.table, date.col)} )`, explanation: `Month-to-date total of ${pretty}.`, formatString: fmt }
-  }
-  if (/(running|cumulative|to.?date total)/.test(p) && date) {
+  // ---- time intelligence (takes an inner SUM) ----
+  let inner: string
+  let baseName: string
+  let fmt = fmtNum
+
+  if (/(year.?to.?date|\bytd\b)/.test(p) && date && colName) {
+    inner = `TOTALYTD ( SUM ( ${ref(fact.name, colName)} ), ${ref(date.table, date.col)} )`; baseName = `YTD ${pretty}`
+  } else if (/(quarter.?to.?date|\bqtd\b)/.test(p) && date && colName) {
+    inner = `TOTALQTD ( SUM ( ${ref(fact.name, colName)} ), ${ref(date.table, date.col)} )`; baseName = `QTD ${pretty}`
+  } else if (/(month.?to.?date|\bmtd\b)/.test(p) && date && colName) {
+    inner = `TOTALMTD ( SUM ( ${ref(fact.name, colName)} ), ${ref(date.table, date.col)} )`; baseName = `MTD ${pretty}`
+  } else if (/(running|cumulative)/.test(p) && date && colName) {
     const d = ref(date.table, date.col)
-    return { name: `Cumulative ${pretty}`, expression: `CALCULATE (\n    SUM ( ${base} ),\n    FILTER ( ALL ( ${d} ), ${d} <= MAX ( ${d} ) )\n)`, explanation: `Running total of ${pretty}: re-evaluates SUM over ALL dates up to the latest date in context.`, formatString: fmt }
-  }
-  if (/(year.?over.?year|\byoy\b|growth|vs last year|previous year|change)/.test(p) && date) {
-    return { name: `${pretty} YoY %`, expression: `VAR Curr = SUM ( ${base} )\nVAR Prior = CALCULATE ( SUM ( ${base} ), SAMEPERIODLASTYEAR ( ${ref(date.table, date.col)} ) )\nRETURN DIVIDE ( Curr - Prior, Prior )`, explanation: `Year-over-year growth of ${pretty}: compares the current SUM with the same period last year and returns the % change via DIVIDE.`, formatString: '0.0%' }
-  }
-  if (/(rolling|moving)\s*(average|avg)/.test(p) && date) {
+    inner = `CALCULATE ( SUM ( ${ref(fact.name, colName)} ), FILTER ( ALL ( ${d} ), ${d} <= MAX ( ${d} ) ) )`; baseName = `Cumulative ${pretty}`
+  } else if (/(year.?over.?year|\byoy\b|growth|vs last year)/.test(p) && date && colName) {
+    const b = ref(fact.name, colName)
+    inner = `VAR Curr = SUM ( ${b} )\nVAR Prior = CALCULATE ( SUM ( ${b} ), SAMEPERIODLASTYEAR ( ${ref(date.table, date.col)} ) )\nRETURN DIVIDE ( Curr - Prior, Prior )`
+    baseName = `${pretty} YoY %`; fmt = '0.0%'
+  } else if (/(rolling|moving)\s*(average|avg)/.test(p) && date && colName) {
     const d = ref(date.table, date.col)
-    return { name: `Rolling Avg ${pretty}`, expression: `AVERAGEX (\n    DATESINPERIOD ( ${d}, MAX ( ${d} ), -3, MONTH ),\n    CALCULATE ( SUM ( ${base} ) )\n)`, explanation: `3-month rolling average of ${pretty} using a trailing DATESINPERIOD window.`, formatString: fmt }
-  }
-  if (/(% of total|percent of total|share|contribution)/.test(p)) {
-    return { name: `${pretty} % of Total`, expression: `DIVIDE (\n    SUM ( ${base} ),\n    CALCULATE ( SUM ( ${base} ), ALL ( '${fact.name}' ) )\n)`, explanation: `Share of grand total ${pretty}: divides the current SUM by the all-rows total.`, formatString: '0.0%' }
-  }
-  if (/(margin|profit %|profitability)/.test(p)) {
-    const profit = fact.columns.find((c) => /profit|margin/i.test(c.name))
-    const revenue = fact.columns.find((c) => /revenue|sales|amount|value/i.test(c.name))
-    if (profit && revenue) {
-      return { name: 'Margin %', expression: `DIVIDE ( SUM ( ${ref(fact.name, profit.name)} ), SUM ( ${ref(fact.name, revenue.name)} ) )`, explanation: `Profit margin: profit ÷ revenue, safe against zero revenue.`, formatString: '0.0%' }
+    inner = `AVERAGEX ( DATESINPERIOD ( ${d}, MAX ( ${d} ), -3, MONTH ), CALCULATE ( SUM ( ${ref(fact.name, colName)} ) ) )`; baseName = `Rolling Avg ${pretty}`
+  } else if (/(% of total|percent of total|share)/.test(p) && colName) {
+    const b = ref(fact.name, colName)
+    inner = `DIVIDE ( SUM ( ${b} ), CALCULATE ( SUM ( ${b} ), ALL ( '${fact.name}' ) ) )`; baseName = `${pretty} % of Total`; fmt = '0.0%'
+  } else if (/\bper\b/.test(measureText) && colName) {
+    inner = `DIVIDE ( SUM ( ${ref(fact.name, colName)} ), COUNTROWS ( '${fact.name}' ) )`; baseName = `${pretty} per Record`
+  } else {
+    // plain aggregation
+    let agg: 'count' | 'distinct' | 'sum' | 'avg' | 'min' | 'max' = 'sum'
+    if (/\b(distinct|unique)\b/.test(p)) agg = 'distinct'
+    else if (/\b(count|number of|how many)\b/.test(measureText)) agg = 'count'
+    else if (/\b(average|avg|mean)\b/.test(measureText)) agg = 'avg'
+    else if (/\b(max|maximum|highest|largest|peak)\b/.test(measureText)) agg = 'max'
+    else if (/\b(min|minimum|lowest|smallest)\b/.test(measureText)) agg = 'min'
+    else if (!colName) agg = 'count'
+
+    if (agg === 'count') { inner = `COUNTROWS ( '${fact.name}' )`; baseName = `${fact.name} Count`; fmt = '#,##0' }
+    else if (agg === 'distinct') {
+      const dim = fact.columns.find((c) => c.role === 'key') ?? fact.columns.find((c) => c.dataType === 'string') ?? fact.columns[0]
+      inner = `DISTINCTCOUNT ( ${ref(fact.name, dim?.name ?? colName ?? 'Id')} )`; baseName = `Distinct ${dim?.name ?? pretty}`; fmt = '#,##0'
+    } else if (colName) {
+      const fn = { sum: 'SUM', avg: 'AVERAGE', min: 'MIN', max: 'MAX' }[agg]
+      inner = `${fn} ( ${ref(fact.name, colName)} )`
+      baseName = `${agg === 'sum' ? 'Total' : agg === 'avg' ? 'Average' : agg === 'min' ? 'Min' : 'Max'} ${pretty}`
+      if (agg === 'avg' && !isCurrency) fmt = '#,##0.00'
+    } else {
+      inner = `COUNTROWS ( '${fact.name}' )`; baseName = `${fact.name} Count`; fmt = '#,##0'
     }
   }
-  if (/\bper\b/.test(p)) {
-    return { name: `${pretty} per Record`, expression: `DIVIDE ( SUM ( ${base} ), COUNTROWS ( '${fact.name}' ) )`, explanation: `Average ${pretty} per row of ${fact.name}.`, formatString: fmt }
-  }
-  if (/\b(max|maximum|highest|peak|largest)\b/.test(p)) {
-    return { name: `Max ${pretty}`, expression: `MAX ( ${base} )`, explanation: `Largest value of ${pretty} in context.`, formatString: fmt }
-  }
-  if (/\b(min|minimum|lowest|smallest)\b/.test(p)) {
-    return { name: `Min ${pretty}`, expression: `MIN ( ${base} )`, explanation: `Smallest value of ${pretty} in context.`, formatString: fmt }
-  }
-  if (/(distinct|unique)/.test(p)) {
-    const dim = fact.columns.find((c) => c.role === 'key') ?? fact.columns.find((c) => c.dataType === 'string') ?? fact.columns[0]
-    return { name: `Distinct ${dim?.name ?? 'Count'}`, expression: `DISTINCTCOUNT ( ${ref(fact.name, dim?.name ?? colName)} )`, explanation: `Number of distinct ${dim?.name ?? colName} values in context.`, formatString: '#,##0' }
-  }
-  if (/(average|avg|mean)/.test(p)) {
-    return { name: `Average ${pretty}`, expression: `AVERAGE ( ${base} )`, explanation: `Arithmetic mean of ${pretty} across the rows in context.`, formatString: isCurrency ? CUR : '#,##0.00' }
-  }
-  if (/(count|number of|how many|rows?)/.test(p) && !/(amount|revenue|sales|value)/.test(p)) {
-    return { name: `${fact.name} Count`, expression: `COUNTROWS ( '${fact.name}' )`, explanation: `Row count of ${fact.name} in the current filter context.`, formatString: '#,##0' }
-  }
 
-  // default: total (SUM)
-  return { name: `Total ${pretty}`, expression: `SUM ( ${base} )`, explanation: `Total ${pretty}: sums ${colName} across the rows in the current filter context — the additive baseline for time-intelligence measures.`, formatString: fmt }
+  // ---- wrap with filters ----
+  let expression = inner
+  let explanation = `${baseName}.`
+  if (hasFilters) {
+    expression = `CALCULATE (\n    ${inner},\n    ${predStrings.join(',\n    ')}\n)`
+    explanation = `${baseName}, filtered where ${predStrings.join(' and ')}.`
+  } else {
+    explanation = `${baseName} across the rows in the current filter context.`
+  }
+  const name = hasFilters ? `${baseName} (${filterLabel})` : baseName
+
+  return { name, expression, explanation, formatString: fmt }
 }

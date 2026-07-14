@@ -4,7 +4,6 @@ import { useApp } from '@/app/store'
 import { Button } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
 import { evaluateDax } from '@/application/dax/evaluator'
-import { generateDaxFromNL } from '@/application/dax/nl-templates'
 import type { VisualSpec } from '@/application/insights/dashboard-generator'
 import { DependencyGraph } from './DependencyGraph'
 import './dax.css'
@@ -24,7 +23,7 @@ export function BottomDax() {
   const selVisual = useApp((s) => s.selectedVisualId)
   const selMeasure = useApp((s) => s.selectedMeasureId)
   const updateMeasure = useApp((s) => s.updateMeasure)
-  const addMeasure = useApp((s) => s.addMeasure)
+  const generateMeasure = useApp((s) => s.generateMeasure)
   const selectVisual = useApp((s) => s.selectVisual)
 
   const [prompt, setPrompt] = useState('')
@@ -64,13 +63,10 @@ export function BottomDax() {
   const preview = evaluateDax(target.expression, ctx)
 
   const generate = () => {
-    const g = generateDaxFromNL(prompt, model)
-    if (!g) return
-    addMeasure()
-    const id = useApp.getState().selectedMeasureId
-    if (id) updateMeasure(id, { name: g.name, expression: g.expression, formatString: g.formatString })
+    const r = generateMeasure(prompt)
+    if (!r) return
     selectVisual(null) // focus the newly-generated measure
-    setExplain(g.explanation)
+    setExplain(r.explanation)
     setPrompt('')
   }
 
