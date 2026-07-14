@@ -12,6 +12,7 @@ import {
   FunctionSquare,
   Sparkles,
   Puzzle,
+  LayoutTemplate,
 } from 'lucide-react'
 import type { Command } from '@/design-system/components'
 import { useApp } from './store'
@@ -135,6 +136,14 @@ export function buildCommands(): Command[] {
       icon: <Sparkles size={16} />,
       keywords: ['auto', 'magic', 'recommend', 'dashboard', 'kpi', 'visual'],
       run: () => s.generateDashboard(),
+    },
+    {
+      id: 'layout.choose',
+      title: 'Choose Dashboard Layout',
+      group: 'View',
+      icon: <LayoutTemplate size={16} />,
+      keywords: ['layout', 'structure', 'arrange', 'template', 'filter panel'],
+      run: () => s.toggleLayoutChooser(true),
     },
     {
       id: 'model.rerun',

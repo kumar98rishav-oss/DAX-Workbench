@@ -8,6 +8,7 @@ import { ImportPreviewDialog } from '@/presentation/data/ImportPreviewDialog'
 import { AnalystPanel } from '@/presentation/analyst/AnalystPanel'
 import { ExportDialog } from '@/presentation/export/ExportDialog'
 import { PluginsDialog } from '@/presentation/plugins/PluginsDialog'
+import { LayoutChooser } from '@/presentation/design/LayoutChooser'
 import { CommandPalette } from '@/design-system/components'
 
 export function App() {
@@ -48,6 +49,7 @@ export function App() {
       <AnalystPanel />
       <ExportDialog />
       <PluginsDialog />
+      <LayoutChooser />
       <CommandPalette
         open={paletteOpen}
         commands={commands}

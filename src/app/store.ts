@@ -5,7 +5,7 @@ import type { Rect, Report, Visual } from '@/domain/report'
 import { emptyReport } from '@/domain/report'
 import type { DatasetData } from '@/application/import/types'
 import { buildModel } from '@/application/model/auto-model'
-import { generateDashboard } from '@/application/insights/dashboard-generator'
+import { generateLayout, DEFAULT_LAYOUT } from '@/application/insights/dashboard-generator'
 import type { TemplateDef } from '@/application/templates/catalog'
 import { makeTemplateFile } from '@/application/templates/generate'
 import { applyAccent, resetAccent } from '@/design-system/runtime-theme'
@@ -46,9 +46,9 @@ function analyze(
   return { tables: res.tables, relationships: res.relationships }
 }
 
-/** Generate measures + an auto-dashboard from a model; attach measures to tables. */
-function buildArtifacts(model: SemanticModel): { model: SemanticModel; report: Report } {
-  const { page, measures } = generateDashboard(model)
+/** Generate measures + a dashboard (in the chosen layout); attach measures to tables. */
+function buildArtifacts(model: SemanticModel, layoutId: string): { model: SemanticModel; report: Report } {
+  const { page, measures } = generateLayout(model, layoutId)
   const tables = model.tables.map((t) => {
     const measuresForTable: Measure[] = measures
       .filter((m) => m.tableId === t.id)
@@ -92,6 +92,8 @@ interface AppState {
   commandPaletteOpen: boolean
   projectName: string | null
   activeTemplateId: string | null
+  layoutId: string
+  layoutChooserOpen: boolean
 
   // ---- document state ----
   model: SemanticModel
@@ -144,6 +146,8 @@ interface AppState {
   dismissImportError: () => void
   runAutoModel: () => void
   generateDashboard: () => void
+  applyLayout: (layoutId: string) => void
+  toggleLayoutChooser: (open?: boolean) => void
 
   // designer actions
   selectVisual: (id: string | null) => void
@@ -225,6 +229,8 @@ export const useApp = create<AppState>((set, get) => ({
   commandPaletteOpen: false,
   projectName: null,
   activeTemplateId: null,
+  layoutId: DEFAULT_LAYOUT,
+  layoutChooserOpen: false,
 
   model: emptyModel('model', 'Model'),
   report: emptyReport('report', 'Report'),
@@ -260,6 +266,7 @@ export const useApp = create<AppState>((set, get) => ({
     set({
       activeTemplateId: def.id,
       projectName: def.name,
+      layoutId: DEFAULT_LAYOUT,
       datasets: [],
       model: emptyModel('model', 'Model'),
       report: emptyReport('report', 'Report'),
@@ -270,6 +277,8 @@ export const useApp = create<AppState>((set, get) => ({
       future: [],
     })
     await get().importFiles([makeTemplateFile(def)])
+    // Offer layout variations right after the template loads.
+    set({ layoutChooserOpen: true })
   },
 
   setMode: (mode) => set({ mode }),
@@ -339,7 +348,7 @@ export const useApp = create<AppState>((set, get) => ({
         tables: analyzed.tables,
         relationships: analyzed.relationships,
       }
-      const artifacts = buildArtifacts(modeled)
+      const artifacts = buildArtifacts(modeled, s.layoutId)
       const hasDashboard = (artifacts.report.pages[0]?.visuals.length ?? 0) > 0
       const imported = addedData.length > 0
       return {
@@ -453,7 +462,7 @@ export const useApp = create<AppState>((set, get) => ({
         mode === 'merge'
           ? { ...s.model, tables: analyzed.tables, relationships: analyzed.relationships }
           : { ...emptyModel('model', 'Model'), tables: analyzed.tables, relationships: analyzed.relationships }
-      const artifacts = buildArtifacts(baseModel)
+      const artifacts = buildArtifacts(baseModel, s.layoutId)
       const hasDashboard = (artifacts.report.pages[0]?.visuals.length ?? 0) > 0
 
       if (mode === 'replace') resetAccent()
@@ -492,13 +501,13 @@ export const useApp = create<AppState>((set, get) => ({
         tables: analyzed.tables,
         relationships: analyzed.relationships,
       }
-      const artifacts = buildArtifacts(modeled)
+      const artifacts = buildArtifacts(modeled, s.layoutId)
       return { model: artifacts.model, report: artifacts.report }
     }),
 
   generateDashboard: () =>
     set((s) => {
-      const artifacts = buildArtifacts(s.model)
+      const artifacts = buildArtifacts(s.model, s.layoutId)
       return {
         model: artifacts.model,
         report: artifacts.report,
@@ -508,6 +517,22 @@ export const useApp = create<AppState>((set, get) => ({
         future: [],
       }
     }),
+
+  applyLayout: (layoutId) =>
+    set((s) => {
+      const artifacts = buildArtifacts(s.model, layoutId)
+      return {
+        layoutId,
+        model: artifacts.model,
+        report: artifacts.report,
+        mode: 'design',
+        selectedVisualId: null,
+        past: [],
+        future: [],
+      }
+    }),
+
+  toggleLayoutChooser: (open) => set((s) => ({ layoutChooserOpen: open ?? !s.layoutChooserOpen })),
 
   // ---- designer ----
   selectVisual: (id) => set({ selectedVisualId: id }),

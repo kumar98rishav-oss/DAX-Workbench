@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   Sparkles,
   LayoutDashboard,
+  LayoutTemplate,
   Upload,
   RefreshCw,
   Undo2,
@@ -10,9 +11,18 @@ import {
   Copy,
   Trash2,
   BarChart3,
+  BarChartHorizontal,
   LineChart,
+  AreaChart,
   PieChart,
+  CircleDot,
+  Filter,
+  Gauge,
+  TrendingUp,
+  Grid3x3,
+  ScatterChart,
   Table as TableIcon,
+  Rows3,
   SlidersHorizontal,
   Hash,
 } from 'lucide-react'
@@ -25,10 +35,20 @@ import { PageCanvas } from '@/presentation/design/PageCanvas'
 
 const INSERTS: { kind: InsertKind; label: string; icon: typeof Hash }[] = [
   { kind: 'card', label: 'KPI Card', icon: Hash },
-  { kind: 'bar', label: 'Bar chart', icon: BarChart3 },
+  { kind: 'multiRowCard', label: 'Multi-row card', icon: Rows3 },
+  { kind: 'column', label: 'Column chart', icon: BarChart3 },
+  { kind: 'bar', label: 'Bar chart', icon: BarChartHorizontal },
   { kind: 'line', label: 'Line chart', icon: LineChart },
+  { kind: 'area', label: 'Area chart', icon: AreaChart },
   { kind: 'donut', label: 'Donut', icon: PieChart },
+  { kind: 'pie', label: 'Pie', icon: CircleDot },
+  { kind: 'funnel', label: 'Funnel', icon: Filter },
+  { kind: 'gauge', label: 'Gauge', icon: Gauge },
+  { kind: 'waterfall', label: 'Waterfall', icon: TrendingUp },
+  { kind: 'treemap', label: 'Treemap', icon: Grid3x3 },
+  { kind: 'scatter', label: 'Scatter', icon: ScatterChart },
   { kind: 'table', label: 'Table', icon: TableIcon },
+  { kind: 'matrix', label: 'Matrix', icon: Grid3x3 },
   { kind: 'slicer', label: 'Slicer', icon: SlidersHorizontal },
 ]
 
@@ -38,6 +58,7 @@ export function CanvasStage() {
   const datasets = useApp((s) => s.datasets)
   const generate = useApp((s) => s.generateDashboard)
   const requestImport = useApp((s) => s.requestImport)
+  const openLayouts = useApp((s) => s.toggleLayoutChooser)
   const selectedId = useApp((s) => s.selectedVisualId)
   const past = useApp((s) => s.past.length)
   const future = useApp((s) => s.future.length)
@@ -136,6 +157,9 @@ export function CanvasStage() {
         </IconButton>
 
         <span className="pbs-topbar__divider" />
+        <Button size="sm" variant="secondary" icon={<LayoutTemplate size={14} />} onClick={() => openLayouts(true)}>
+          Layouts
+        </Button>
         <Button size="sm" icon={<RefreshCw size={14} />} onClick={generate}>
           Regenerate
         </Button>
