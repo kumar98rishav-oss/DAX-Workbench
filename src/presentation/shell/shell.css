@@ -344,6 +344,27 @@
   box-shadow: 0 0 0 3px var(--accent-ring);
   background: var(--surface);
 }
+.pbs-select {
+  height: 30px;
+  width: 100%;
+  padding: 0 var(--space-2);
+  font-size: var(--text-md);
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.pbs-select:hover {
+  border-color: var(--border-strong, var(--accent));
+}
+.pbs-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+  background: var(--surface);
+}
 .pbs-field-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -6,6 +6,7 @@ import { emptyReport } from '@/domain/report'
 import type { DatasetData } from '@/application/import/types'
 import { buildModel } from '@/application/model/auto-model'
 import { generateLayout, DEFAULT_LAYOUT } from '@/application/insights/dashboard-generator'
+import type { VisualSpec } from '@/application/insights/dashboard-generator'
 import { generateDaxFromNL } from '@/application/dax/nl-templates'
 import { architectSolution } from '@/application/dax/architect/architect'
 import type { TemplateDef } from '@/application/templates/catalog'
@@ -156,6 +157,7 @@ interface AppState {
   beginChange: () => void
   setVisualRect: (id: string, rect: Rect) => void
   updateVisual: (id: string, patch: Partial<Visual>) => void
+  setVisualSpec: (id: string, spec: VisualSpec, title?: string) => void
   addVisual: (visual: Visual) => void
   duplicateVisual: (id: string) => void
   deleteVisual: (id: string) => void
@@ -551,6 +553,19 @@ export const useApp = create<AppState>((set, get) => ({
   updateVisual: (id, patch) =>
     set((s) => ({
       report: withVisuals(s.report, (vs) => vs.map((v) => (v.id === id ? { ...v, ...patch } : v))),
+    })),
+
+  setVisualSpec: (id, spec, title) =>
+    set((s) => ({
+      past: [...s.past, cloneReport(s.report)].slice(-50),
+      future: [],
+      report: withVisuals(s.report, (vs) =>
+        vs.map((v) =>
+          v.id === id
+            ? { ...v, title: title ?? v.title, style: { ...(v.style as object), spec } }
+            : v,
+        ),
+      ),
     })),
 
   addVisual: (visual) =>

@@ -6,6 +6,18 @@ import type { MeasureKind } from '@/application/insights/kpi-engine'
 import type { VisualSpec } from '@/application/insights/dashboard-generator'
 import { groupBy, scalar } from '@/application/query/query-engine'
 import type { Point, QueryCtx } from '@/application/query/query-engine'
+import { evaluateDax } from '@/application/dax/evaluator'
+import type { MeasureSpec } from '@/application/insights/dashboard-generator'
+
+/** Scalar value of a measure: a DAX measure is evaluated by the DAX engine;
+ * an aggregation measure is computed over its column. */
+function scalarOf(ctx: QueryCtx, m: MeasureSpec): number {
+  if (m.expression) {
+    const r = evaluateDax(m.expression, ctx)
+    if (r.ok) return r.value
+  }
+  return scalar(ctx, m)
+}
 
 export interface MultiItem { name: string; value: number; kind: MeasureKind }
 export interface MatrixCol { name: string; kind: MeasureKind }
@@ -38,12 +50,12 @@ export function resolveVisual(visual: Visual, ctx: QueryCtx): VisualData {
       return { type: 'text', title: spec.title, subtitle: spec.subtitle }
 
     case 'card':
-      return { type: 'card', value: scalar(ctx, spec.measure), kind: spec.measure.kind }
+      return { type: 'card', value: scalarOf(ctx, spec.measure), kind: spec.measure.kind }
 
     case 'multi':
       return {
         type: 'multi',
-        items: spec.measures.map((m) => ({ name: m.name, value: scalar(ctx, m), kind: m.kind })),
+        items: spec.measures.map((m) => ({ name: m.name, value: scalarOf(ctx, m), kind: m.kind })),
       }
 
     case 'series': {

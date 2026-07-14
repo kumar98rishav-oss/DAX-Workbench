@@ -16,6 +16,9 @@ export interface MeasureSpec extends MeasureRef {
   name: string
   kind: MeasureKind
   format: string
+  /** When set, the value is a DAX measure evaluated by the DAX engine
+   * (scalar visuals only) instead of an aggregation over a column. */
+  expression?: string
 }
 export interface CategorySpec extends CategoryRef {
   name: string
@@ -46,6 +49,84 @@ const measureSpec = (m: GeneratedMeasure): MeasureSpec => ({
 })
 
 const kindPriority: Record<MeasureKind, number> = { currency: 0, quantity: 1, ratio: 2, count: 3, generic: 4 }
+
+function kindFromFormat(fmt?: string): MeasureKind {
+  if (!fmt) return 'generic'
+  if (fmt.includes('%')) return 'ratio'
+  if (fmt.includes('$')) return 'currency'
+  return 'generic'
+}
+
+// ---------------------------------------------------------------------------
+// Catalogs — every measure / category the user can bind a visual to.
+// Powers the visual-property dropdowns (swap which field a visual shows).
+// ---------------------------------------------------------------------------
+export interface MeasureOption {
+  name: string
+  /** true = aggregation over a column (works in grouped visuals too);
+   * false = scalar DAX measure (cards / multi-row only). */
+  groupable: boolean
+  spec: MeasureSpec
+}
+
+export interface CategoryOption {
+  key: string
+  label: string
+  spec: CategorySpec
+}
+
+/** All measures selectable in a visual: auto-generated column aggregations
+ * (groupable) plus the user's custom DAX measures (scalar), deduped by name. */
+export function measureCatalog(model: SemanticModel): MeasureOption[] {
+  const out: MeasureOption[] = []
+  const seen = new Set<string>()
+  for (const m of generateMeasures(model)) {
+    const key = m.name.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ name: m.name, groupable: true, spec: measureSpec(m) })
+  }
+  for (const t of model.tables) {
+    for (const meas of t.measures) {
+      const key = meas.name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({
+        name: meas.name,
+        groupable: false,
+        spec: {
+          tableId: t.id,
+          columnId: '',
+          agg: 'sum',
+          name: meas.name,
+          kind: kindFromFormat(meas.formatString),
+          format: meas.formatString ?? '#,##0',
+          expression: meas.expression,
+        },
+      })
+    }
+  }
+  return out
+}
+
+/** All categorical/date columns a visual can group by. */
+export function categoryCatalog(model: SemanticModel): CategoryOption[] {
+  const out: CategoryOption[] = []
+  for (const t of model.tables) {
+    for (const c of t.columns) {
+      if (c.role === 'key') continue
+      if (c.dataType === 'string') {
+        if ((c.distinctCount ?? 2) <= 1) continue
+        out.push({ key: `${t.id}:${c.id}`, label: `${c.name} · ${t.name}`, spec: { tableId: t.id, columnId: c.id, name: c.name } })
+      } else if (c.dataType === 'date' || c.dataType === 'dateTime') {
+        for (const b of ['year', 'quarter', 'month'] as Bucket[]) {
+          out.push({ key: `${t.id}:${c.id}:${b}`, label: `${c.name} (${b}) · ${t.name}`, spec: { tableId: t.id, columnId: c.id, name: c.name, bucket: b } })
+        }
+      }
+    }
+  }
+  return out
+}
 
 function groupByColumn(table: Table, excludeIds: Set<string>): Column | null {
   const c = table.columns.filter(
