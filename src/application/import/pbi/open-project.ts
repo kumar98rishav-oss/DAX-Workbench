@@ -15,6 +15,14 @@ export interface PbiParseResult {
   note: string
 }
 
+/** Returned when a .pbix has no readable model — the UI offers next steps. */
+export interface PbixFallback {
+  fallback: string
+  pages: number
+}
+
+export type PbixResult = PbiParseResult | PbixFallback
+
 const measureCount = (m: PbiModel) => m.tables.reduce((n, t) => n + t.measures.length, 0)
 
 function summary(model: PbiModel): string {
@@ -105,7 +113,85 @@ export function parseTmslJson(text: string, name: string): PbiModel {
   return { name, tables: tables.filter((t) => t.columns.length + t.measures.length > 0), relationships }
 }
 
-export async function parsePbixFile(file: File): Promise<PbiParseResult> {
+// ---- best-effort schema reconstruction from the report's field references ----
+
+interface FieldRef { entity: string; property: string; isMeasure: boolean }
+
+function guessType(name: string): PbiTable['columns'][number]['dataType'] {
+  const n = name.toLowerCase()
+  if (/date|time|day|month|year|quarter|week/.test(n)) return /year|month|quarter|week|day.?num/.test(n) ? 'integer' : 'date'
+  if (/amount|revenue|sales|price|cost|value|spend|margin|rate|ratio|percent|avg|average/.test(n)) return 'decimal'
+  if (/qty|quantity|count|boxes|units|orders|number|num$|total/.test(n)) return 'integer'
+  return 'string'
+}
+
+/** Recursively collect Power BI field references (`{Column|Measure:{Expression:{SourceRef:{Entity}},Property}}`). */
+function collectFieldRefs(node: unknown, out: FieldRef[], depth = 0): void {
+  if (depth > 40 || !node || typeof node !== 'object') return
+  const obj = node as Record<string, unknown>
+  for (const kind of ['Column', 'Measure'] as const) {
+    const f = obj[kind] as Record<string, unknown> | undefined
+    if (f && typeof f === 'object') {
+      const property = f.Property
+      const entity = ((f.Expression as Record<string, unknown> | undefined)?.SourceRef as Record<string, unknown> | undefined)?.Entity
+      if (typeof property === 'string' && typeof entity === 'string') {
+        out.push({ entity, property, isMeasure: kind === 'Measure' })
+      }
+    }
+  }
+  for (const v of Object.values(obj)) {
+    if (typeof v === 'string' && v.length > 20 && (v.includes('SourceRef') || v.includes('"Column"') || v.includes('"Measure"'))) {
+      try { collectFieldRefs(JSON.parse(v), out, depth + 1) } catch { /* not JSON */ }
+    } else if (v && typeof v === 'object') {
+      collectFieldRefs(v, out, depth + 1)
+    }
+  }
+}
+
+/** Rebuild a model skeleton from the fields the report actually uses. */
+function reconstructFromReport(entries: Record<string, Uint8Array>, name: string): PbiModel | null {
+  const refs: FieldRef[] = []
+  for (const [k, bytes] of Object.entries(entries)) {
+    if (!/report|layout|visual|page/i.test(k)) continue
+    if (!/\.json$/i.test(k) && !/(^|\/)Layout$/i.test(k)) continue
+    try { collectFieldRefs(JSON.parse(decodeText(bytes)), refs) } catch { /* skip */ }
+  }
+  if (refs.length === 0) return null
+
+  const byTable = new Map<string, { cols: Set<string>; meas: Set<string> }>()
+  for (const r of refs) {
+    if (!byTable.has(r.entity)) byTable.set(r.entity, { cols: new Set(), meas: new Set() })
+    const e = byTable.get(r.entity)!
+    if (r.isMeasure) e.meas.add(r.property)
+    else e.cols.add(r.property)
+  }
+
+  const tables: PbiTable[] = [...byTable].map(([tName, { cols, meas }]) => ({
+    name: tName,
+    columns: [...cols].map((c) => ({ name: c, dataType: guessType(c) })),
+    // The report references a measure by name but not its DAX — leave a stub the user can fill.
+    measures: [...meas].map((m) => ({ name: m, expression: 'BLANK() /* reconstructed — original DAX not in the .pbix report */' })),
+  }))
+
+  const totalCols = tables.reduce((n, t) => n + t.columns.length, 0)
+  if (tables.length === 0 || totalCols < 1) return null
+  return { name, tables, relationships: [] }
+}
+
+function countPages(entries: Record<string, Uint8Array>): number {
+  const newPages = Object.keys(entries).filter((k) => /Report\/definition\/pages\/[^/]+\/page\.json$/i.test(k)).length
+  if (newPages) return newPages
+  try {
+    const layoutKey = Object.keys(entries).find((k) => /(^|\/)Layout$/i.test(k))
+    if (layoutKey) {
+      const layout = JSON.parse(decodeText(entries[layoutKey])) as { sections?: unknown[] }
+      return layout.sections?.length ?? 0
+    }
+  } catch { /* ignore */ }
+  return 0
+}
+
+export async function parsePbixFile(file: File): Promise<PbixResult> {
   const name = file.name.replace(/\.pbix$/i, '')
   let entries: Record<string, Uint8Array>
   try {
@@ -116,23 +202,31 @@ export async function parsePbixFile(file: File): Promise<PbiParseResult> {
 
   const keys = Object.keys(entries)
 
-  // Some PBIX embed an editable TMSL schema.
+  // 1) Some PBIX embed an editable TMSL schema — a full, faithful import.
   const schemaKey = keys.find((k) => /(^|\/)DataModelSchema$/i.test(k)) ?? keys.find((k) => /\.bim$/i.test(k))
   if (schemaKey) {
     try {
       const model = parseTmslJson(decodeText(entries[schemaKey]), name)
       if (model.tables.length > 0) return { model, note: summary(model) }
-    } catch {
-      /* fall through */
+    } catch { /* fall through */ }
+  }
+
+  // 2) Best-effort: reconstruct the schema from the fields the report uses.
+  try {
+    const reconstructed = reconstructFromReport(entries, name)
+    if (reconstructed) {
+      const mc = reconstructed.tables.reduce((n, t) => n + t.measures.length, 0)
+      return {
+        model: reconstructed,
+        note: `Reconstructed “${name}” from the report — ${reconstructed.tables.length} tables${mc ? `, ${mc} measures (stubs)` : ''}. The data model is binary, so types + sample data are inferred.`,
+      }
     }
-  }
+  } catch { /* fall through */ }
 
-  // Newer PBIX keep the model as a binary VertiPaq stream — unreadable here.
-  if (keys.some((k) => /(^|\/)DataModel$/i.test(k))) {
-    throw new Error(
-      'This .pbix stores its data model in Power BI’s binary format, which can’t be read in the browser. Use “Open PBIP” on the matching project folder for a full import.',
-    )
+  // 3) Nothing readable — hand back an actionable fallback (binary VertiPaq model).
+  return {
+    fallback:
+      'This .pbix stores its data model in Power BI’s binary format (XPress9-compressed), which can’t be read in the browser. Open the matching .pbip project folder for a full import, or import the underlying data directly.',
+    pages: countPages(entries),
   }
-
-  throw new Error('No readable data model was found inside this .pbix.')
 }

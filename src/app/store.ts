@@ -129,6 +129,7 @@ interface AppState {
   importing: boolean
   importError: string | null
   importNote: string | null
+  pbixFallback: { message: string; pages: number } | null
   pendingImport: PendingImport | null
   _pickFiles: (() => void) | null
   _pickPbip: (() => void) | null
@@ -159,6 +160,7 @@ interface AppState {
   setActiveDataset: (id: string) => void
   dismissImportError: () => void
   dismissImportNote: () => void
+  dismissPbixFallback: () => void
   runAutoModel: () => void
   generateDashboard: () => void
   applyLayout: (layoutId: string) => void
@@ -270,6 +272,7 @@ export const useApp = create<AppState>((set, get) => ({
   importing: false,
   importError: null,
   importNote: null,
+  pbixFallback: null,
   pendingImport: null,
   _pickFiles: null,
   _pickPbip: null,
@@ -368,9 +371,14 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   openPbixFile: async (file) => {
-    set({ importing: true, importError: null, importNote: null })
+    set({ importing: true, importError: null, importNote: null, pbixFallback: null })
     try {
-      const { model, note } = await parsePbixFile(file)
+      const result = await parsePbixFile(file)
+      if ('fallback' in result) {
+        set({ importing: false, pbixFallback: { message: result.fallback, pages: result.pages } })
+        return
+      }
+      const { model, note } = result
       const load = assemblePbiProject(model, get().layoutId)
       resetAccent()
       set({
@@ -582,6 +590,7 @@ export const useApp = create<AppState>((set, get) => ({
 
   dismissImportError: () => set({ importError: null }),
   dismissImportNote: () => set({ importNote: null }),
+  dismissPbixFallback: () => set({ pbixFallback: null }),
 
   runAutoModel: () =>
     set((s) => {

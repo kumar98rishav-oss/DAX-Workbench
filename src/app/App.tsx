@@ -5,6 +5,7 @@ import { HomeScreen } from '@/presentation/home/HomeScreen'
 import { AppShell } from '@/presentation/shell/AppShell'
 import { ImportHost } from '@/presentation/data/ImportHost'
 import { ImportPreviewDialog } from '@/presentation/data/ImportPreviewDialog'
+import { PbixFallbackDialog } from '@/presentation/data/PbixFallbackDialog'
 import { AnalystPanel } from '@/presentation/analyst/AnalystPanel'
 import { ExportDialog } from '@/presentation/export/ExportDialog'
 import { PluginsDialog } from '@/presentation/plugins/PluginsDialog'
@@ -46,6 +47,7 @@ export function App() {
       {view === 'home' ? <HomeScreen /> : <AppShell />}
       <ImportHost />
       <ImportPreviewDialog />
+      <PbixFallbackDialog />
       <AnalystPanel />
       <ExportDialog />
       <PluginsDialog />

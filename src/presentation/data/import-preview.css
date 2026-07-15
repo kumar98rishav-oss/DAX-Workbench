@@ -147,3 +147,51 @@
   padding: var(--space-3) var(--space-5);
   border-top: 1px solid var(--border);
 }
+
+/* ---- PBIX fallback dialog ---- */
+.impdlg--sm {
+  width: min(480px, calc(100vw - 32px));
+}
+.pbixfb__msg {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  color: var(--text-muted);
+}
+.pbixfb__choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.pbixfb__choice {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: var(--space-3);
+  row-gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.pbixfb__choice:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.pbixfb__choice > svg {
+  grid-row: 1 / 3;
+  align-self: center;
+  color: var(--accent);
+}
+.pbixfb__choice-title {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.pbixfb__choice-desc {
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+}
