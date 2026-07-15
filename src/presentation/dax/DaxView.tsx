@@ -77,6 +77,7 @@ export function DaxView() {
   const updateMeasure = useApp((s) => s.updateMeasure)
   const deleteMeasure = useApp((s) => s.deleteMeasure)
   const generateMeasure = useApp((s) => s.generateMeasure)
+  const commitMeasures = useApp((s) => s.commitMeasures)
 
   const [prompt, setPrompt] = useState('')
   const [explanation, setExplanation] = useState<string | null>(null)
@@ -128,7 +129,13 @@ export function DaxView() {
   }
 
   const pickSuggestion = (s: Suggestion) => {
-    commitPrompt(s.canonicalPrompt)
+    const id = commitMeasures(s.plan, s.measureName, s.formatString)
+    if (id) {
+      selectMeasure(id)
+      setExplanation(s.explanation)
+      setPlan(s.plan.map((st, i) => ({ stepNumber: i + 1, name: st.name, dax: st.dax, reason: st.reason })))
+      setWarnings(s.validationErrors)
+    }
     recordPick(s.signature, s.patternId, s.tokens) // learn from the choice
     setSuggestions([])
     setPrompt('')
@@ -248,6 +255,9 @@ export function DaxView() {
                       <div className="dax-sugg__bar"><span style={{ width: `${Math.round(s.score * 100)}%` }} /></div>
                       <div className="dax-sugg__name">{s.measureName}{s.plan.length > 1 && <em> · {s.plan.length} measures</em>}</div>
                       <code className="dax-sugg__dax">{s.dax}</code>
+                      {s.corrections.length > 0 && (
+                        <div className="dax-sugg__fix">✓ read {s.corrections.join(', ')}</div>
+                      )}
                       <div className="dax-sugg__foot">
                         <span className="dax-sugg__preview">
                           {s.preview.ok ? formatByString(s.preview.value ?? 0, s.formatString) : s.preview.note}

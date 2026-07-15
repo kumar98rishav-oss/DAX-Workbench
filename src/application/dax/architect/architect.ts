@@ -149,15 +149,18 @@ export interface Overrides {
   date?: { table: string; column: string }
 }
 
-/** Run a natural-language requirement through the deterministic compiler. */
+/** Run a natural-language requirement through the deterministic compiler.
+ * `skipInjection` bypasses value→column rewriting when the caller has already
+ * resolved explicit `where Column = value` predicates (the Intent Engine). */
 export function architectSolution(
   model: SemanticModel,
   requirement: string,
   datasets: DatasetData[] = [],
   overrides?: Overrides,
+  skipInjection = false,
 ): ArchitectSolution | null {
   if (!requirement.trim() || model.tables.length === 0) return null
-  const req = injectFilterColumns(requirement, model, datasets)
+  const req = skipInjection ? requirement : injectFilterColumns(requirement, model, datasets)
   const { tables, rels } = modelToInputs(model)
   try {
     return DAXEngine.generateSolution(tables, rels, req, overrides ? { overrides } : undefined) as ArchitectSolution

@@ -13,6 +13,8 @@ import { architectSolution } from '@/application/dax/architect/architect'
 import { evaluateDax } from '@/application/dax/evaluator'
 import { makeCtx } from '@/application/query/query-engine'
 import { memoryBonus } from './memory'
+import { resolveFilters } from './filters'
+import type { ResolvedFilter } from './filters'
 
 // ---- intent --------------------------------------------------------------
 
@@ -22,7 +24,7 @@ export interface DaxIntent {
   fieldName?: string // resolved numeric column (e.g. "Amount")
   fieldPhrase?: string // fallback noun if unresolved
   groupName?: string // resolved categorical column (e.g. "Category")
-  filterText: string // natural filter tail, '' if none
+  filters: ResolvedFilter[] // structured, fuzzy-resolved predicates
   topN?: number
   signals: Set<string> // yoy · ytd · mom · running · pctOfTotal · rank · topN · ratio · distinct
   tokens: string[] // descriptive tokens (for synonym learning)
@@ -93,10 +95,11 @@ export function parseIntent(prompt: string, model: SemanticModel, datasets: Data
     (byPart ? resolveColumn(byPart, model, (t) => t === 'string') : undefined) ??
     resolveColumn(raw, model, (t) => t === 'string')
 
+  // Explicit "where …" tail if present, otherwise scan the whole prompt for
+  // bare data values (typo-tolerant) — resolveFilters handles both.
   const fm = raw.match(FILTER_RE)
-  let filterText = fm ? raw.slice((fm.index ?? 0) + fm[0].length).trim() : ''
-  // Bare data-value filters (no "where"): let the engine resolve them from the raw prompt.
-  if (!filterText) filterText = detectBareFilter(raw, model, datasets)
+  const filterSource = fm ? raw.slice((fm.index ?? 0) + fm[0].length) : raw
+  const filters = resolveFilters(filterSource, model, datasets)
 
   return {
     raw,
@@ -104,7 +107,7 @@ export function parseIntent(prompt: string, model: SemanticModel, datasets: Data
     fieldName,
     fieldPhrase: fieldName ? undefined : nounAfterAgg(low),
     groupName,
-    filterText,
+    filters,
     topN,
     signals,
     tokens: words(raw),
@@ -114,34 +117,6 @@ export function parseIntent(prompt: string, model: SemanticModel, datasets: Data
 function nounAfterAgg(low: string): string | undefined {
   const m = low.match(/\b(?:sum|total|average|avg|count|distinct|min|max|of)\s+([a-z_]+)/)
   return m?.[1]
-}
-
-/** Find a low-cardinality string value present in the prompt → "where value". */
-function detectBareFilter(prompt: string, model: SemanticModel, datasets: DatasetData[]): string {
-  if (datasets.length === 0) return ''
-  const byId: Record<string, DatasetData> = {}
-  for (const d of datasets) byId[d.id] = d
-  const low = ` ${prompt.toLowerCase()} `
-
-  for (const t of model.tables) {
-    const data = byId[t.id]
-    if (!data) continue
-    for (let idx = 0; idx < t.columns.length; idx++) {
-      const col = t.columns[idx]
-      if (col.dataType !== 'string' || col.role === 'key' || (col.distinctCount ?? 999) > 40) continue
-      const seen = new Set<string>()
-      for (const row of data.rows) {
-        const v = row[idx]
-        if (v == null) continue
-        const s = String(v)
-        if (seen.has(s)) continue
-        seen.add(s)
-        if (s.length > 1 && low.includes(` ${s.toLowerCase()} `)) return `where ${s}`
-        if (seen.size > 40) break
-      }
-    }
-  }
-  return ''
 }
 
 // ---- pattern library -----------------------------------------------------
@@ -160,53 +135,67 @@ interface DaxPattern {
 }
 
 const field = (i: DaxIntent, ctx: PatternCtx) => i.fieldName ?? i.fieldPhrase ?? ctx.factName
-const flt = (i: DaxIntent) => (i.filterText ? ` ${/^where\b/i.test(i.filterText) ? '' : 'where '}${i.filterText}` : '')
+
+/** Which patterns accept a filtered CALCULATE wrapper. */
+const FILTERABLE = new Set(['total', 'average', 'count', 'distinct', 'yoy-pct', 'ytd', 'running'])
+
+/** Wrap a base measure in a multi-predicate CALCULATE (we build the filter DAX
+ * ourselves so all conditions land in ONE measure, correctly). */
+function filteredStep(finalName: string, filters: ResolvedFilter[]): SuggestionStep {
+  const args = filters.map((f) => `'${f.table}'[${f.column}] = ${f.numeric ? f.value : `"${f.value}"`}`)
+  const label = filters.map((f) => f.value).join(', ')
+  return {
+    name: `${finalName} (${label})`,
+    dax: `CALCULATE(\n    [${finalName}],\n    ${args.join(',\n    ')}\n)`,
+    reason: `Evaluates [${finalName}] with fixed filter(s): ${args.join(', ')}.`,
+  }
+}
 
 const PATTERNS: DaxPattern[] = [
   {
     id: 'total',
     label: 'Total',
     score: (i) => (i.signals.size === 0 && i.aggWord !== 'average' && i.aggWord !== 'distinct' ? 0.72 : 0.42),
-    canonical: (i, ctx) => `total ${field(i, ctx)}${flt(i)}`,
+    canonical: (i, ctx) => `total ${field(i, ctx)}`,
   },
   {
     id: 'average',
     label: 'Average',
     score: (i) => (i.aggWord === 'average' ? 0.92 : 0.28),
-    canonical: (i, ctx) => `average ${field(i, ctx)}${flt(i)}`,
+    canonical: (i, ctx) => `average ${field(i, ctx)}`,
   },
   {
     id: 'count',
     label: 'Count',
     score: (i) => (i.aggWord === 'count' ? 0.9 : 0.22),
-    canonical: (i, ctx) => `count ${i.fieldName ? ctx.factName : field(i, ctx)}${flt(i)}`,
+    canonical: (i, ctx) => `count ${i.fieldName ? ctx.factName : field(i, ctx)}`,
   },
   {
     id: 'distinct',
     label: 'Distinct count',
     score: (i) => (i.signals.has('distinct') || i.aggWord === 'distinct' ? 0.9 : 0.12),
-    canonical: (i, ctx) => `distinct ${i.groupName ?? field(i, ctx)}${flt(i)}`,
+    canonical: (i, ctx) => `distinct ${i.groupName ?? field(i, ctx)}`,
   },
   {
     id: 'yoy-pct',
     label: 'Year-over-year %',
     requires: (_i, ctx) => ctx.hasDate,
     score: (i) => (i.signals.has('yoy') ? 0.95 : 0.16),
-    canonical: (i, ctx) => `${field(i, ctx)} year over year growth %${flt(i)}`,
+    canonical: (i, ctx) => `${field(i, ctx)} year over year growth %`,
   },
   {
     id: 'ytd',
     label: 'Year-to-date',
     requires: (_i, ctx) => ctx.hasDate,
     score: (i) => (i.signals.has('ytd') ? 0.94 : 0.16),
-    canonical: (i, ctx) => `${field(i, ctx)} ytd${flt(i)}`,
+    canonical: (i, ctx) => `${field(i, ctx)} ytd`,
   },
   {
     id: 'running',
     label: 'Running total',
     requires: (_i, ctx) => ctx.hasDate,
     score: (i) => (i.signals.has('running') ? 0.9 : 0.12),
-    canonical: (i, ctx) => `${field(i, ctx)} running total${flt(i)}`,
+    canonical: (i, ctx) => `${field(i, ctx)} running total`,
   },
   {
     id: 'pct-total',
@@ -250,6 +239,7 @@ export interface Suggestion {
   preview: { ok: boolean; value?: number; note?: string }
   formatString: string
   validationErrors: string[]
+  corrections: string[] // e.g. ["“dilvered” → Delivered"]
 }
 
 /** Signature of an intent — its structural shape, used as the learning key. */
@@ -286,6 +276,9 @@ export function suggest(
     factName: (model.tables.find((t) => t.role === 'fact') ?? model.tables[0])?.name ?? 'Table',
   }
   const signature = signatureOf(intent)
+  const corrections = intent.filters
+    .filter((f) => f.corrected && f.original)
+    .map((f) => `“${f.original}” → ${f.value}`)
 
   const ranked = PATTERNS.filter((p) => !p.requires || p.requires(intent, ctx))
     .map((p) => ({ p, s: Math.min(1, p.score(intent, ctx) + memoryBonus(signature, p.id, intent.tokens)) }))
@@ -296,19 +289,28 @@ export function suggest(
 
   for (const { p, s } of ranked) {
     if (out.length >= limit) break
+    // Canonical carries only the base aggregation/time-intelligence — never the
+    // filters (the engine would split on "and"). We wrap filters ourselves.
     const canonical = p.canonical(intent, ctx).replace(/\s+/g, ' ').trim()
     const sol = architectSolution(model, canonical, datasets)
     if (!sol) continue
-    const steps = sol.steps.filter((st) => st.objectType === 'Measure').map((st) => ({ name: st.name, dax: st.dax, reason: st.reason }))
-    if (steps.length === 0) continue
-    const finalStep = steps.find((st) => st.name === sol.finalObject.name) ?? steps[steps.length - 1]
+    const baseSteps: SuggestionStep[] = sol.steps
+      .filter((st) => st.objectType === 'Measure')
+      .map((st) => ({ name: st.name, dax: st.dax, reason: st.reason }))
+    if (baseSteps.length === 0) continue
+    const baseFinal = baseSteps.find((st) => st.name === sol.finalObject.name) ?? baseSteps[baseSteps.length - 1]
+    const fmtStep = sol.steps.find((st) => st.name === baseFinal.name)
+
+    // Wrap in a filtered CALCULATE when the intent carries filters.
+    const applyFilters = intent.filters.length > 0 && FILTERABLE.has(p.id)
+    const steps = applyFilters ? [...baseSteps, filteredStep(baseFinal.name, intent.filters)] : baseSteps
+    const finalStep = steps[steps.length - 1]
+
     const key = `${finalStep.name}=${finalStep.dax}`.toLowerCase().replace(/\s+/g, '')
     if (seenDax.has(key)) continue
     seenDax.add(key)
 
-    const previewModel = withTempMeasures(model, steps)
-    const preview = evaluateDax(finalStep.dax, makeCtx(previewModel, datasets))
-    const fmtStep = sol.steps.find((st) => st.name === finalStep.name)
+    const preview = evaluateDax(finalStep.dax, makeCtx(withTempMeasures(model, steps), datasets))
 
     out.push({
       patternId: p.id,
@@ -324,6 +326,7 @@ export function suggest(
       preview: preview.ok ? { ok: true, value: preview.value } : { ok: false, note: preview.note },
       formatString: fmtStep?.formatString ?? '#,##0',
       validationErrors: sol.validationErrors ?? [],
+      corrections,
     })
   }
 
