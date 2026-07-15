@@ -6,6 +6,9 @@ import { makeCtx } from '@/application/query/query-engine'
 import { evaluateDax } from '@/application/dax/evaluator'
 import { searchDax, DAX_CATALOG } from '@/application/dax/functions'
 import type { DaxFunction } from '@/application/dax/functions'
+import { suggest } from '@/application/dax/intent/suggest'
+import type { Suggestion } from '@/application/dax/intent/suggest'
+import { recordPick } from '@/application/dax/intent/memory'
 import { DependencyGraph } from './DependencyGraph'
 import './dax.css'
 
@@ -79,6 +82,7 @@ export function DaxView() {
   const [explanation, setExplanation] = useState<string | null>(null)
   const [plan, setPlan] = useState<{ stepNumber: number; name: string; dax: string; reason: string }[]>([])
   const [warnings, setWarnings] = useState<string[]>([])
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [query, setQuery] = useState('')
   const codeRef = useRef<HTMLTextAreaElement>(null)
 
@@ -102,14 +106,32 @@ export function DaxView() {
     [selected, ctx],
   )
 
+  // Generate now proposes ranked suggestions; the user picks one to commit.
   const runGenerate = (text: string = prompt) => {
     if (!text.trim()) return
-    const r = generateMeasure(text)
+    const { suggestions: sugg } = suggest(text, model, datasets)
+    if (sugg.length > 0) {
+      setSuggestions(sugg)
+      return
+    }
+    // No model / nothing to rank — commit directly.
+    commitPrompt(text)
+  }
+
+  const commitPrompt = (canonical: string) => {
+    const r = generateMeasure(canonical)
     if (r) {
       setExplanation(r.explanation)
       setPlan(r.plan ?? [])
       setWarnings(r.validationErrors ?? [])
     }
+  }
+
+  const pickSuggestion = (s: Suggestion) => {
+    commitPrompt(s.canonicalPrompt)
+    recordPick(s.signature, s.patternId, s.tokens) // learn from the choice
+    setSuggestions([])
+    setPrompt('')
   }
 
   const insertFn = (fn: DaxFunction) => {
@@ -209,6 +231,34 @@ export function DaxView() {
                 ))}
               </div>
             </div>
+
+            {suggestions.length > 0 && (
+              <div className="dax-suggest">
+                <div className="dax-suggest__head">
+                  <span className="dax-suggest__title">{suggestions.length} suggestions — pick the best match</span>
+                  <button className="dax-suggest__clear" onClick={() => setSuggestions([])}>Dismiss</button>
+                </div>
+                <div className="dax-suggest__grid">
+                  {suggestions.map((s, i) => (
+                    <button key={s.patternId + i} className="dax-sugg" onClick={() => pickSuggestion(s)}>
+                      <div className="dax-sugg__top">
+                        <span className="dax-sugg__label">{s.label}</span>
+                        <span className="dax-sugg__pct">{Math.round(s.score * 100)}%</span>
+                      </div>
+                      <div className="dax-sugg__bar"><span style={{ width: `${Math.round(s.score * 100)}%` }} /></div>
+                      <div className="dax-sugg__name">{s.measureName}{s.plan.length > 1 && <em> · {s.plan.length} measures</em>}</div>
+                      <code className="dax-sugg__dax">{s.dax}</code>
+                      <div className="dax-sugg__foot">
+                        <span className="dax-sugg__preview">
+                          {s.preview.ok ? formatByString(s.preview.value ?? 0, s.formatString) : s.preview.note}
+                        </span>
+                        <span className="dax-sugg__use">Use →</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="dax-row">
               <label className="dax-field">
