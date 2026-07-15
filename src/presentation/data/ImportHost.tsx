@@ -1,26 +1,42 @@
 import { useEffect, useRef } from 'react'
-import { Loader2, X, AlertTriangle } from 'lucide-react'
+import { Loader2, X, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { useApp } from '@/app/store'
 
 const ACCEPT = '.csv,.tsv,.txt,.xlsx,.xls,.xlsm,.parquet,.pqt'
 
-/** Owns the hidden file input and surfaces import progress/errors. */
+/** Owns the hidden file inputs (data / PBIP folder / PBIX) and surfaces import progress. */
 export function ImportHost() {
   const registerFilePicker = useApp((s) => s.registerFilePicker)
+  const registerPbipPicker = useApp((s) => s.registerPbipPicker)
+  const registerPbixPicker = useApp((s) => s.registerPbixPicker)
   const stageImport = useApp((s) => s.stageImport)
+  const openPbipFiles = useApp((s) => s.openPbipFiles)
+  const openPbixFile = useApp((s) => s.openPbixFile)
   const importing = useApp((s) => s.importing)
   const importError = useApp((s) => s.importError)
+  const importNote = useApp((s) => s.importNote)
   const dismissImportError = useApp((s) => s.dismissImportError)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const dismissImportNote = useApp((s) => s.dismissImportNote)
+
+  const dataRef = useRef<HTMLInputElement>(null)
+  const pbipRef = useRef<HTMLInputElement>(null)
+  const pbixRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    registerFilePicker(() => inputRef.current?.click())
-  }, [registerFilePicker])
+    registerFilePicker(() => dataRef.current?.click())
+    registerPbipPicker(() => pbipRef.current?.click())
+    registerPbixPicker(() => pbixRef.current?.click())
+    // Folder selection is a non-standard attribute; set it imperatively.
+    if (pbipRef.current) {
+      pbipRef.current.setAttribute('webkitdirectory', '')
+      pbipRef.current.setAttribute('directory', '')
+    }
+  }, [registerFilePicker, registerPbipPicker, registerPbixPicker])
 
   return (
     <>
       <input
-        ref={inputRef}
+        ref={dataRef}
         type="file"
         accept={ACCEPT}
         multiple
@@ -32,10 +48,44 @@ export function ImportHost() {
         }}
       />
 
+      <input
+        ref={pbipRef}
+        type="file"
+        multiple
+        className="pbs-visually-hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? [])
+          e.target.value = ''
+          if (files.length) void openPbipFiles(files)
+        }}
+      />
+
+      <input
+        ref={pbixRef}
+        type="file"
+        accept=".pbix"
+        className="pbs-visually-hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void openPbixFile(file)
+        }}
+      />
+
       {importing && (
         <div className="pbs-toast" role="status">
           <Loader2 size={16} className="pbs-spin" />
-          Parsing data…
+          Parsing…
+        </div>
+      )}
+
+      {importNote && !importing && (
+        <div className="pbs-toast pbs-toast--ok" role="status">
+          <CheckCircle2 size={16} />
+          <span>{importNote}</span>
+          <button className="pbs-toast__close" aria-label="Dismiss" onClick={dismissImportNote}>
+            <X size={14} />
+          </button>
         </div>
       )}
 
@@ -43,11 +93,7 @@ export function ImportHost() {
         <div className="pbs-toast pbs-toast--error" role="alert">
           <AlertTriangle size={16} />
           <span>{importError}</span>
-          <button
-            className="pbs-toast__close"
-            aria-label="Dismiss"
-            onClick={dismissImportError}
-          >
+          <button className="pbs-toast__close" aria-label="Dismiss" onClick={dismissImportError}>
             <X size={14} />
           </button>
         </div>

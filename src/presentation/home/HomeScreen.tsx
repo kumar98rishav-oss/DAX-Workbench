@@ -72,10 +72,14 @@ export function HomeScreen() {
   const openStudio = useApp((s) => s.openStudio)
   const setCommandPalette = useApp((s) => s.setCommandPalette)
   const requestImport = useApp((s) => s.requestImport)
+  const requestOpenPbip = useApp((s) => s.requestOpenPbip)
+  const requestOpenPbix = useApp((s) => s.requestOpenPbix)
   const applyTemplate = useApp((s) => s.applyTemplate)
 
   const runAction = (id: string, title: string) => {
-    if (id === 'import' || id === 'pbix' || id === 'pbip') requestImport()
+    if (id === 'import') requestImport()
+    else if (id === 'pbip') requestOpenPbip()
+    else if (id === 'pbix') requestOpenPbix()
     else openStudio(title === 'New Dashboard' ? 'Untitled Dashboard' : title)
   }
 

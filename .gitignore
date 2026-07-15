@@ -31,3 +31,5 @@ pnpm-debug.log*
 # Local test fixtures (real user data — never committed)
 public/*.xlsx
 public/*.csv
+public/*.pbix
+public/pbiptest/

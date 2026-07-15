@@ -11,6 +11,8 @@ import { generateDaxFromNL } from '@/application/dax/nl-templates'
 import { architectSolution } from '@/application/dax/architect/architect'
 import type { TemplateDef } from '@/application/templates/catalog'
 import { makeTemplateFile } from '@/application/templates/generate'
+import { parsePbipFolder, parsePbixFile } from '@/application/import/pbi/open-project'
+import { assemblePbiProject } from '@/application/import/pbi/assemble'
 import { applyAccent, resetAccent } from '@/design-system/runtime-theme'
 import { services } from './services'
 
@@ -126,8 +128,11 @@ interface AppState {
   // ---- import ----
   importing: boolean
   importError: string | null
+  importNote: string | null
   pendingImport: PendingImport | null
   _pickFiles: (() => void) | null
+  _pickPbip: (() => void) | null
+  _pickPbix: (() => void) | null
 
   // ---- actions ----
   goHome: () => void
@@ -140,13 +145,20 @@ interface AppState {
   setCommandPalette: (open: boolean) => void
 
   registerFilePicker: (fn: () => void) => void
+  registerPbipPicker: (fn: () => void) => void
+  registerPbixPicker: (fn: () => void) => void
   requestImport: () => void
+  requestOpenPbip: () => void
+  requestOpenPbix: () => void
+  openPbipFiles: (files: File[]) => Promise<void>
+  openPbixFile: (file: File) => Promise<void>
   importFiles: (files: File[]) => Promise<void>
   stageImport: (files: File[]) => Promise<void>
   commitImport: (selectedIds: string[], mode: 'replace' | 'merge') => void
   cancelImport: () => void
   setActiveDataset: (id: string) => void
   dismissImportError: () => void
+  dismissImportNote: () => void
   runAutoModel: () => void
   generateDashboard: () => void
   applyLayout: (layoutId: string) => void
@@ -257,8 +269,11 @@ export const useApp = create<AppState>((set, get) => ({
 
   importing: false,
   importError: null,
+  importNote: null,
   pendingImport: null,
   _pickFiles: null,
+  _pickPbip: null,
+  _pickPbix: null,
 
   goHome: () => set({ view: 'home' }),
 
@@ -305,10 +320,79 @@ export const useApp = create<AppState>((set, get) => ({
   setCommandPalette: (open) => set({ commandPaletteOpen: open }),
 
   registerFilePicker: (fn) => set({ _pickFiles: fn }),
+  registerPbipPicker: (fn) => set({ _pickPbip: fn }),
+  registerPbixPicker: (fn) => set({ _pickPbix: fn }),
 
   requestImport: () => {
     const pick = get()._pickFiles
     if (pick) pick()
+  },
+
+  requestOpenPbip: () => {
+    const pick = get()._pickPbip
+    if (pick) pick()
+  },
+
+  requestOpenPbix: () => {
+    const pick = get()._pickPbix
+    if (pick) pick()
+  },
+
+  openPbipFiles: async (files) => {
+    if (files.length === 0) return
+    set({ importing: true, importError: null, importNote: null })
+    try {
+      const { model, note } = await parsePbipFolder(files)
+      const load = assemblePbiProject(model, get().layoutId)
+      resetAccent()
+      set({
+        view: 'studio',
+        mode: load.hasDashboard ? 'design' : 'model',
+        datasets: load.datasets,
+        model: load.model,
+        report: load.report,
+        activeDatasetId: load.datasets[0]?.id ?? null,
+        projectName: model.name,
+        activeTemplateId: null,
+        importing: false,
+        importError: null,
+        importNote: note,
+        selectedVisualId: null,
+        selectedMeasureId: null,
+        past: [],
+        future: [],
+      })
+    } catch (e) {
+      set({ importing: false, importError: e instanceof Error ? e.message : 'Could not open the PBIP project.' })
+    }
+  },
+
+  openPbixFile: async (file) => {
+    set({ importing: true, importError: null, importNote: null })
+    try {
+      const { model, note } = await parsePbixFile(file)
+      const load = assemblePbiProject(model, get().layoutId)
+      resetAccent()
+      set({
+        view: 'studio',
+        mode: load.hasDashboard ? 'design' : 'model',
+        datasets: load.datasets,
+        model: load.model,
+        report: load.report,
+        activeDatasetId: load.datasets[0]?.id ?? null,
+        projectName: model.name,
+        activeTemplateId: null,
+        importing: false,
+        importError: null,
+        importNote: note,
+        selectedVisualId: null,
+        selectedMeasureId: null,
+        past: [],
+        future: [],
+      })
+    } catch (e) {
+      set({ importing: false, importError: e instanceof Error ? e.message : 'Could not open the PBIX file.' })
+    }
   },
 
   importFiles: async (files) => {
@@ -497,6 +581,7 @@ export const useApp = create<AppState>((set, get) => ({
   setActiveDataset: (id) => set({ activeDatasetId: id, mode: 'data' }),
 
   dismissImportError: () => set({ importError: null }),
+  dismissImportNote: () => set({ importNote: null }),
 
   runAutoModel: () =>
     set((s) => {

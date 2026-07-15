@@ -297,6 +297,10 @@
   color: var(--danger);
   border-color: var(--danger);
 }
+.pbs-toast--ok {
+  color: var(--success, #16a34a);
+  border-color: color-mix(in srgb, var(--success, #16a34a) 55%, transparent);
+}
 .pbs-toast__close {
   display: inline-flex;
   color: var(--text-muted);
