@@ -97,3 +97,22 @@
   color: var(--text-muted);
   background: var(--surface-2);
 }
+
+.plugins__hint {
+  margin: -2px 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+  line-height: var(--leading-normal);
+}
+.plugins__link {
+  font-size: inherit;
+  font-weight: var(--weight-medium);
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.plugins__link:hover { text-decoration-thickness: 2px; }

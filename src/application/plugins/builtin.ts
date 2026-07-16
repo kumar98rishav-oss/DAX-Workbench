@@ -14,6 +14,8 @@ import {
   buildPBIP,
 } from '@/application/export/exporters'
 import { createZip } from '@/infrastructure/export/zip'
+import { modelHasDate } from '@/application/dax/factory'
+import type { SemanticModel } from '@/domain/model'
 import type { Plugin, ValidationIssue } from './types'
 
 const textBlob = (content: string, mime: string) => new Blob([content], { type: `${mime};charset=utf-8` })
@@ -63,19 +65,33 @@ export const coreExportersPlugin: Plugin = {
   },
 }
 
+/** Tables that exist to hold measures or drive a what-if/field parameter. They
+ * have no data of their own and are disconnected on purpose, so structural rules
+ * about keys and relationships say nothing useful about them. */
+const isHelperTable = (t: SemanticModel['tables'][number]): boolean =>
+  t.columns.length === 0 || // a measure-holder table
+  t.columns.length === 1 || // single-column what-if / field parameter
+  /^_|param|topn|metricsel|slicer|selection/i.test(t.name)
+
 export const coreValidationPlugin: Plugin = {
   id: 'core.validation',
   name: 'Model Validator',
-  version: '1.0.0',
+  version: '2.0.0',
   author: 'BI Design Studio',
-  description: 'Best-practice checks: keys, nulls, formats, orphan tables, date table.',
+  // Structure only. Measure quality (formats, DAX shape, folders) belongs to the
+  // Model Doctor — two features answering the same question is how they end up
+  // contradicting each other.
+  description: 'Structural checks: keys, blank columns, orphan tables, date table.',
   activate(host) {
     host.registerValidationRule({
       id: 'missing-key',
       name: 'Table without a key',
+      // A many-to-many bridge is keyed by the combination of its columns, not by
+      // one of them — "no primary key" is the design, not a defect.
       run: (model) =>
         model.tables
-          .filter((t) => t.role !== 'unknown' && !t.columns.some((c) => c.role === 'key'))
+          .filter((t) => t.role !== 'unknown' && !isHelperTable(t) && !/bridge|junction|xref|linktable/i.test(t.name))
+          .filter((t) => !t.columns.some((c) => c.role === 'key'))
           .map((t): ValidationIssue => ({ ruleId: 'missing-key', severity: 'warning', message: `“${t.name}” has no primary key column.`, target: t.name })),
     })
     host.registerValidationRule({
@@ -94,31 +110,28 @@ export const coreValidationPlugin: Plugin = {
         return out
       },
     })
-    host.registerValidationRule({
-      id: 'measure-format',
-      name: 'Measure without format string',
-      run: (model) =>
-        model.tables.flatMap((t) =>
-          t.measures
-            .filter((m) => !m.formatString)
-            .map((m): ValidationIssue => ({ ruleId: 'measure-format', severity: 'info', message: `Measure “${m.name}” has no format string.`, target: m.name })),
-        ),
-    })
+    // NOTE: there is deliberately no measure-format rule here. The Model Doctor
+    // owns measure quality and knows that a measure returning "Green"/"Amber"/"Red"
+    // has no business carrying a numeric format. This rule used to flag exactly
+    // those, directly contradicting the Doctor on the same model.
     host.registerValidationRule({
       id: 'orphan-table',
       name: 'Unrelated table',
       run: (model) => {
         const related = new Set(model.relationships.flatMap((r) => [r.fromTable, r.toTable]))
         return model.tables
-          .filter((t) => model.tables.length > 1 && !related.has(t.id))
+          .filter((t) => model.tables.length > 1 && !isHelperTable(t) && !related.has(t.id))
           .map((t): ValidationIssue => ({ ruleId: 'orphan-table', severity: 'info', message: `“${t.name}” is not related to any other table.`, target: t.name }))
       },
     })
     host.registerValidationRule({
       id: 'no-date-table',
       name: 'No date table',
+      // Same predicate the DAX engine gates time-intelligence on. Checking only
+      // role === 'date' claimed there was no date table while the Factory was
+      // busy generating YTD off 'Dim_Date'[Date].
       run: (model) =>
-        model.tables.length > 0 && !model.tables.some((t) => t.role === 'date')
+        model.tables.length > 0 && !modelHasDate(model)
           ? [{ ruleId: 'no-date-table', severity: 'info', message: 'No date table detected — time-intelligence measures need one.' }]
           : [],
     })

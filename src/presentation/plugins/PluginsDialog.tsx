@@ -9,6 +9,7 @@ const SEV_ORDER = { error: 0, warning: 1, info: 2 } as const
 export function PluginsDialog() {
   const open = useApp((s) => s.pluginsOpen)
   const toggle = useApp((s) => s.togglePlugins)
+  const toggleDoctor = useApp((s) => s.toggleDoctor)
   const model = useApp((s) => s.model)
 
   if (!open) return null
@@ -50,10 +51,14 @@ export function PluginsDialog() {
             <ShieldCheck size={12} style={{ verticalAlign: -1, marginRight: 4 }} />
             Model Health {issues.length > 0 && `· ${issues.length} issue${issues.length === 1 ? '' : 's'}`}
           </div>
+          <p className="plugins__hint">
+            Structure only — keys, blank columns, orphan tables, a date table. Measure quality lives in the{' '}
+            <button className="plugins__link" onClick={() => { toggle(false); toggleDoctor(true) }}>Model Doctor</button>.
+          </p>
           {model.tables.length === 0 ? (
-            <div className="health-issue" data-sev="info"><span className="health-issue__dot" />Import data to run model checks.</div>
+            <div className="health-issue" data-sev="info"><span className="health-issue__dot" />Connect to Power BI Desktop, or import data, to run model checks.</div>
           ) : issues.length === 0 ? (
-            <div className="health-ok"><ShieldCheck size={16} /> No issues — your model follows best practices.</div>
+            <div className="health-ok"><ShieldCheck size={16} /> Structure looks sound — keys, relationships and date table all check out.</div>
           ) : (
             issues.map((iss, i) => (
               <div key={i} className="health-issue" data-sev={iss.severity}>
