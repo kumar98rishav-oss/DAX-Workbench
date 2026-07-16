@@ -357,9 +357,13 @@ export function DaxView() {
 
             {/* Power BI Desktop bridge — real preview + push, when connected */}
             <div className="dax-desktop">
-              <span className={`dax-desktop__badge${desktop.connected ? ' is-on' : ''}`}>
+              <span className={`dax-desktop__badge${desktop.connected ? ' is-on' : desktop.bridge ? ' is-wait' : ''}`}>
                 {desktop.connected ? <MonitorCheck size={14} /> : <MonitorX size={14} />}
-                {desktop.connected ? `Power BI Desktop · ${desktop.database ?? 'connected'}` : 'Desktop not connected'}
+                {desktop.connected
+                  ? `Power BI Desktop · ${desktop.database ?? 'connected'}`
+                  : desktop.bridge
+                    ? 'Bridge running — open a .pbix in Desktop'
+                    : 'Desktop bridge not running'}
               </span>
               {desktop.connected ? (
                 <>
@@ -367,7 +371,9 @@ export function DaxView() {
                   <Button size="sm" variant="primary" icon={<Upload size={14} />} onClick={pushToDesktop} disabled={busy}>Push to Desktop</Button>
                 </>
               ) : (
-                <span className="dax-desktop__hint">Run the local bridge + open a .pbix to get real previews &amp; one-click deploy.</span>
+                <span className="dax-desktop__hint">
+                  {desktop.bridge ? 'Open your report in Power BI Desktop → real previews & one-click deploy appear here.' : 'Start the local bridge (tools/pbi-desktop-bridge) to work against your real model.'}
+                </span>
               )}
               {desktopMsg && (
                 <span className={`dax-desktop__msg${desktopMsg.ok ? '' : ' is-err'}`}>{desktopMsg.text}</span>

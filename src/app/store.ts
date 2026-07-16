@@ -295,7 +295,7 @@ export const useApp = create<AppState>((set, get) => ({
   pbixFallback: null,
   pendingImport: null,
   pendingPbip: null,
-  desktop: { connected: false },
+  desktop: { bridge: false, connected: false },
   _pickFiles: null,
   _pickPbip: null,
   _pickPbix: null,

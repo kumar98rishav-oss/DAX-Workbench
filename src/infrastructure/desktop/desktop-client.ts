@@ -9,7 +9,8 @@
 const BASE = 'http://127.0.0.1:5177'
 
 export interface DesktopStatus {
-  connected: boolean
+  bridge: boolean // the local bridge service is reachable
+  connected: boolean // a .pbix model is open + bound
   database?: string
   port?: number
 }
@@ -27,13 +28,15 @@ async function req<T>(path: string, init?: RequestInit, timeoutMs = 6000): Promi
   return body as T
 }
 
-/** Is the bridge up and a model open? Never throws. */
+/** Is the bridge up, and is a model open? Never throws. */
 export async function probeDesktop(): Promise<DesktopStatus> {
   try {
     const list = await req<{ Port: number; Database: string }[]>('/discover', undefined, 1500)
-    return list.length > 0 ? { connected: true, database: list[0].Database, port: list[0].Port } : { connected: false }
+    return list.length > 0
+      ? { bridge: true, connected: true, database: list[0].Database, port: list[0].Port }
+      : { bridge: true, connected: false }
   } catch {
-    return { connected: false }
+    return { bridge: false, connected: false }
   }
 }
 

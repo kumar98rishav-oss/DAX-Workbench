@@ -553,6 +553,10 @@
   color: var(--success, #16a34a);
   background: color-mix(in srgb, var(--success, #16a34a) 12%, transparent);
 }
+.dax-desktop__badge.is-wait {
+  color: var(--warning, #b45309);
+  background: color-mix(in srgb, var(--warning, #d97706) 12%, transparent);
+}
 .dax-desktop__hint {
   font-size: var(--text-sm);
   color: var(--text-subtle);

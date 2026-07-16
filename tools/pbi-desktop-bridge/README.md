@@ -32,17 +32,26 @@ If the bridge isn't running, the Studio silently falls back to its in-browser
 
 ## Run
 
+Easiest — double-click **`run.cmd`** (it builds a self-contained `.exe` on first
+run, then launches it). Leave the window open.
+
+Or manually:
+
 ```powershell
 cd tools\pbi-desktop-bridge
-dotnet run -c Release
+# self-contained x64 build — works even with the 32-bit .NET SDK
+dotnet publish -c Release -r win-x64 --self-contained true -o publish
+.\publish\pbi-desktop-bridge.exe
 # → listening on http://127.0.0.1:5177
 ```
 
-Then open the Studio (http://localhost:5175) with a `.pbix` open in Desktop —
-it connects automatically.
+> **Why publish instead of `dotnet run`?** The Analysis Services libraries are
+> x64-only. If you have the **x64** .NET SDK you can just `dotnet run -c Release`.
+> With the **x86** SDK, `dotnet run` can't launch an x64 app — so we publish a
+> self-contained x64 `.exe` and run that (or grab the x64 SDK).
 
-> If NuGet can't resolve the `Microsoft.AnalysisServices.*.NetCore` versions,
-> bump them to the latest and `dotnet restore` again.
+Then open the Studio (http://localhost:5175) with a `.pbix` open in Desktop —
+the DAX Architect's **Power BI Desktop** badge turns green automatically.
 
 ## How it connects
 
