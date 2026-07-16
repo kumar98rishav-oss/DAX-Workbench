@@ -10,7 +10,8 @@ import {
   Check,
   Loader2,
   Cable,
-  ExternalLink,
+  Download,
+  ShieldCheck,
   Sigma,
   Factory,
   Stethoscope,
@@ -25,7 +26,9 @@ import { modelLabel } from '@/infrastructure/desktop/desktop-client'
 import { Kbd } from '@/design-system/components'
 import './home.css'
 
-const DOTNET_SDK = 'https://dotnet.microsoft.com/en-us/download/dotnet/8.0'
+// Served from the site itself, so this works on localhost and in production alike.
+const BRIDGE_DOWNLOAD = '/download/BI-Design-Studio-Bridge.exe'
+const BRIDGE_SIZE = '52 MB'
 const LINKEDIN = 'https://www.linkedin.com/in/rishav98kumar'
 const EMAIL = 'Kumar98rishav@gmail.com'
 
@@ -134,28 +137,27 @@ export function HomeScreen() {
     else openStudio('Untitled Dashboard')
   }
 
-  // A running bridge proves the SDK is installed, so steps 1 and 2 share a signal.
+  // Downloading and running are one step from the bridge's point of view — it's
+  // either answering on 5177 or it isn't.
   const steps = [
     {
-      label: 'Install the .NET 8 SDK',
+      label: 'Download the bridge',
       done: desktop.bridge,
       body: (
         <>
-          A one-time install — the local bridge runs on it.{' '}
-          <a className="pbs-link" href={DOTNET_SDK} target="_blank" rel="noopener noreferrer">
-            Download .NET 8 SDK <ExternalLink size={11} />
-          </a>{' '}
-          (pick <strong>x64</strong>).
+          One file, {BRIDGE_SIZE}. No installer, and nothing else to install — the .NET runtime is
+          already inside it.
         </>
       ),
     },
     {
-      label: 'Start the local bridge',
+      label: 'Run it',
       done: desktop.bridge,
       body: (
         <>
-          Run <code>tools/pbi-desktop-bridge/run.cmd</code>. It serves on{' '}
-          <code>127.0.0.1:5177</code> and only ever talks to your machine.
+          Double-click it and leave the small window open. Windows will warn that it's from an
+          unknown publisher — choose <strong>More info → Run anyway</strong>. It listens on{' '}
+          <code>127.0.0.1:5177</code> and only ever talks to your own machine.
         </>
       ),
     },
@@ -167,7 +169,7 @@ export function HomeScreen() {
     {
       label: 'Connect',
       done: false,
-      body: <>Studio reads your tables, rows and measures, and can write DAX back into Desktop.</>,
+      body: <>This page notices the bridge on its own. Studio then reads your tables, rows and measures — and writes DAX back into Desktop.</>,
     },
   ]
 
@@ -266,10 +268,27 @@ export function HomeScreen() {
                 <div className="pbs-step__body">
                   <span className="pbs-step__label">{s.label}</span>
                   <span className="pbs-step__hint">{s.body}</span>
+                  {i === 0 && !desktop.bridge && (
+                    <a className="pbs-download" href={BRIDGE_DOWNLOAD} download>
+                      <Download size={15} />
+                      Download the bridge
+                      <span className="pbs-download__size">Windows · {BRIDGE_SIZE}</span>
+                    </a>
+                  )}
                 </div>
               </li>
             ))}
           </ol>
+
+          <p className="pbs-panel__foot">
+            <ShieldCheck size={13} />
+            <span>
+              The bridge runs entirely on your machine. It listens on loopback only, accepts calls
+              from this site alone, and uploads nothing anywhere. It can read your model and write
+              measures into it — that is what makes Studio work — so only ever run a copy you
+              downloaded from here.
+            </span>
+          </p>
         </section>
 
         {/* The three things the tool is for. */}

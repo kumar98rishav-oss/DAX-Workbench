@@ -110,6 +110,14 @@ app.MapPost("/preview", (PreviewReq req) =>
 
 app.MapPost("/measure", (MeasureReq req) =>
 {
+    // A payload that doesn't bind Dax (wrong key, older client) used to sail
+    // through and blank an existing measure's expression — a silent way to
+    // destroy someone's work. Refuse instead: this endpoint never empties DAX.
+    if (string.IsNullOrWhiteSpace(req.Dax))
+        return Results.Json(new { error = "Missing 'dax'. Refusing to write an empty expression." }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(req.Table) || string.IsNullOrWhiteSpace(req.Name))
+        return Results.Json(new { error = "Both 'table' and 'name' are required." }, statusCode: 400);
+
     try
     {
         var inst = PowerBi.Resolve(req.Port);
