@@ -107,7 +107,19 @@ export function parseIntent(prompt: string, model: SemanticModel, datasets: Data
   // ("Total", "YOY growth", "previous 15 days") never fabricate a filter.
   const fm = raw.match(FILTER_RE)
   const explicit = !!fm
-  const filterSource = fm ? raw.slice((fm.index ?? 0) + fm[0].length) : raw
+  let filterSource: string
+  if (explicit) {
+    filterSource = raw.slice((fm!.index ?? 0) + fm![0].length)
+  } else {
+    // Remove the measure + group-by name tokens so a word inside the field name
+    // (e.g. "Direct" in the measure "Direct Revenue") can't become a filter.
+    const strip = new Set<string>()
+    for (const nm of [fieldName, groupName]) if (nm) for (const w of words(nm)) strip.add(w)
+    filterSource = raw
+      .split(/\s+/)
+      .filter((tok) => !strip.has(tok.toLowerCase().replace(/[^a-z0-9]/g, '')))
+      .join(' ')
+  }
   const filters = resolveFilters(filterSource, model, datasets, explicit)
 
   return {
@@ -321,9 +333,11 @@ export function suggest(
   for (const { p, s } of ranked) {
     if (out.length >= limit) break
     // Canonical carries only the base aggregation/time-intelligence — never the
-    // filters (the engine would split on "and"). We wrap filters ourselves.
+    // filters (the engine would split on "and", or worse, read a value-like word
+    // in the measure name as a filter). We resolve + wrap filters ourselves, so
+    // always skip the engine's value→column injection.
     const canonical = p.canonical(intent, ctx).replace(/\s+/g, ' ').trim()
-    const sol = architectSolution(model, canonical, datasets)
+    const sol = architectSolution(model, canonical, datasets, undefined, true)
     if (!sol) continue
     const baseSteps: SuggestionStep[] = sol.steps
       .filter((st) => st.objectType === 'Measure')

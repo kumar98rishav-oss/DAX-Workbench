@@ -23,17 +23,18 @@ export interface ResolvedFilter {
 
 const normId = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
 
-/** Words that describe the calculation, not a filter value — never match these. */
+/** CALCULATION / structure words only — never a filter value in a bare prompt.
+ * (Measure-subject nouns like "sales"/"revenue" are NOT here — those are removed
+ * from the scan by subtracting the resolved field name instead, so they can still
+ * be legitimate filter values.) */
 const STOP = new Set([
   'total', 'sum', 'overall', 'aggregate', 'combined', 'gross', 'count', 'number', 'tally', 'distinct', 'unique',
   'average', 'avg', 'mean', 'min', 'minimum', 'max', 'maximum', 'lowest', 'highest', 'smallest', 'largest', 'greatest',
-  'sales', 'revenue', 'amount', 'value', 'values', 'price', 'cost', 'profit', 'margin', 'qty', 'quantity', 'boxes',
-  'units', 'unit', 'orders', 'order', 'shipment', 'shipments', 'sale', 'transactions', 'transaction',
   'yoy', 'mom', 'qoq', 'wow', 'ytd', 'qtd', 'mtd', 'year', 'years', 'yearly', 'month', 'months', 'monthly',
   'quarter', 'quarters', 'quarterly', 'week', 'weeks', 'weekly', 'day', 'days', 'daily', 'date', 'time', 'period',
   'previous', 'prior', 'last', 'past', 'trailing', 'rolling', 'running', 'cumulative', 'moving',
   'growth', 'change', 'increase', 'decrease', 'variance', 'delta', 'difference', 'vs', 'versus', 'over', 'todate',
-  'by', 'per', 'share', 'percent', 'percentage', 'pct', 'proportion', 'contribution', 'ratio', 'rate',
+  'by', 'per', 'share', 'percent', 'percentage', 'pct', 'proportion', 'contribution',
   'rank', 'ranking', 'top', 'bottom', 'position', 'and', 'or', 'with', 'for', 'where', 'in', 'is', 'on', 'to',
   'from', 'the', 'a', 'an', 'of', 'each', 'every', 'all', 'my', 'our', 'this', 'that', 'current',
 ])
@@ -109,6 +110,17 @@ interface ValueHit {
   column: string
   value: string
   score: number
+}
+
+/** Exact value match within a specific column, any length (explicit "Col = Value"). */
+function exactInColumn(value: string, cols: ValueCol[], restrict: { table: string; column: string }): ValueHit | null {
+  const p = normId(value)
+  if (!p) return null
+  for (const col of cols) {
+    if (col.table !== restrict.table || col.column !== restrict.column) continue
+    for (const v of col.values) if (normId(v) === p) return { table: col.table, column: col.column, value: v, score: 1 }
+  }
+  return null
 }
 
 /** Exact (case/underscore-insensitive) value match only — used for bare prompts. */
@@ -192,17 +204,19 @@ export function resolveFilters(text: string, model: SemanticModel, datasets: Dat
     const op = clause.match(/^(.*?)\s*(?:=|:|\bis\b|\bequals?\b)\s*(.+)$/i)
 
     if (op) {
-      // Explicit "column = value".
+      // Explicit "column = value" — honor the value verbatim (even if it's a
+      // word like Day / Revenue / Orders / A that we'd skip in a bare prompt).
       const colWord = op[1].trim()
       const valWord = op[2].replace(/^['"]|['"]$/g, '').trim()
       const restrict = matchColumn(colWord, model) ?? undefined
-      let m = restrict ? fuzzyValue(valWord, cols, restrict) : null
+      let m = restrict ? exactInColumn(valWord, cols, restrict) : null // exact within the named column, any length
+      if (!m) m = restrict ? fuzzyValue(valWord, cols, restrict) : null // then typo within it
       if (!m || m.score < 0.72) {
         const g = fuzzyValue(valWord, cols)
         if (g && (!m || g.score > m.score + 0.05)) m = g
       }
       if (m && m.score >= 0.6) add(m.table, m.column, m.value, valWord)
-      else if (restrict && valWord && !isStop(valWord)) add(restrict.table, restrict.column, valWord, valWord)
+      else if (restrict && valWord) add(restrict.table, restrict.column, valWord, valWord) // honor the user's literal
       continue
     }
 
