@@ -63,11 +63,7 @@ export function ImportPreviewDialog() {
             <div className="impdlg__notice">
               <Info size={16} style={{ flexShrink: 0, marginTop: 1, color: 'var(--accent)' }} />
               <span>
-                {pending.isSampleData ? (
-                  <>You currently have <strong>sample data{pending.templateName ? ` from “${pending.templateName}”` : ''}</strong>. </>
-                ) : (
-                  <>Your project has <strong>{pending.currentTables} table{pending.currentTables === 1 ? '' : 's'}</strong>. </>
-                )}
+                <>Your project has <strong>{pending.currentTables} table{pending.currentTables === 1 ? '' : 's'}</strong>. </>
                 {pending.currentMeasures > 0 && (
                   <>
                     It also has <strong>{pending.currentMeasures} measure{pending.currentMeasures === 1 ? '' : 's'}</strong> —

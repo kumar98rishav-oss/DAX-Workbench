@@ -9,13 +9,11 @@ import { generateLayout, DEFAULT_LAYOUT } from '@/application/insights/dashboard
 import type { VisualSpec } from '@/application/insights/dashboard-generator'
 import { generateDaxFromNL } from '@/application/dax/nl-templates'
 import { architectSolution } from '@/application/dax/architect/architect'
-import type { TemplateDef } from '@/application/templates/catalog'
-import { makeTemplateFile } from '@/application/templates/generate'
 import { parsePbipFolder, parsePbixFile, pbipSummary } from '@/application/import/pbi/open-project'
 import { assemblePbiProject } from '@/application/import/pbi/assemble'
 import type { ParsedDataset } from '@/application/import/types'
 import type { PbiModel } from '@/application/import/pbi/tmdl'
-import { probeDesktop, getDesktopModel, desktopRunDax } from '@/infrastructure/desktop/desktop-client'
+import { probeDesktop, getDesktopModel, desktopRunDax, modelLabel } from '@/infrastructure/desktop/desktop-client'
 import type { DesktopStatus } from '@/infrastructure/desktop/desktop-client'
 import { mapTmdlType } from '@/application/import/pbi/tmdl'
 import { inferDataset } from '@/application/import/infer-schema'
@@ -26,7 +24,7 @@ export interface PendingPbip {
   real: Record<string, ParsedDataset> // tableName(lower) → bound real rows (auto + user)
   boundFrom: Record<string, string> // tableName(lower) → file it was bound from
 }
-import { applyAccent, resetAccent } from '@/design-system/runtime-theme'
+import { resetAccent } from '@/design-system/runtime-theme'
 import { services } from './services'
 
 export interface PendingTable {
@@ -44,8 +42,6 @@ export interface PendingImport {
   fileNames: string[]
   currentTables: number
   currentMeasures: number
-  isSampleData: boolean
-  templateName: string | null
 }
 
 /** Run the auto-model engine over the current datasets + tables. */
@@ -109,7 +105,6 @@ interface AppState {
   panels: PanelState
   commandPaletteOpen: boolean
   projectName: string | null
-  activeTemplateId: string | null
   layoutId: string
   layoutChooserOpen: boolean
 
@@ -159,7 +154,6 @@ interface AppState {
   // ---- actions ----
   goHome: () => void
   openStudio: (projectName: string) => void
-  applyTemplate: (def: TemplateDef) => Promise<void>
   setMode: (mode: StudioMode) => void
   toggleTheme: () => void
   setTheme: (t: Theme) => void
@@ -274,7 +268,6 @@ export const useApp = create<AppState>((set, get) => ({
   panels: { left: true, right: true, bottom: false },
   commandPaletteOpen: false,
   projectName: null,
-  activeTemplateId: null,
   layoutId: DEFAULT_LAYOUT,
   layoutChooserOpen: false,
 
@@ -312,28 +305,6 @@ export const useApp = create<AppState>((set, get) => ({
   goHome: () => set({ view: 'home' }),
 
   openStudio: (projectName) => set({ view: 'studio', projectName, mode: 'design' }),
-
-  applyTemplate: async (def) => {
-    applyAccent(def.accent)
-    get().setTheme(def.mode)
-    // Fresh document so the template's data + dashboard replace any prior project.
-    set({
-      activeTemplateId: def.id,
-      projectName: def.name,
-      layoutId: DEFAULT_LAYOUT,
-      datasets: [],
-      model: emptyModel('model', 'Model'),
-      report: emptyReport('report', 'Report'),
-      selectedVisualId: null,
-      selectedMeasureId: null,
-      activeDatasetId: null,
-      past: [],
-      future: [],
-    })
-    await get().importFiles([makeTemplateFile(def)])
-    // Offer layout variations right after the template loads.
-    set({ layoutChooserOpen: true })
-  },
 
   setMode: (mode) => set({ mode }),
 
@@ -462,8 +433,7 @@ export const useApp = create<AppState>((set, get) => ({
       report: load.report,
       activeDatasetId: load.datasets[0]?.id ?? null,
       projectName: p.model.name,
-      activeTemplateId: null,
-      importing: false,
+          importing: false,
       importError: null,
       importNote: pbipSummary(p.model, load.realCount),
       pendingPbip: null,
@@ -488,7 +458,7 @@ export const useApp = create<AppState>((set, get) => ({
     try {
       const dm = await getDesktopModel(s.desktop.port)
       const pbi: PbiModel = {
-        name: dm.database || 'Power BI model',
+        name: modelLabel(dm.database) ?? 'Power BI model',
         tables: dm.tables.map((t) => ({
           name: t.name,
           isHidden: t.isHidden,
@@ -526,9 +496,8 @@ export const useApp = create<AppState>((set, get) => ({
         model: load.model,
         report: load.report,
         activeDatasetId: load.datasets[0]?.id ?? null,
-        projectName: dm.database,
-        activeTemplateId: null,
-        importing: false,
+        projectName: modelLabel(dm.database) ?? 'Power BI Desktop model',
+              importing: false,
         importError: null,
         importNote: `Synced from Power BI Desktop — ${dm.tables.length} tables (real data), ${measureCount} live measures. Previews now run on your real model.`,
         selectedVisualId: null,
@@ -560,8 +529,7 @@ export const useApp = create<AppState>((set, get) => ({
         report: load.report,
         activeDatasetId: load.datasets[0]?.id ?? null,
         projectName: model.name,
-        activeTemplateId: null,
-        importing: false,
+              importing: false,
         importError: null,
         importNote: note,
         selectedVisualId: null,
@@ -688,8 +656,6 @@ export const useApp = create<AppState>((set, get) => ({
         fileNames: [...new Set(files.map((f) => f.name))],
         currentTables: s.datasets.length,
         currentMeasures: s.model.tables.reduce((n, t) => n + t.measures.length, 0),
-        isSampleData: s.activeTemplateId !== null,
-        templateName: s.activeTemplateId !== null ? s.projectName : null,
       },
     })
   },
@@ -740,7 +706,6 @@ export const useApp = create<AppState>((set, get) => ({
         model: artifacts.model,
         report: artifacts.report,
         activeDatasetId: datasets[0]?.id ?? null,
-        activeTemplateId: mode === 'replace' ? null : s.activeTemplateId,
         projectName:
           mode === 'replace'
             ? pending.fileNames[0]?.replace(/\.[^.]+$/, '') ?? selected[0]?.name ?? 'Imported'

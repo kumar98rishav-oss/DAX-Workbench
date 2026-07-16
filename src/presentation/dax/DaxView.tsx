@@ -9,7 +9,7 @@ import type { DaxFunction } from '@/application/dax/functions'
 import { suggest } from '@/application/dax/intent/suggest'
 import type { Suggestion } from '@/application/dax/intent/suggest'
 import { recordPick } from '@/application/dax/intent/memory'
-import { desktopPreview, desktopCreateMeasure } from '@/infrastructure/desktop/desktop-client'
+import { desktopPreview, desktopCreateMeasure, modelLabel } from '@/infrastructure/desktop/desktop-client'
 import { DependencyGraph } from './DependencyGraph'
 import './dax.css'
 
@@ -371,7 +371,7 @@ export function DaxView() {
               <span className={`dax-desktop__badge${desktop.connected ? ' is-on' : desktop.bridge ? ' is-wait' : ''}`}>
                 {desktop.connected ? <MonitorCheck size={14} /> : <MonitorX size={14} />}
                 {desktop.connected
-                  ? `Power BI Desktop · ${desktop.database ?? 'connected'}`
+                  ? `Power BI Desktop · ${modelLabel(desktop.database) ?? 'connected'}`
                   : desktop.bridge
                     ? 'Bridge running — open a .pbix in Desktop'
                     : 'Desktop bridge not running'}

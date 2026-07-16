@@ -1,74 +1,35 @@
 import {
   Sparkles,
+  Search,
+  MonitorCheck,
+  ChevronDown,
   Upload,
   LayoutDashboard,
   FolderOpen,
   FileInput,
-  MonitorCheck,
-  Search,
-  // template icons
-  ScanText,
-  HeartPulse,
-  ReceiptText,
-  Share2,
-  Video,
-  Hotel,
-  TrendingUp,
-  Star,
-  UtensilsCrossed,
-  SlidersHorizontal,
-  GraduationCap,
-  Users,
-  Wallet,
-  FlaskConical,
-  GitBranch,
-  ShieldCheck,
-  DollarSign,
-  Boxes,
-  Radio,
-  LineChart,
-  ShoppingCart,
-  Truck,
-  UserCog,
-  Landmark,
-  Megaphone,
-  Target,
-  PackageSearch,
-  Headphones,
-  Factory,
+  Check,
+  Loader2,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useApp } from '@/app/store'
-import { Card, EmptyState, Kbd } from '@/design-system/components'
-import { TEMPLATES, VERTICALS } from '@/application/templates/catalog'
+import { modelLabel } from '@/infrastructure/desktop/desktop-client'
+import { Kbd } from '@/design-system/components'
 import './home.css'
 
-const ICONS: Record<string, LucideIcon> = {
-  ScanText, HeartPulse, ReceiptText, Share2, Video, Hotel, TrendingUp, Star,
-  UtensilsCrossed, SlidersHorizontal, GraduationCap, Users, Wallet, FlaskConical,
-  GitBranch, ShieldCheck, DollarSign, Boxes, Radio, LineChart, ShoppingCart,
-  Truck, UserCog, LayoutDashboard, Landmark, Megaphone, Target, PackageSearch,
-  Headphones, Factory,
-}
-
-const grad = (accent: string) =>
-  `linear-gradient(140deg, ${accent}, color-mix(in srgb, ${accent} 52%, #0b0e14))`
-
-interface QuickAction {
+interface StartOption {
   id: string
   title: string
   desc: string
   icon: ReactNode
 }
 
-const ACTIONS: QuickAction[] = [
-  { id: 'import', title: 'Import Data', desc: 'Excel, CSV, Parquet, SQL', icon: <Upload size={22} /> },
-  { id: 'new', title: 'New Dashboard', desc: 'Start from a blank canvas', icon: <LayoutDashboard size={22} /> },
-  { id: 'pbip', title: 'Open PBIP', desc: 'Power BI project folder', icon: <FolderOpen size={22} /> },
-  { id: 'pbix', title: 'Open PBIX', desc: 'Best-effort import', icon: <FileInput size={22} /> },
-  { id: 'desktop', title: 'Connect to Desktop', desc: 'Live Power BI model', icon: <MonitorCheck size={22} /> },
+/** Everything that isn't the live connector. Real, but secondary. */
+const OTHER_WAYS: StartOption[] = [
+  { id: 'import', title: 'Import data', desc: 'Excel, CSV or Parquet', icon: <Upload size={16} /> },
+  { id: 'pbip', title: 'Open PBIP', desc: 'Power BI project folder', icon: <FolderOpen size={16} /> },
+  { id: 'pbix', title: 'Open PBIX', desc: 'Best-effort — no data', icon: <FileInput size={16} /> },
+  { id: 'new', title: 'New dashboard', desc: 'Start from a blank canvas', icon: <LayoutDashboard size={16} /> },
 ]
 
 export function HomeScreen() {
@@ -77,27 +38,75 @@ export function HomeScreen() {
   const requestImport = useApp((s) => s.requestImport)
   const requestOpenPbip = useApp((s) => s.requestOpenPbip)
   const requestOpenPbix = useApp((s) => s.requestOpenPbix)
-  const applyTemplate = useApp((s) => s.applyTemplate)
   const desktop = useApp((s) => s.desktop)
+  const importing = useApp((s) => s.importing)
   const refreshDesktop = useApp((s) => s.refreshDesktop)
   const syncFromDesktop = useApp((s) => s.syncFromDesktop)
 
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Poll while we're on Home so the steps tick over as the user starts the
+  // bridge / opens a model, without them having to click anything.
   useEffect(() => {
     void refreshDesktop()
+    const t = setInterval(() => void refreshDesktop(), 4000)
+    return () => clearInterval(t)
   }, [refreshDesktop])
 
-  const runAction = (id: string, title: string) => {
-    if (id === 'import') requestImport()
-    else if (id === 'pbip') requestOpenPbip()
-    else if (id === 'pbix') requestOpenPbix()
-    else if (id === 'desktop') {
-      void (async () => {
-        await refreshDesktop()
-        if (useApp.getState().desktop.connected) void syncFromDesktop()
-        else useApp.setState({ importError: 'Start the local bridge (tools/pbi-desktop-bridge/run.cmd) and open a .pbix in Power BI Desktop.' })
-      })()
-    } else openStudio(title === 'New Dashboard' ? 'Untitled Dashboard' : title)
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false)
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
+
+  const connect = () => {
+    void (async () => {
+      await refreshDesktop()
+      if (useApp.getState().desktop.connected) void syncFromDesktop()
+    })()
   }
+
+  const pick = (o: StartOption) => {
+    setMenuOpen(false)
+    if (o.id === 'import') requestImport()
+    else if (o.id === 'pbip') requestOpenPbip()
+    else if (o.id === 'pbix') requestOpenPbix()
+    else openStudio('Untitled Dashboard')
+  }
+
+  const steps = [
+    {
+      label: 'Local bridge running',
+      done: desktop.bridge,
+      hint: <>Run <code>tools/pbi-desktop-bridge/run.cmd</code></>,
+    },
+    {
+      label: 'A model open in Power BI Desktop',
+      done: desktop.connected,
+      hint: <>Open any <code>.pbix</code> — Studio finds it automatically</>,
+    },
+    {
+      label: 'Sync it into Studio',
+      done: false,
+      hint: <>Real rows, real measures, real DAX previews</>,
+    },
+  ]
+
+  const label = modelLabel(desktop.database)
+  const status = desktop.connected
+    ? { cls: 'live', text: label ? `Live · ${label}` : 'Live · model connected' }
+    : desktop.bridge
+      ? { cls: 'waiting', text: 'Bridge running — waiting for a model' }
+      : { cls: 'off', text: 'Bridge not running' }
 
   return (
     <div className="pbs-home pbs-scroll">
@@ -118,79 +127,61 @@ export function HomeScreen() {
 
       <div className="pbs-home__inner">
         <section className="pbs-home__hero">
-          <span className="pbs-home__eyebrow">
-            <Sparkles size={14} /> 30 templates · pick one → instant styled dashboard
+          <span className="pbs-status" data-state={status.cls}>
+            <span className="pbs-status__dot" />
+            {status.text}
           </span>
           <h1 className="pbs-home__title">
-            Build Power BI solutions <em>at the speed of thought</em>
+            Work on your <em>real</em> Power BI model
           </h1>
           <p className="pbs-home__lede">
-            Choose a template and Studio generates a themed, data-bound dashboard — or import your
-            own data and it detects the schema, writes the DAX, and builds the report automatically.
+            Studio reads the model open in Power BI Desktop — real rows, real measures, real values —
+            builds the DAX, and writes it straight back. Nothing is estimated.
           </p>
-        </section>
 
-        <section className="pbs-home__actions">
-          {ACTIONS.map((a) => (
-            <Card key={a.id} interactive className="pbs-action" onClick={() => runAction(a.id, a.title)} data-live={a.id === 'desktop' && desktop.connected ? 'true' : undefined}>
-              <span className="pbs-action__icon">{a.icon}</span>
-              <span className="pbs-action__title">{a.title}</span>
-              <span className="pbs-action__desc">
-                {a.id === 'desktop'
-                  ? desktop.connected
-                    ? `● Live · ${desktop.database ?? 'connected'} — click to sync`
-                    : desktop.bridge
-                      ? 'Bridge on — open a .pbix'
-                      : 'Live Power BI model'
-                  : a.desc}
-              </span>
-            </Card>
-          ))}
-        </section>
+          <div className="pbs-home__cta">
+            <button className="pbs-connect" onClick={connect} disabled={importing} data-live={desktop.connected}>
+              {importing ? <Loader2 size={18} className="pbs-spin" /> : <MonitorCheck size={18} />}
+              {importing
+                ? 'Syncing your model…'
+                : desktop.connected
+                  ? `Sync ${label ?? 'live model'}`
+                  : 'Connect to Power BI Desktop'}
+            </button>
 
-        {VERTICALS.map((vertical) => {
-          const items = TEMPLATES.filter((t) => t.vertical === vertical)
-          return (
-            <section className="pbs-home__section" key={vertical}>
-              <div className="pbs-section-head">
-                <span className="pbs-section-head__title">{vertical}</span>
-                <span className="pbs-section-head__link" style={{ color: 'var(--text-subtle)' }}>
-                  {items.length} templates
-                </span>
-              </div>
-              <div className="pbs-templates">
-                {items.map((t) => {
-                  const Icon = ICONS[t.icon] ?? LayoutDashboard
-                  return (
-                    <Card key={t.id} interactive className="pbs-template" onClick={() => void applyTemplate(t)}>
-                      <div className="pbs-template__thumb" style={{ background: grad(t.accent) }}>
-                        <Icon size={26} />
-                        <span className="pbs-template__mode">{t.mode === 'dark' ? 'Neon' : 'Minimal'}</span>
-                      </div>
-                      <div className="pbs-template__body">
-                        <div className="pbs-template__name">{t.name}</div>
-                        <div className="pbs-template__meta">{t.blurb}</div>
-                      </div>
-                    </Card>
-                  )
-                })}
-              </div>
-            </section>
-          )
-        })}
-
-        <section className="pbs-home__section">
-          <div className="pbs-section-head">
-            <span className="pbs-section-head__title">Recent</span>
+            <div className="pbs-menu" ref={menuRef}>
+              <button className="pbs-menu__btn" onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen} aria-haspopup="menu">
+                Other ways to start
+                <ChevronDown size={15} style={{ transform: menuOpen ? 'rotate(180deg)' : undefined }} />
+              </button>
+              {menuOpen && (
+                <div className="pbs-menu__pop" role="menu">
+                  {OTHER_WAYS.map((o) => (
+                    <button key={o.id} className="pbs-menu__item" role="menuitem" onClick={() => pick(o)}>
+                      <span className="pbs-menu__icon">{o.icon}</span>
+                      <span className="pbs-menu__body">
+                        <span className="pbs-menu__title">{o.title}</span>
+                        <span className="pbs-menu__desc">{o.desc}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <Card>
-            <EmptyState
-              icon={<LayoutDashboard size={26} />}
-              title="No projects yet"
-              description="Pick a template above or import a dataset to generate your first dashboard in seconds."
-            />
-          </Card>
         </section>
+
+        <ol className="pbs-steps">
+          {steps.map((s, i) => (
+            <li className="pbs-step" key={s.label} data-done={s.done}>
+              <span className="pbs-step__mark">{s.done ? <Check size={13} /> : i + 1}</span>
+              <span className="pbs-step__body">
+                <span className="pbs-step__label">{s.label}</span>
+                <span className="pbs-step__hint">{s.hint}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
       </div>
     </div>
   )

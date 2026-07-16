@@ -31,14 +31,24 @@ async function req<T>(path: string, init?: RequestInit, timeoutMs = 6000): Promi
 /** Is the bridge up, and is a model open? Never throws. */
 export async function probeDesktop(): Promise<DesktopStatus> {
   try {
-    const list = await req<{ Port: number; Database: string }[]>('/discover', undefined, 1500)
+    // The bridge serialises camelCase — reading Port/Database here left the port
+    // undefined, so every later call silently fell back to the bridge picking a
+    // model for us. That's only correct while exactly one .pbix is open.
+    const list = await req<{ port: number; database: string }[]>('/discover', undefined, 1500)
     return list.length > 0
-      ? { bridge: true, connected: true, database: list[0].Database, port: list[0].Port }
+      ? { bridge: true, connected: true, database: list[0].database, port: list[0].port }
       : { bridge: true, connected: false }
   } catch {
     return { bridge: false, connected: false }
   }
 }
+
+const GUID = /^[{(]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[)}]?$/i
+
+/** A Desktop model's database name is a GUID — never worth showing. Null when
+ * there's nothing human-readable to display. */
+export const modelLabel = (database?: string): string | null =>
+  !database || GUID.test(database) ? null : database
 
 export const getDesktopModel = (port?: number) => req<DesktopModel>(`/model${port ? `?port=${port}` : ''}`)
 
