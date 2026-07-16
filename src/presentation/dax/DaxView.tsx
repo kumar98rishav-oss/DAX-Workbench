@@ -81,6 +81,7 @@ export function DaxView() {
   const commitMeasures = useApp((s) => s.commitMeasures)
   const desktop = useApp((s) => s.desktop)
   const refreshDesktop = useApp((s) => s.refreshDesktop)
+  const syncFromDesktop = useApp((s) => s.syncFromDesktop)
 
   const [prompt, setPrompt] = useState('')
   const [explanation, setExplanation] = useState<string | null>(null)
@@ -367,6 +368,7 @@ export function DaxView() {
               </span>
               {desktop.connected ? (
                 <>
+                  <Button size="sm" variant="subtle" icon={<MonitorCheck size={14} />} onClick={() => void syncFromDesktop()} disabled={busy}>Sync model</Button>
                   <Button size="sm" variant="subtle" icon={<PlayCircle size={14} />} onClick={verifyOnDesktop} disabled={busy}>Verify on Desktop</Button>
                   <Button size="sm" variant="primary" icon={<Upload size={14} />} onClick={pushToDesktop} disabled={busy}>Push to Desktop</Button>
                 </>

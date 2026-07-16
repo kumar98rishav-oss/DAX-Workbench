@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   FolderOpen,
   FileInput,
+  MonitorCheck,
   Search,
   // template icons
   ScanText,
@@ -38,6 +39,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useEffect } from 'react'
 import { useApp } from '@/app/store'
 import { Card, EmptyState, Kbd } from '@/design-system/components'
 import { TEMPLATES, VERTICALS } from '@/application/templates/catalog'
@@ -66,6 +68,7 @@ const ACTIONS: QuickAction[] = [
   { id: 'new', title: 'New Dashboard', desc: 'Start from a blank canvas', icon: <LayoutDashboard size={22} /> },
   { id: 'pbip', title: 'Open PBIP', desc: 'Power BI project folder', icon: <FolderOpen size={22} /> },
   { id: 'pbix', title: 'Open PBIX', desc: 'Best-effort import', icon: <FileInput size={22} /> },
+  { id: 'desktop', title: 'Connect to Desktop', desc: 'Live Power BI model', icon: <MonitorCheck size={22} /> },
 ]
 
 export function HomeScreen() {
@@ -75,12 +78,25 @@ export function HomeScreen() {
   const requestOpenPbip = useApp((s) => s.requestOpenPbip)
   const requestOpenPbix = useApp((s) => s.requestOpenPbix)
   const applyTemplate = useApp((s) => s.applyTemplate)
+  const desktop = useApp((s) => s.desktop)
+  const refreshDesktop = useApp((s) => s.refreshDesktop)
+  const syncFromDesktop = useApp((s) => s.syncFromDesktop)
+
+  useEffect(() => {
+    void refreshDesktop()
+  }, [refreshDesktop])
 
   const runAction = (id: string, title: string) => {
     if (id === 'import') requestImport()
     else if (id === 'pbip') requestOpenPbip()
     else if (id === 'pbix') requestOpenPbix()
-    else openStudio(title === 'New Dashboard' ? 'Untitled Dashboard' : title)
+    else if (id === 'desktop') {
+      void (async () => {
+        await refreshDesktop()
+        if (useApp.getState().desktop.connected) void syncFromDesktop()
+        else useApp.setState({ importError: 'Start the local bridge (tools/pbi-desktop-bridge/run.cmd) and open a .pbix in Power BI Desktop.' })
+      })()
+    } else openStudio(title === 'New Dashboard' ? 'Untitled Dashboard' : title)
   }
 
   return (
@@ -116,10 +132,18 @@ export function HomeScreen() {
 
         <section className="pbs-home__actions">
           {ACTIONS.map((a) => (
-            <Card key={a.id} interactive className="pbs-action" onClick={() => runAction(a.id, a.title)}>
+            <Card key={a.id} interactive className="pbs-action" onClick={() => runAction(a.id, a.title)} data-live={a.id === 'desktop' && desktop.connected ? 'true' : undefined}>
               <span className="pbs-action__icon">{a.icon}</span>
               <span className="pbs-action__title">{a.title}</span>
-              <span className="pbs-action__desc">{a.desc}</span>
+              <span className="pbs-action__desc">
+                {a.id === 'desktop'
+                  ? desktop.connected
+                    ? `● Live · ${desktop.database ?? 'connected'} — click to sync`
+                    : desktop.bridge
+                      ? 'Bridge on — open a .pbix'
+                      : 'Live Power BI model'
+                  : a.desc}
+              </span>
             </Card>
           ))}
         </section>

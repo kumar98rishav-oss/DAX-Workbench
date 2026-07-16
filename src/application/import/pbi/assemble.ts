@@ -75,6 +75,20 @@ export function assemblePbiProject(
   const built = buildModel(datasets.map((d) => ({ data: d, table: tables.find((t) => t.id === d.id)! })))
   tables = built.tables
 
+  // Keep measure-only tables (a dedicated "_Measure" table has no data columns)
+  // so their measures aren't dropped.
+  for (const pt of pbi.tables) {
+    if (tables.some((t) => t.name === pt.name)) continue
+    if (pt.measures.length === 0) continue
+    let id = slug(pt.name)
+    const base = id
+    let k = 2
+    while (taken.has(id)) id = `${base}_${k++}`
+    taken.add(id)
+    idOf.set(pt.name, id)
+    tables.push({ id, name: pt.name, role: 'unknown', columns: [], measures: [], rowCount: 0 })
+  }
+
   // 3. Relationships: prefer the project's declared ones, resolved to real ids.
   const colId = (tName: string, cName: string): string | null => {
     const tid = idOf.get(tName)

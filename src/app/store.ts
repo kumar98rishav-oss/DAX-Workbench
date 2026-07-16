@@ -15,8 +15,10 @@ import { parsePbipFolder, parsePbixFile, pbipSummary } from '@/application/impor
 import { assemblePbiProject } from '@/application/import/pbi/assemble'
 import type { ParsedDataset } from '@/application/import/types'
 import type { PbiModel } from '@/application/import/pbi/tmdl'
-import { probeDesktop } from '@/infrastructure/desktop/desktop-client'
+import { probeDesktop, getDesktopModel, desktopRunDax } from '@/infrastructure/desktop/desktop-client'
 import type { DesktopStatus } from '@/infrastructure/desktop/desktop-client'
+import { mapTmdlType } from '@/application/import/pbi/tmdl'
+import { inferDataset } from '@/application/import/infer-schema'
 
 /** Staged PBIP import — the user reviews per-table sources before committing. */
 export interface PendingPbip {
@@ -145,6 +147,7 @@ interface AppState {
   pendingPbip: PendingPbip | null
   desktop: DesktopStatus
   refreshDesktop: () => Promise<void>
+  syncFromDesktop: () => Promise<void>
   _pickFiles: (() => void) | null
   _pickPbip: (() => void) | null
   _pickPbix: (() => void) | null
@@ -468,6 +471,67 @@ export const useApp = create<AppState>((set, get) => ({
   cancelPbip: () => set({ pendingPbip: null }),
 
   refreshDesktop: async () => set({ desktop: await probeDesktop() }),
+
+  // Pull the REAL model + data from the connected Power BI Desktop into the Studio.
+  syncFromDesktop: async () => {
+    const s = get()
+    if (!s.desktop.connected) { set({ importError: 'Connect to Power BI Desktop first (open a .pbix).' }); return }
+    set({ importing: true, importError: null, importNote: null })
+    try {
+      const dm = await getDesktopModel(s.desktop.port)
+      const pbi: PbiModel = {
+        name: dm.database || 'Power BI model',
+        tables: dm.tables.map((t) => ({
+          name: t.name,
+          isHidden: t.isHidden,
+          columns: t.columns.map((c) => ({ name: c.name, dataType: mapTmdlType(c.dataType) })),
+          measures: t.measures.map((m) => ({ name: m.name, expression: m.expression, formatString: m.formatString, displayFolder: m.displayFolder })),
+        })),
+        relationships: dm.relationships.map((r) => ({
+          fromTable: r.fromTable, fromColumn: r.fromColumn, toTable: r.toTable, toColumn: r.toColumn,
+          isActive: r.isActive, crossFilter: 'single' as const,
+        })),
+      }
+
+      // Pull real rows per data table via EVALUATE (capped by the bridge).
+      const realByName: Record<string, ParsedDataset> = {}
+      for (const t of dm.tables) {
+        if (t.columns.length === 0) continue
+        try {
+          const q = await desktopRunDax(`EVALUATE '${t.name.replace(/'/g, "''")}'`, s.desktop.port)
+          if (q.rows.length === 0) continue
+          const headers = q.columns.map((c) => (c.includes('[') ? c.slice(c.indexOf('[') + 1, -1) : c))
+          const raw = q.rows.map((r) => q.columns.map((c) => (r[c] == null ? '' : String(r[c]))))
+          realByName[t.name.toLowerCase()] = inferDataset(t.name, headers, raw)
+        } catch {
+          /* table not queryable (calc group / empty) — skip, uses sample */
+        }
+      }
+
+      const load = assemblePbiProject(pbi, s.layoutId, realByName)
+      resetAccent()
+      const measureCount = pbi.tables.reduce((n, t) => n + t.measures.length, 0)
+      set({
+        view: 'studio',
+        mode: load.hasDashboard ? 'design' : 'model',
+        datasets: load.datasets,
+        model: load.model,
+        report: load.report,
+        activeDatasetId: load.datasets[0]?.id ?? null,
+        projectName: dm.database,
+        activeTemplateId: null,
+        importing: false,
+        importError: null,
+        importNote: `Synced from Power BI Desktop — ${dm.tables.length} tables (real data), ${measureCount} live measures. Previews now run on your real model.`,
+        selectedVisualId: null,
+        selectedMeasureId: null,
+        past: [],
+        future: [],
+      })
+    } catch (e) {
+      set({ importing: false, importError: e instanceof Error ? e.message : 'Sync from Desktop failed.' })
+    }
+  },
 
   openPbixFile: async (file) => {
     set({ importing: true, importError: null, importNote: null, pbixFallback: null })
