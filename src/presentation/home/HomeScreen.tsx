@@ -12,6 +12,13 @@ import {
   Cable,
   Download,
   ShieldCheck,
+  KeyRound,
+  Home,
+  WifiOff,
+  Lock,
+  EyeOff,
+  MousePointerClick,
+  Database,
   Sigma,
   Factory,
   Stethoscope,
@@ -45,6 +52,42 @@ const OTHER_WAYS: StartOption[] = [
   { id: 'pbip', title: 'Open PBIP', desc: 'Power BI project folder', icon: <FolderOpen size={16} /> },
   { id: 'pbix', title: 'Open PBIX', desc: 'Best-effort — no data', icon: <FileInput size={16} /> },
   { id: 'new', title: 'New dashboard', desc: 'Start from a blank canvas', icon: <LayoutDashboard size={16} /> },
+]
+
+// Every line here is a claim about the code, so keep it to what the code does.
+// Notably NOT "works offline": this page is served over the web. The honest
+// version is stronger anyway — the page comes down, nothing goes back up.
+const PRIVACY = [
+  {
+    icon: <KeyRound size={15} />,
+    title: 'No account, no sign-in, no server of ours',
+    body: 'There is nothing to register for and nowhere for your data to be sent. Studio has no backend — it is a page that runs in your browser.',
+  },
+  {
+    icon: <Home size={15} />,
+    title: 'One network call, and it goes to your own machine',
+    body: 'Studio makes exactly one kind of request: to the bridge at 127.0.0.1:5177. Your tables, rows and measures are read there and stay in your browser\'s memory.',
+  },
+  {
+    icon: <WifiOff size={15} />,
+    title: 'The bridge cannot be reached from outside',
+    body: 'It binds to loopback only, so it is invisible to your network and the internet — and it never makes an outbound call of its own. It talks to Power BI Desktop and nothing else.',
+  },
+  {
+    icon: <Lock size={15} />,
+    title: 'Only this site can use your bridge',
+    body: 'It answers an exact list of origins, never a wildcard. Another website cannot reach it, even while it is running.',
+  },
+  {
+    icon: <EyeOff size={15} />,
+    title: 'No telemetry of any kind',
+    body: 'No analytics, no error reporting, no third-party scripts, no external fonts. Nothing about you or your model is measured, because nothing is sent.',
+  },
+  {
+    icon: <MousePointerClick size={15} />,
+    title: 'Your model changes only when you ask',
+    body: 'Measures are written to Desktop when you press Push, Deploy or a Doctor fix — never in the background. Every write is a normal edit you can undo in Desktop.',
+  },
 ]
 
 const PILLARS = [
@@ -315,6 +358,57 @@ export function HomeScreen() {
           <strong>Model</strong> with auto star-schema detection and a relationship graph, and a
           drag-and-drop <strong>Design</strong> canvas with 17 visual types.
         </p>
+
+        {/* Privacy — the reason a stranger can afford to run this. */}
+        <section className="pbs-privacy">
+          <div className="pbs-privacy__head">
+            <span className="pbs-privacy__icon"><ShieldCheck size={20} /></span>
+            <h2 className="pbs-privacy__title">Your data never leaves your computer</h2>
+            <p className="pbs-privacy__lede">
+              Not a promise in a policy — a consequence of how it is built. Here is every place your
+              data can go.
+            </p>
+          </div>
+
+          <div className="pbs-boundary">
+            <span className="pbs-boundary__tag">Your computer</span>
+            <div className="pbs-boundary__row">
+              <div className="pbs-node">
+                <Database size={16} />
+                <strong>Power BI Desktop</strong>
+                <span>your model and its rows</span>
+              </div>
+              <span className="pbs-boundary__link" aria-hidden="true" />
+              <div className="pbs-node">
+                <Cable size={16} />
+                <strong>The bridge</strong>
+                <span>127.0.0.1:5177</span>
+              </div>
+              <span className="pbs-boundary__link" aria-hidden="true" />
+              <div className="pbs-node">
+                <Sparkles size={16} />
+                <strong>Studio</strong>
+                <span>running in your browser</span>
+              </div>
+            </div>
+          </div>
+          <p className="pbs-boundary__note">
+            The only thing that ever crosses that line is this page, downloaded once. Nothing goes
+            back the other way — there is no server of ours to send it to.
+          </p>
+
+          <ul className="pbs-privacy__list">
+            {PRIVACY.map((p) => (
+              <li className="pbs-priv" key={p.title}>
+                <span className="pbs-priv__icon">{p.icon}</span>
+                <div>
+                  <span className="pbs-priv__title">{p.title}</span>
+                  <span className="pbs-priv__body">{p.body}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <footer className="pbs-footer">
           <p className="pbs-footer__love">
