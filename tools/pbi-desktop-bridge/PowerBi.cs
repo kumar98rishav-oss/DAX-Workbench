@@ -17,9 +17,12 @@ public static class PowerBi
     private static IEnumerable<string> WorkspaceRoots()
     {
         var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        // Classic (MSI) install
+        var profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        // Classic (MSI / .exe) install
         yield return Path.Combine(local, "Microsoft", "Power BI Desktop", "AnalysisServicesWorkspaces");
-        // Store (MSIX) install redirects LocalAppData into the package's LocalCache
+        // Store (MSIX) install — puts workspaces under the user-profile root
+        yield return Path.Combine(profile, "Microsoft", "Power BI Desktop Store App", "AnalysisServicesWorkspaces");
+        // Store (MSIX) install — some versions redirect LocalAppData into LocalCache
         var packages = Path.Combine(local, "Packages");
         if (Directory.Exists(packages))
         {
