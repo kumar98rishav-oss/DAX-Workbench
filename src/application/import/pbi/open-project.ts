@@ -29,7 +29,7 @@ function summary(model: PbiModel): string {
   const mc = measureCount(model)
   const parts = [`${model.tables.length} tables`, `${model.relationships.length} relationships`]
   if (mc) parts.push(`${mc} measures`)
-  return `Imported “${model.name}” — ${parts.join(', ')}. Sample data generated for preview.`
+  return `Imported the MODEL of “${model.name}” — ${parts.join(', ')}. ⚠ A project file carries no row data, so sample data was generated — measure values are ILLUSTRATIVE, not your source numbers. Use “Import Data” to bind the real Excel/CSV/SQL export.`
 }
 
 // ---- PBIP (folder) --------------------------------------------------------
