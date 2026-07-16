@@ -25,6 +25,7 @@ export interface DaxIntent {
   fieldPhrase?: string // fallback noun if unresolved
   groupName?: string // resolved categorical column (e.g. "Category")
   filters: ResolvedFilter[] // structured, fuzzy-resolved predicates
+  rollingPhrase?: string // e.g. "previous 15 days"
   topN?: number
   signals: Set<string> // yoy · ytd · mom · running · pctOfTotal · rank · topN · ratio · distinct
   tokens: string[] // descriptive tokens (for synonym learning)
@@ -67,6 +68,7 @@ const SIGNALS: [RegExp, string][] = [
   [/\b(yoy|year over year|year-over-year|vs last year|versus last year|annual growth|growth vs)\b/, 'yoy'],
   [/\b(ytd|year to date|year-to-date)\b/, 'ytd'],
   [/\b(mom|month over month|month-over-month|vs last month)\b/, 'mom'],
+  [/\b(qoq|quarter over quarter|quarter-over-quarter|vs last quarter)\b/, 'qoq'],
   [/\b(running|cumulative|running total|to date)\b/, 'running'],
   [/\b(% of total|percent of total|share of|proportion|contribution)\b/, 'pctOfTotal'],
   [/\b(rank|ranking|position|rank by)\b/, 'rank'],
@@ -88,6 +90,11 @@ export function parseIntent(prompt: string, model: SemanticModel, datasets: Data
   const topN = topMatch ? Number(topMatch[1]) : undefined
   if (topN) signals.add('topN')
 
+  // "previous/last/rolling N days|weeks|months" → a rolling-window request.
+  const rollingMatch = low.match(/\b(?:previous|prior|last|past|trailing|rolling)\s+(\d+)\s*(day|week|month|quarter|year)s?\b/)
+  const rollingPhrase = rollingMatch ? rollingMatch[0] : undefined
+  if (rollingPhrase) signals.add('rolling')
+
   const fieldName = resolveColumn(raw, model, num)
   // group: prefer a categorical column named after "by …"
   const byPart = low.split(/\bby\b/)[1]
@@ -95,11 +102,13 @@ export function parseIntent(prompt: string, model: SemanticModel, datasets: Data
     (byPart ? resolveColumn(byPart, model, (t) => t === 'string') : undefined) ??
     resolveColumn(raw, model, (t) => t === 'string')
 
-  // Explicit "where …" tail if present, otherwise scan the whole prompt for
-  // bare data values (typo-tolerant) — resolveFilters handles both.
+  // A where/for cue = explicit filter intent (allow fuzzy/typo matching).
+  // Otherwise scan the prompt but require EXACT matches so calculation words
+  // ("Total", "YOY growth", "previous 15 days") never fabricate a filter.
   const fm = raw.match(FILTER_RE)
+  const explicit = !!fm
   const filterSource = fm ? raw.slice((fm.index ?? 0) + fm[0].length) : raw
-  const filters = resolveFilters(filterSource, model, datasets)
+  const filters = resolveFilters(filterSource, model, datasets, explicit)
 
   return {
     raw,
@@ -108,6 +117,7 @@ export function parseIntent(prompt: string, model: SemanticModel, datasets: Data
     fieldPhrase: fieldName ? undefined : nounAfterAgg(low),
     groupName,
     filters,
+    rollingPhrase,
     topN,
     signals,
     tokens: words(raw),
@@ -184,6 +194,20 @@ const PATTERNS: DaxPattern[] = [
     canonical: (i, ctx) => `${field(i, ctx)} year over year growth %`,
   },
   {
+    id: 'mom-pct',
+    label: 'Month-over-month %',
+    requires: (_i, ctx) => ctx.hasDate,
+    score: (i) => (i.signals.has('mom') ? 0.95 : 0),
+    canonical: (i, ctx) => `${field(i, ctx)} month over month growth %`,
+  },
+  {
+    id: 'qoq-pct',
+    label: 'Quarter-over-quarter %',
+    requires: (_i, ctx) => ctx.hasDate,
+    score: (i) => (i.signals.has('qoq') ? 0.95 : 0),
+    canonical: (i, ctx) => `${field(i, ctx)} quarter over quarter growth %`,
+  },
+  {
     id: 'ytd',
     label: 'Year-to-date',
     requires: (_i, ctx) => ctx.hasDate,
@@ -196,6 +220,13 @@ const PATTERNS: DaxPattern[] = [
     requires: (_i, ctx) => ctx.hasDate,
     score: (i) => (i.signals.has('running') ? 0.9 : 0.12),
     canonical: (i, ctx) => `${field(i, ctx)} running total`,
+  },
+  {
+    id: 'rolling-period',
+    label: 'Rolling window',
+    requires: (i, ctx) => ctx.hasDate && !!i.rollingPhrase,
+    score: (i) => (i.signals.has('rolling') ? 0.93 : 0),
+    canonical: (i, ctx) => `${field(i, ctx)} ${i.rollingPhrase}`,
   },
   {
     id: 'pct-total',

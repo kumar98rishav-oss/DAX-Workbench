@@ -1,9 +1,13 @@
 /**
- * APPLICATION — Fuzzy filter resolver for the DAX Intent Engine
- * Turns a natural filter tail ("where product is bar and orderstatus dilvered")
- * into structured predicates, tolerating: multiple AND-conditions, column names
- * written without underscores/spacing ("orderstatus" → Order_Status), and
- * mistyped values matched against the real data ("dilvered" → "Delivered").
+ * APPLICATION — Filter resolver for the DAX Intent Engine
+ * Turns a filter phrase into structured predicates — WITHOUT inventing filters.
+ * Two modes:
+ *   • explicit  ("where product is bar and orderstatus dilvered") — the user
+ *     signalled a filter, so fuzzy column + typo-tolerant value matching is on.
+ *   • bare      (no where/for cue) — only an EXACT match of a non-keyword token
+ *     to a real dimension value counts, so "Total Amount" / "YOY growth" /
+ *     "previous 15 days" never fabricate a filter.
+ * Key/ID/foreign-key columns are never filter targets from free text.
  */
 import type { SemanticModel } from '@/domain/model'
 import type { DatasetData } from '@/application/import/types'
@@ -18,6 +22,26 @@ export interface ResolvedFilter {
 }
 
 const normId = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/** Words that describe the calculation, not a filter value — never match these. */
+const STOP = new Set([
+  'total', 'sum', 'overall', 'aggregate', 'combined', 'gross', 'count', 'number', 'tally', 'distinct', 'unique',
+  'average', 'avg', 'mean', 'min', 'minimum', 'max', 'maximum', 'lowest', 'highest', 'smallest', 'largest', 'greatest',
+  'sales', 'revenue', 'amount', 'value', 'values', 'price', 'cost', 'profit', 'margin', 'qty', 'quantity', 'boxes',
+  'units', 'unit', 'orders', 'order', 'shipment', 'shipments', 'sale', 'transactions', 'transaction',
+  'yoy', 'mom', 'qoq', 'wow', 'ytd', 'qtd', 'mtd', 'year', 'years', 'yearly', 'month', 'months', 'monthly',
+  'quarter', 'quarters', 'quarterly', 'week', 'weeks', 'weekly', 'day', 'days', 'daily', 'date', 'time', 'period',
+  'previous', 'prior', 'last', 'past', 'trailing', 'rolling', 'running', 'cumulative', 'moving',
+  'growth', 'change', 'increase', 'decrease', 'variance', 'delta', 'difference', 'vs', 'versus', 'over', 'todate',
+  'by', 'per', 'share', 'percent', 'percentage', 'pct', 'proportion', 'contribution', 'ratio', 'rate',
+  'rank', 'ranking', 'top', 'bottom', 'position', 'and', 'or', 'with', 'for', 'where', 'in', 'is', 'on', 'to',
+  'from', 'the', 'a', 'an', 'of', 'each', 'every', 'all', 'my', 'our', 'this', 'that', 'current',
+])
+
+const isStop = (w: string) => STOP.has(w.toLowerCase())
+
+/** Column names that identify rows rather than describe them (never filtered). */
+const isIdLike = (name: string) => /(^|[_ ])(id|code|key|no|num|sk|pk|fk|guid|uuid)$/i.test(name) || /id$/i.test(name)
 
 function lev(a: string, b: string): number {
   const m = a.length
@@ -42,15 +66,19 @@ interface ValueCol {
   values: string[]
 }
 
-function stringColumns(model: SemanticModel, datasets: DatasetData[]): ValueCol[] {
+/** Low-cardinality descriptive string columns — excludes keys / ids / foreign keys. */
+function valueColumns(model: SemanticModel, datasets: DatasetData[]): ValueCol[] {
   const byId: Record<string, DatasetData> = {}
   for (const d of datasets) byId[d.id] = d
+  const fkColumnIds = new Set(model.relationships.map((r) => r.fromColumn))
   const out: ValueCol[] = []
   for (const t of model.tables) {
     const data = byId[t.id]
     if (!data) continue
     t.columns.forEach((c, idx) => {
-      if (c.dataType !== 'string' || c.role === 'key' || (c.distinctCount ?? 999) > 60) return
+      if (c.dataType !== 'string') return
+      if (c.role === 'key' || fkColumnIds.has(c.id) || isIdLike(c.name)) return
+      if ((c.distinctCount ?? 999) > 60) return
       const values: string[] = []
       const seen = new Set<string>()
       for (const row of data.rows) {
@@ -62,46 +90,58 @@ function stringColumns(model: SemanticModel, datasets: DatasetData[]): ValueCol[
         values.push(s)
         if (seen.size > 60) break
       }
-      out.push({ table: t.name, column: c.name, values })
+      if (values.length) out.push({ table: t.name, column: c.name, values })
     })
   }
   return out
 }
 
-/** Similarity 0..1 between a typed word and a real value (typo tolerant). */
-function similarity(word: string, value: string): number {
-  const w = normId(word)
-  const v = normId(value)
-  if (!w || !v) return 0
-  if (w === v) return 1
-  if (v.includes(w) || w.includes(v)) return 0.82
-  const d = lev(w, v)
-  const sim = 1 - d / Math.max(w.length, v.length)
-  return sim >= 0.68 ? sim * 0.78 : 0 // only near-misses count (typos)
-}
-
 function matchColumn(word: string, model: SemanticModel): { table: string; column: string } | null {
   const w = normId(word)
-  if (w.length < 2) return null
+  if (w.length < 3) return null
   for (const t of model.tables) for (const c of t.columns) if (normId(c.name) === w) return { table: t.name, column: c.name }
-  for (const t of model.tables) for (const c of t.columns) if (w.length > 2 && normId(c.name).includes(w)) return { table: t.name, column: c.name }
+  for (const t of model.tables) for (const c of t.columns) if (normId(c.name).includes(w)) return { table: t.name, column: c.name }
   return null
 }
 
-/** Best (value, column) match for a phrase, optionally restricted to one column. */
-function bestValue(
-  phrase: string,
-  cols: ValueCol[],
-  restrict?: { table: string; column: string },
-): { table: string; column: string; value: string; score: number } | null {
-  const candidates = [phrase, ...phrase.split(/\s+/)].filter((s) => s.length > 1)
-  let best: { table: string; column: string; value: string; score: number } | null = null
+interface ValueHit {
+  table: string
+  column: string
+  value: string
+  score: number
+}
+
+/** Exact (case/underscore-insensitive) value match only — used for bare prompts. */
+function exactValue(phrase: string, cols: ValueCol[], restrict?: { table: string; column: string }): ValueHit | null {
+  const p = normId(phrase)
+  if (!p) return null
+  for (const col of cols) {
+    if (restrict && !(col.table === restrict.table && col.column === restrict.column)) continue
+    for (const v of col.values) if (normId(v) === p) return { table: col.table, column: col.column, value: v, score: 1 }
+  }
+  return null
+}
+
+/** Fuzzy value match (exact → contains → typo) — used only when the user was explicit. */
+function fuzzyValue(phrase: string, cols: ValueCol[], restrict?: { table: string; column: string }): ValueHit | null {
+  const cands = [phrase, ...phrase.split(/\s+/)].map((s) => s.trim()).filter((s) => s.length > 1 && !isStop(s))
+  if (cands.length === 0) return null
+  let best: ValueHit | null = null
   for (const col of cols) {
     if (restrict && !(col.table === restrict.table && col.column === restrict.column)) continue
     for (const v of col.values) {
-      for (const cand of candidates) {
-        const s = similarity(cand, v)
-        if (s > 0 && (!best || s > best.score)) best = { table: col.table, column: col.column, value: v, score: s }
+      const nv = normId(v)
+      for (const cand of cands) {
+        const w = normId(cand)
+        if (!w) continue
+        let score = 0
+        if (w === nv) score = 1
+        else if (w.length > 2 && (nv.includes(w) || w.includes(nv))) score = 0.82
+        else {
+          const sim = 1 - lev(w, nv) / Math.max(w.length, nv.length)
+          if (sim >= 0.7) score = sim * 0.78
+        }
+        if (score > 0 && (!best || score > best.score)) best = { table: col.table, column: col.column, value: v, score }
       }
     }
   }
@@ -110,10 +150,29 @@ function bestValue(
 
 const isNumericStr = (s: string) => /^-?\d+(\.\d+)?$/.test(s)
 
-/** Resolve a natural-language filter tail into structured predicates. */
-export function resolveFilters(text: string, model: SemanticModel, datasets: DatasetData[]): ResolvedFilter[] {
+/** Contiguous n-grams (1–3 tokens) of a clause that aren't pure stopwords. */
+function ngrams(clause: string): string[] {
+  const toks = clause.split(/\s+/).filter(Boolean)
+  const grams: string[] = []
+  for (let n = Math.min(3, toks.length); n >= 1; n--) {
+    for (let i = 0; i + n <= toks.length; i++) {
+      const g = toks.slice(i, i + n)
+      if (g.every(isStop)) continue
+      grams.push(g.join(' '))
+    }
+  }
+  return grams
+}
+
+/**
+ * Resolve filter predicates. `explicit` = the user used a where/for cue, so we
+ * allow fuzzy/typo matching; otherwise we require exact value matches.
+ */
+export function resolveFilters(text: string, model: SemanticModel, datasets: DatasetData[], explicit: boolean): ResolvedFilter[] {
   if (!text.trim()) return []
-  const cols = stringColumns(model, datasets)
+  const cols = valueColumns(model, datasets)
+  if (cols.length === 0) return []
+
   const clauses = text
     .split(/\s+and\s+|\s*[,;]\s*|\s+&\s+/i)
     .map((s) => s.replace(/\bwhere\b/gi, '').trim())
@@ -121,58 +180,57 @@ export function resolveFilters(text: string, model: SemanticModel, datasets: Dat
 
   const out: ResolvedFilter[] = []
   const used = new Set<string>()
-
   const add = (table: string, column: string, value: string, original: string) => {
     const key = `${table}|${column}`
     if (used.has(key)) return
     used.add(key)
-    out.push({
-      table,
-      column,
-      value,
-      numeric: isNumericStr(value),
-      corrected: normId(value) !== normId(original),
-      original: normId(value) !== normId(original) ? original : undefined,
-    })
+    const corrected = normId(value) !== normId(original)
+    out.push({ table, column, value, numeric: isNumericStr(value), corrected, original: corrected ? original : undefined })
   }
 
   for (const clause of clauses) {
-    const op = clause.match(/^(.*?)\s*(?:=|:|\bis\b|\bequals?\b|\bin\b)\s*(.+)$/i)
-    const colWord = op ? op[1].trim() : ''
-    let valWord = (op ? op[2] : clause).replace(/^['"]|['"]$/g, '').trim()
-    let restrict = colWord ? matchColumn(colWord, model) ?? undefined : undefined
+    const op = clause.match(/^(.*?)\s*(?:=|:|\bis\b|\bequals?\b)\s*(.+)$/i)
 
-    // No "col = value" operator: a token may still name a column ("orderstatus delivered").
-    if (!restrict && !op) {
+    if (op) {
+      // Explicit "column = value".
+      const colWord = op[1].trim()
+      const valWord = op[2].replace(/^['"]|['"]$/g, '').trim()
+      const restrict = matchColumn(colWord, model) ?? undefined
+      let m = restrict ? fuzzyValue(valWord, cols, restrict) : null
+      if (!m || m.score < 0.72) {
+        const g = fuzzyValue(valWord, cols)
+        if (g && (!m || g.score > m.score + 0.05)) m = g
+      }
+      if (m && m.score >= 0.6) add(m.table, m.column, m.value, valWord)
+      else if (restrict && valWord && !isStop(valWord)) add(restrict.table, restrict.column, valWord, valWord)
+      continue
+    }
+
+    if (explicit) {
+      // "for west region" — a token may name a column; the rest is the value.
       const toks = clause.split(/\s+/)
+      let restrict: { table: string; column: string } | undefined
+      let rest = clause
       for (const tk of toks) {
         const c = matchColumn(tk, model)
         if (c) {
           restrict = c
-          const rest = toks.filter((x) => x !== tk).join(' ').trim()
-          if (rest) valWord = rest
+          rest = toks.filter((x) => x !== tk).join(' ').trim() || clause
           break
         }
       }
-    }
-
-    // Numeric literal against a resolved (or any numeric) column.
-    if (isNumericStr(valWord) && restrict) {
-      add(restrict.table, restrict.column, valWord, valWord)
+      const m = (restrict ? fuzzyValue(rest, cols, restrict) : null) ?? fuzzyValue(rest, cols)
+      if (m && m.score >= 0.62) add(m.table, m.column, m.value, rest)
       continue
     }
 
-    // Prefer a value in the named column; fall back to the best value anywhere.
-    let m = restrict ? bestValue(valWord, cols, restrict) : null
-    if (!m || m.score < 0.72) {
-      const global = bestValue(valWord, cols)
-      if (global && (!m || global.score > m.score + 0.05)) m = global
-    }
-
-    if (m && m.score >= 0.6) {
-      add(m.table, m.column, m.value, valWord)
-    } else if (restrict) {
-      add(restrict.table, restrict.column, valWord, valWord) // honor the column with a literal value
+    // Bare prompt — only exact, non-stopword value matches count.
+    for (const g of ngrams(clause)) {
+      const m = exactValue(g, cols)
+      if (m) {
+        add(m.table, m.column, m.value, g)
+        break
+      }
     }
   }
 
