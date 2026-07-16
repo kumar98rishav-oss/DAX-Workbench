@@ -1,4 +1,4 @@
-# Power BI Studio — Product & Technical Architecture
+# BI Design Studio — Product & Technical Architecture
 
 > A modern, local-first **Design Studio** for building Power BI solutions.
 > Not a clone of Power BI Desktop — a dramatically simpler creation experience

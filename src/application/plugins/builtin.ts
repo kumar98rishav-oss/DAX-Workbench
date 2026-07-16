@@ -22,7 +22,7 @@ export const coreExportersPlugin: Plugin = {
   id: 'core.exporters',
   name: 'Open-format Exporters',
   version: '1.0.0',
-  author: 'Power BI Studio',
+  author: 'BI Design Studio',
   description: 'Export the model and report to TMDL, PBIP, HTML, Markdown, theme, script, and JSON.',
   activate(host) {
     host.registerExporter({
@@ -67,7 +67,7 @@ export const coreValidationPlugin: Plugin = {
   id: 'core.validation',
   name: 'Model Validator',
   version: '1.0.0',
-  author: 'Power BI Studio',
+  author: 'BI Design Studio',
   description: 'Best-practice checks: keys, nulls, formats, orphan tables, date table.',
   activate(host) {
     host.registerValidationRule({
@@ -129,7 +129,7 @@ export const coreThemePlugin: Plugin = {
   id: 'core.theme',
   name: 'Studio Theme',
   version: '1.0.0',
-  author: 'Power BI Studio',
+  author: 'BI Design Studio',
   description: 'The default monochrome + blue accent theme.',
   activate(host) {
     host.registerTheme({
@@ -144,7 +144,7 @@ export const coreAnalystPlugin: Plugin = {
   id: 'core.analyst',
   name: 'Local Analyst',
   version: '1.0.0',
-  author: 'Power BI Studio',
+  author: 'BI Design Studio',
   description: 'The offline heuristic business analyst (LLM providers can replace it).',
   activate(host) {
     host.registerAIProvider(new LocalAnalystProvider())
@@ -155,7 +155,7 @@ export const coreVisualsPlugin: Plugin = {
   id: 'core.visuals',
   name: 'Core Visuals',
   version: '1.0.0',
-  author: 'Power BI Studio',
+  author: 'BI Design Studio',
   description: 'The built-in visual renderers.',
   activate(host) {
     const visuals = [

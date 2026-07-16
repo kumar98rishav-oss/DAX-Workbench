@@ -1,7 +1,7 @@
 # PBIP Data Bridge
 
 A browser **cannot** connect to SQL Server or other databases — no drivers, no
-network, sandboxed. So a `.pbip` opened in **Power BI Studio** shows the model +
+network, sandboxed. So a `.pbip` opened in **BI Design Studio** shows the model +
 **sample** data for any SQL/database-backed table.
 
 This tiny local CLI closes that gap. It runs on your machine (where the drivers

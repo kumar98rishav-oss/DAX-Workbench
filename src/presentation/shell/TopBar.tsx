@@ -41,7 +41,7 @@ export function TopBar() {
         <span className="pbs-topbar__logo">
           <Sparkles size={15} />
         </span>
-        Studio
+        BI Design Studio
       </button>
 
       <span className="pbs-topbar__divider" />

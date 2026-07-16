@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ Power BI Studio
+# ⚡ BI Design Studio
 
 **A modern, local-first Design Studio for building Power BI solutions.**
 Design first · Model second · Generate everything automatically.

@@ -1,6 +1,6 @@
 /**
  * APPLICATION — DAX Architect adapter
- * Bridges the ported deterministic engine to Power BI Studio's SemanticModel:
+ * Bridges the ported deterministic engine to BI Design Studio's SemanticModel:
  * builds the engine's table/relationship inputs, runs a natural-language
  * requirement, and returns the measure-branching solution.
  */

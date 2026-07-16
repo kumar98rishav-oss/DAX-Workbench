@@ -9,6 +9,14 @@ import {
   FileInput,
   Check,
   Loader2,
+  Cable,
+  ExternalLink,
+  Sigma,
+  Factory,
+  Stethoscope,
+  Heart,
+  Linkedin,
+  Mail,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -16,6 +24,10 @@ import { useApp } from '@/app/store'
 import { modelLabel } from '@/infrastructure/desktop/desktop-client'
 import { Kbd } from '@/design-system/components'
 import './home.css'
+
+const DOTNET_SDK = 'https://dotnet.microsoft.com/en-us/download/dotnet/8.0'
+const LINKEDIN = 'https://www.linkedin.com/in/rishav98kumar'
+const EMAIL = 'Kumar98rishav@gmail.com'
 
 interface StartOption {
   id: string
@@ -30,6 +42,45 @@ const OTHER_WAYS: StartOption[] = [
   { id: 'pbip', title: 'Open PBIP', desc: 'Power BI project folder', icon: <FolderOpen size={16} /> },
   { id: 'pbix', title: 'Open PBIX', desc: 'Best-effort — no data', icon: <FileInput size={16} /> },
   { id: 'new', title: 'New dashboard', desc: 'Start from a blank canvas', icon: <LayoutDashboard size={16} /> },
+]
+
+const PILLARS = [
+  {
+    id: 'dax',
+    icon: <Sigma size={20} />,
+    name: 'DAX Architect',
+    blurb: 'Describe the measure in plain English. Studio ranks the ways to build it and you pick.',
+    points: [
+      'Ranked suggestions, not one guess — you choose',
+      'Branched plans: base measures built for you',
+      'Time intelligence, iterators, USERELATIONSHIP',
+      'Verify on the real engine, then push to Desktop',
+    ],
+  },
+  {
+    id: 'factory',
+    icon: <Factory size={20} />,
+    name: 'Measure Factory',
+    blurb: 'Pick one field and get its whole analytical suite in a single pass, ready to deploy.',
+    points: [
+      'Total, average, YTD/QTD/MTD, prior year',
+      'YoY %, MoM %, moving average, running total',
+      '% of total and rank — previewed before deploy',
+      'Deploys with the base measures it branches from',
+    ],
+  },
+  {
+    id: 'doctor',
+    icon: <Stethoscope size={20} />,
+    name: 'Model Doctor',
+    blurb: 'Audits the live model for what renders badly, scales badly, or breaks quietly.',
+    points: [
+      'Missing format strings — fixed in one click',
+      'FILTER over a whole fact table, with a rewrite',
+      'Division that should be DIVIDE()',
+      'Exports a Markdown data dictionary',
+    ],
+  },
 ]
 
 export function HomeScreen() {
@@ -83,21 +134,40 @@ export function HomeScreen() {
     else openStudio('Untitled Dashboard')
   }
 
+  // A running bridge proves the SDK is installed, so steps 1 and 2 share a signal.
   const steps = [
     {
-      label: 'Local bridge running',
+      label: 'Install the .NET 8 SDK',
       done: desktop.bridge,
-      hint: <>Run <code>tools/pbi-desktop-bridge/run.cmd</code></>,
+      body: (
+        <>
+          A one-time install — the local bridge runs on it.{' '}
+          <a className="pbs-link" href={DOTNET_SDK} target="_blank" rel="noopener noreferrer">
+            Download .NET 8 SDK <ExternalLink size={11} />
+          </a>{' '}
+          (pick <strong>x64</strong>).
+        </>
+      ),
     },
     {
-      label: 'A model open in Power BI Desktop',
+      label: 'Start the local bridge',
+      done: desktop.bridge,
+      body: (
+        <>
+          Run <code>tools/pbi-desktop-bridge/run.cmd</code>. It serves on{' '}
+          <code>127.0.0.1:5177</code> and only ever talks to your machine.
+        </>
+      ),
+    },
+    {
+      label: 'Open your report in Power BI Desktop',
       done: desktop.connected,
-      hint: <>Open any <code>.pbix</code> — Studio finds it automatically</>,
+      body: <>Open any <code>.pbix</code>. Studio finds the model on its own — nothing to configure.</>,
     },
     {
-      label: 'Sync it into Studio',
+      label: 'Connect',
       done: false,
-      hint: <>Real rows, real measures, real DAX previews</>,
+      body: <>Studio reads your tables, rows and measures, and can write DAX back into Desktop.</>,
     },
   ]
 
@@ -115,7 +185,7 @@ export function HomeScreen() {
           <span className="pbs-home__logo">
             <Sparkles size={16} />
           </span>
-          Power BI Studio
+          BI Design Studio
         </span>
         <span style={{ flex: 1 }} />
         <button className="pbs-topbar__cmd" onClick={() => setCommandPalette(true)}>
@@ -171,17 +241,80 @@ export function HomeScreen() {
           </div>
         </section>
 
-        <ol className="pbs-steps">
-          {steps.map((s, i) => (
-            <li className="pbs-step" key={s.label} data-done={s.done}>
-              <span className="pbs-step__mark">{s.done ? <Check size={13} /> : i + 1}</span>
-              <span className="pbs-step__body">
-                <span className="pbs-step__label">{s.label}</span>
-                <span className="pbs-step__hint">{s.hint}</span>
-              </span>
-            </li>
+        {/* One box: everything needed to get the live connection up. */}
+        <section className="pbs-panel">
+          <div className="pbs-panel__head">
+            <span className="pbs-panel__icon"><Cable size={18} /></span>
+            <div>
+              <h2 className="pbs-panel__title">Connect to Power BI Desktop</h2>
+              <p className="pbs-panel__sub">
+                Power BI Desktop runs a private Analysis Services engine behind your report. A small
+                local bridge lets Studio talk to it — the same way Tabular Editor and DAX Studio do.
+                Your data never leaves this machine.
+              </p>
+            </div>
+            <span className="pbs-panel__pill" data-state={status.cls}>
+              <span className="pbs-status__dot" />
+              {status.cls === 'live' ? 'Connected' : status.cls === 'waiting' ? 'Almost there' : 'Not set up'}
+            </span>
+          </div>
+
+          <ol className="pbs-steps">
+            {steps.map((s, i) => (
+              <li className="pbs-step" key={s.label} data-done={s.done}>
+                <span className="pbs-step__mark">{s.done ? <Check size={13} /> : i + 1}</span>
+                <div className="pbs-step__body">
+                  <span className="pbs-step__label">{s.label}</span>
+                  <span className="pbs-step__hint">{s.body}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {/* The three things the tool is for. */}
+        <section className="pbs-pillars">
+          {PILLARS.map((p) => (
+            <article className="pbs-pillar" key={p.id}>
+              <span className="pbs-pillar__icon">{p.icon}</span>
+              <h3 className="pbs-pillar__name">{p.name}</h3>
+              <p className="pbs-pillar__blurb">{p.blurb}</p>
+              <ul className="pbs-pillar__list">
+                {p.points.map((pt) => (
+                  <li key={pt}>
+                    <Check size={13} />
+                    <span>{pt}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
           ))}
-        </ol>
+        </section>
+
+        <p className="pbs-alsoline">
+          Wrapped in a full studio — <strong>Data</strong> preview with column profiling,{' '}
+          <strong>Model</strong> with auto star-schema detection and a relationship graph, and a
+          drag-and-drop <strong>Design</strong> canvas with 17 visual types.
+        </p>
+
+        <footer className="pbs-footer">
+          <p className="pbs-footer__love">
+            Designed with <Heart size={13} className="pbs-footer__heart" /> by Rishav K.
+          </p>
+          <p className="pbs-footer__ask">Love to hear about your experience.</p>
+          <div className="pbs-footer__links">
+            <a className="pbs-footer__link" href={LINKEDIN} target="_blank" rel="noopener noreferrer">
+              <Linkedin size={14} /> linkedin.com/in/rishav98kumar
+            </a>
+            <a className="pbs-footer__link" href={`mailto:${EMAIL}?subject=BI%20Design%20Studio%20feedback`}>
+              <Mail size={14} /> {EMAIL}
+            </a>
+          </div>
+          <p className="pbs-footer__legal">
+            © 2026 BI Design Studio. All rights reserved. Built by Rishav K. Not affiliated with or
+            endorsed by Microsoft. Power BI is a trademark of Microsoft Corporation.
+          </p>
+        </footer>
       </div>
     </div>
   )

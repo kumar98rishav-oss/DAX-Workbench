@@ -2,7 +2,7 @@
 /* eslint-disable */
 /**
  * DAX Architect Engine — deterministic, measure-branching DAX compiler.
- * Ported verbatim (MIT) and module-ified for Power BI Studio. See
+ * Ported verbatim (MIT) and module-ified for BI Design Studio. See
  * `architect.ts` for the adapter that bridges it to the SemanticModel.
  */
 function __engine() {
