@@ -8,17 +8,44 @@ using Tom = Microsoft.AnalysisServices.Tabular;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Allow the Studio (any localhost dev/preview port, or a Tauri/Electron shell).
+// Origins allowed to drive this bridge, beyond localhost and a Tauri/Electron
+// shell. This bridge is UNAUTHENTICATED and can read the whole model and write
+// measures into it, so this list is the only thing gating that: keep it to exact
+// origins. Never a wildcard suffix like "*.onrender.com" — anyone can deploy
+// there, and any of them could then reach a running bridge. Drop an origin the
+// moment it stops being yours: a released subdomain can be claimed by someone
+// else. Override or extend with PBI_BRIDGE_ORIGINS=https://a.example,https://b.example
+var allowedOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "https://pbi-design-studio.onrender.com", // the hosted Studio
+};
+foreach (var o in (Environment.GetEnvironmentVariable("PBI_BRIDGE_ORIGINS") ?? "")
+             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    allowedOrigins.Add(o.TrimEnd('/'));
+
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .SetIsOriginAllowed(origin =>
     {
         if (origin.StartsWith("tauri://") || origin.StartsWith("file://")) return true;
+        if (allowedOrigins.Contains(origin.TrimEnd('/'))) return true;
         return Uri.TryCreate(origin, UriKind.Absolute, out var u) && (u.Host == "localhost" || u.Host == "127.0.0.1");
     })
     .AllowAnyHeader()
     .AllowAnyMethod()));
 
 var app = builder.Build();
+
+// Chrome's Private Network Access: a page on a public origin reaching a private
+// (loopback) address gets an extra preflight, which fails unless we opt in here.
+// Not enforced for this today, but it is rolling out — without this the hosted
+// Studio would break silently on a future Chrome.
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Headers.ContainsKey("Access-Control-Request-Private-Network"))
+        ctx.Response.Headers["Access-Control-Allow-Private-Network"] = "true";
+    await next();
+});
+
 app.UseCors();
 
 static IResult Fail(Exception e) => Results.Json(new { error = e.Message }, statusCode: 500);

@@ -65,6 +65,35 @@ the model and **ADOMD** to run DAX.
 
 - Writing measures via TOM is standard external-tool behaviour — reversible
   (undo in Desktop, or overwrite/remove).
-- CORS is restricted to `localhost` / `127.0.0.1` / Tauri origins.
 - `/dax` caps results at 10,000 rows.
-- Everything stays on your machine.
+- Everything stays on your machine. The bridge only ever listens on loopback,
+  and no data is sent anywhere — the hosted Studio is a static page that runs
+  in your browser and calls this bridge directly.
+
+### Who is allowed to call it
+
+The bridge is **unauthenticated**: anything that can call it can read your whole
+model and write measures into it. The CORS allowlist is the only gate, so it is
+deliberately narrow:
+
+- `localhost` / `127.0.0.1` (any port) — the Studio in dev or preview
+- `tauri://` / `file://` — a desktop shell
+- `https://pbi-design-studio.onrender.com` — the hosted Studio
+
+Add your own with a comma-separated env var:
+
+```bat
+set PBI_BRIDGE_ORIGINS=https://studio.example.com,https://staging.example.com
+```
+
+Two rules worth keeping:
+
+- **Exact origins only — never a wildcard suffix** like `*.onrender.com`. Anyone
+  can deploy to a shared host, and every one of them would then reach a running
+  bridge.
+- **Remove an origin as soon as it stops being yours.** A subdomain you release
+  can be registered by someone else, and it would inherit your allowlist entry.
+
+Chrome's Private Network Access preflight is answered with
+`Access-Control-Allow-Private-Network: true`, so a public page reaching loopback
+keeps working as that rolls out.
