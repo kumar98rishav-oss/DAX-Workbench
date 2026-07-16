@@ -33,3 +33,9 @@ public/*.xlsx
 public/*.csv
 public/*.pbix
 public/pbiptest/
+
+# Tool build artifacts
+tools/**/bin/
+tools/**/obj/
+tools/**/node_modules/
+StudioData/
