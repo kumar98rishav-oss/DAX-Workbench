@@ -6,6 +6,7 @@ import { AppShell } from '@/presentation/shell/AppShell'
 import { ImportHost } from '@/presentation/data/ImportHost'
 import { ImportPreviewDialog } from '@/presentation/data/ImportPreviewDialog'
 import { PbixFallbackDialog } from '@/presentation/data/PbixFallbackDialog'
+import { PbipSourceDialog } from '@/presentation/data/PbipSourceDialog'
 import { AnalystPanel } from '@/presentation/analyst/AnalystPanel'
 import { ExportDialog } from '@/presentation/export/ExportDialog'
 import { PluginsDialog } from '@/presentation/plugins/PluginsDialog'
@@ -48,6 +49,7 @@ export function App() {
       <ImportHost />
       <ImportPreviewDialog />
       <PbixFallbackDialog />
+      <PbipSourceDialog />
       <AnalystPanel />
       <ExportDialog />
       <PluginsDialog />

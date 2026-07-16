@@ -38,13 +38,12 @@ function summary(model: PbiModel): string {
 export function pbipSummary(model: PbiModel, realTables: number): string {
   const total = model.tables.length
   const sample = total - realTables
-  const external = model.tables.filter((t) => t.source && t.source.kind !== 'file' && t.source.kind !== 'inline').length
   const parts = [`${realTables}/${total} tables with REAL data`]
   if (sample > 0) parts.push(`${sample} sample`)
   const tail =
-    external > 0
-      ? ` ${external} tables read from a database/API (e.g. SQL Server) that a browser can’t reach — run the data bridge or Import a CSV export for real numbers.`
-      : ''
+    sample > 0
+      ? ` Sample tables come from a database/API a browser can’t reach — attach a CSV/Excel export (or run the data bridge) for real numbers.`
+      : ' 🎉'
   return `Imported “${model.name}” — ${parts.join(', ')}.${tail}`
 }
 

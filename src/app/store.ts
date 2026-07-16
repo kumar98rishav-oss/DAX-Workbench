@@ -14,7 +14,14 @@ import { makeTemplateFile } from '@/application/templates/generate'
 import { parsePbipFolder, parsePbixFile, pbipSummary } from '@/application/import/pbi/open-project'
 import { assemblePbiProject } from '@/application/import/pbi/assemble'
 import type { ParsedDataset } from '@/application/import/types'
-import type { ImportedDataset } from '@/application/import/import-service'
+import type { PbiModel } from '@/application/import/pbi/tmdl'
+
+/** Staged PBIP import — the user reviews per-table sources before committing. */
+export interface PendingPbip {
+  model: PbiModel
+  real: Record<string, ParsedDataset> // tableName(lower) → bound real rows (auto + user)
+  boundFrom: Record<string, string> // tableName(lower) → file it was bound from
+}
 import { applyAccent, resetAccent } from '@/design-system/runtime-theme'
 import { services } from './services'
 
@@ -133,6 +140,7 @@ interface AppState {
   importNote: string | null
   pbixFallback: { message: string; pages: number } | null
   pendingImport: PendingImport | null
+  pendingPbip: PendingPbip | null
   _pickFiles: (() => void) | null
   _pickPbip: (() => void) | null
   _pickPbix: (() => void) | null
@@ -154,6 +162,11 @@ interface AppState {
   requestOpenPbip: () => void
   requestOpenPbix: () => void
   openPbipFiles: (files: File[]) => Promise<void>
+  bindPbipTable: (tableName: string, file: File) => Promise<void>
+  bindPbipTableCsv: (tableName: string, csvText: string) => Promise<void>
+  unbindPbipTable: (tableName: string) => void
+  commitPbip: () => void
+  cancelPbip: () => void
   openPbixFile: (file: File) => Promise<void>
   importFiles: (files: File[]) => Promise<void>
   stageImport: (files: File[]) => Promise<void>
@@ -277,6 +290,7 @@ export const useApp = create<AppState>((set, get) => ({
   importNote: null,
   pbixFallback: null,
   pendingImport: null,
+  pendingPbip: null,
   _pickFiles: null,
   _pickPbip: null,
   _pickPbix: null,
@@ -344,59 +358,109 @@ export const useApp = create<AppState>((set, get) => ({
     if (pick) pick()
   },
 
+  // Parse the project + auto-bind folder files, then open the source-review dialog.
   openPbipFiles: async (files) => {
     if (files.length === 0) return
     set({ importing: true, importError: null, importNote: null })
     try {
-      const { model, note, dataFiles } = await parsePbipFolder(files)
+      const { model, dataFiles } = await parsePbipFolder(files)
+      const real: Record<string, ParsedDataset> = {}
+      const boundFrom: Record<string, string> = {}
 
-      // Bind REAL rows from any data files present in the folder (source Excel/CSV
-      // referenced by the M, a bridge-exported <Table>.csv, etc.).
-      const realByName: Record<string, ParsedDataset> = {}
       if (dataFiles && dataFiles.length) {
         const svc = services.import()
-        const byFile: Record<string, ImportedDataset[]> = {}
-        const byName: Record<string, ParsedDataset> = {}
+        const byFile: Record<string, { parsed: ParsedDataset; file: string }[]> = {}
+        const byName: Record<string, { parsed: ParsedDataset; file: string }> = {}
         for (const file of dataFiles) {
           const res = await svc.importFile(file)
           if (!res.ok) continue
-          byFile[file.name.toLowerCase()] = res.value
-          for (const d of res.value) {
-            byName[d.data.name.toLowerCase()] = { name: d.data.name, columns: d.data.columns, rows: d.data.rows, rowCount: d.data.rowCount }
-          }
+          const list = res.value.map((d) => ({
+            parsed: { name: d.data.name, columns: d.data.columns, rows: d.data.rows, rowCount: d.data.rowCount },
+            file: file.name,
+          }))
+          byFile[file.name.toLowerCase()] = list
+          for (const it of list) byName[it.parsed.name.toLowerCase()] = it
         }
         for (const t of model.tables) {
           const nm = t.name.toLowerCase()
-          if (byName[nm]) { realByName[nm] = byName[nm]; continue } // a sheet/file named like the table
-          const f = t.source?.file?.toLowerCase() // the M's referenced Excel/CSV file
+          if (byName[nm]) { real[nm] = byName[nm].parsed; boundFrom[nm] = byName[nm].file; continue }
+          const f = t.source?.file?.toLowerCase()
           const hit = f ? byFile[f] : undefined
-          if (hit && hit[0]) realByName[nm] = { name: hit[0].data.name, columns: hit[0].data.columns, rows: hit[0].data.rows, rowCount: hit[0].data.rowCount }
+          if (hit && hit[0]) { real[nm] = hit[0].parsed; boundFrom[nm] = hit[0].file }
         }
       }
 
-      const load = assemblePbiProject(model, get().layoutId, realByName)
-      resetAccent()
-      set({
-        view: 'studio',
-        mode: load.hasDashboard ? 'design' : 'model',
-        datasets: load.datasets,
-        model: load.model,
-        report: load.report,
-        activeDatasetId: load.datasets[0]?.id ?? null,
-        projectName: model.name,
-        activeTemplateId: null,
-        importing: false,
-        importError: null,
-        importNote: load.realCount > 0 ? pbipSummary(model, load.realCount) : note,
-        selectedVisualId: null,
-        selectedMeasureId: null,
-        past: [],
-        future: [],
-      })
+      set({ importing: false, pendingPbip: { model, real, boundFrom } })
     } catch (e) {
       set({ importing: false, importError: e instanceof Error ? e.message : 'Could not open the PBIP project.' })
     }
   },
+
+  // Bind (or re-point) a table's real data by attaching a file.
+  bindPbipTable: async (tableName, file) => {
+    const res = await services.import().importFile(file)
+    if (!res.ok || !res.value[0]) { set({ importError: res.ok ? 'No rows found in that file.' : res.error }); return }
+    const d = res.value[0].data
+    const key = tableName.toLowerCase()
+    set((s) =>
+      s.pendingPbip
+        ? {
+            importError: null,
+            pendingPbip: {
+              ...s.pendingPbip,
+              real: { ...s.pendingPbip.real, [key]: { name: d.name, columns: d.columns, rows: d.rows, rowCount: d.rowCount } },
+              boundFrom: { ...s.pendingPbip.boundFrom, [key]: file.name },
+            },
+          }
+        : {},
+    )
+  },
+
+  // Bind a table by pasting CSV text.
+  bindPbipTableCsv: async (tableName, csvText) => {
+    if (!csvText.trim()) return
+    const file = new File([csvText], `${tableName}.csv`, { type: 'text/csv' })
+    await get().bindPbipTable(tableName, file)
+  },
+
+  unbindPbipTable: (tableName) =>
+    set((s) => {
+      if (!s.pendingPbip) return {}
+      const key = tableName.toLowerCase()
+      const real = { ...s.pendingPbip.real }
+      const boundFrom = { ...s.pendingPbip.boundFrom }
+      delete real[key]
+      delete boundFrom[key]
+      return { pendingPbip: { ...s.pendingPbip, real, boundFrom } }
+    }),
+
+  commitPbip: () => {
+    const s = get()
+    const p = s.pendingPbip
+    if (!p) return
+    const load = assemblePbiProject(p.model, s.layoutId, p.real)
+    resetAccent()
+    set({
+      view: 'studio',
+      mode: load.hasDashboard ? 'design' : 'model',
+      datasets: load.datasets,
+      model: load.model,
+      report: load.report,
+      activeDatasetId: load.datasets[0]?.id ?? null,
+      projectName: p.model.name,
+      activeTemplateId: null,
+      importing: false,
+      importError: null,
+      importNote: pbipSummary(p.model, load.realCount),
+      pendingPbip: null,
+      selectedVisualId: null,
+      selectedMeasureId: null,
+      past: [],
+      future: [],
+    })
+  },
+
+  cancelPbip: () => set({ pendingPbip: null }),
 
   openPbixFile: async (file) => {
     set({ importing: true, importError: null, importNote: null, pbixFallback: null })
