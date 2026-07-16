@@ -15,6 +15,8 @@ import { parsePbipFolder, parsePbixFile, pbipSummary } from '@/application/impor
 import { assemblePbiProject } from '@/application/import/pbi/assemble'
 import type { ParsedDataset } from '@/application/import/types'
 import type { PbiModel } from '@/application/import/pbi/tmdl'
+import { probeDesktop } from '@/infrastructure/desktop/desktop-client'
+import type { DesktopStatus } from '@/infrastructure/desktop/desktop-client'
 
 /** Staged PBIP import — the user reviews per-table sources before committing. */
 export interface PendingPbip {
@@ -141,6 +143,8 @@ interface AppState {
   pbixFallback: { message: string; pages: number } | null
   pendingImport: PendingImport | null
   pendingPbip: PendingPbip | null
+  desktop: DesktopStatus
+  refreshDesktop: () => Promise<void>
   _pickFiles: (() => void) | null
   _pickPbip: (() => void) | null
   _pickPbix: (() => void) | null
@@ -291,6 +295,7 @@ export const useApp = create<AppState>((set, get) => ({
   pbixFallback: null,
   pendingImport: null,
   pendingPbip: null,
+  desktop: { connected: false },
   _pickFiles: null,
   _pickPbip: null,
   _pickPbix: null,
@@ -461,6 +466,8 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   cancelPbip: () => set({ pendingPbip: null }),
+
+  refreshDesktop: async () => set({ desktop: await probeDesktop() }),
 
   openPbixFile: async (file) => {
     set({ importing: true, importError: null, importNote: null, pbixFallback: null })

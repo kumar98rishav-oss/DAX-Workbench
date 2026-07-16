@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AnalysisServices.AdomdClient;
 using Tom = Microsoft.AnalysisServices.Tabular;
 
-namespace PbiMcpBridge;
+namespace PbiDesktopBridge;
 
 /// <summary>A running Power BI Desktop model (local Analysis Services instance).</summary>
 public record Instance(int Port, string Database, string Workspace)
@@ -68,7 +68,7 @@ public static class PowerBi
             return all.FirstOrDefault(i => i.Port == p)
                    ?? throw new InvalidOperationException($"No model on port {p}. Open models: {string.Join(", ", all.Select(i => $"{i.Database}:{i.Port}"))}.");
         if (all.Count == 1) return all[0];
-        throw new InvalidOperationException($"Several models are open — pass a port. Options: {string.Join(", ", all.Select(i => $"{i.Database}:{i.Port}"))}.");
+        throw new InvalidOperationException($"Several models are open — pass ?port=. Options: {string.Join(", ", all.Select(i => $"{i.Database}:{i.Port}"))}.");
     }
 
     public static Tom.Database ConnectDatabase(Instance inst, out Tom.Server server)

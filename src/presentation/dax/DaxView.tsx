@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare } from 'lucide-react'
+import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, EmptyState } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
@@ -9,6 +9,7 @@ import type { DaxFunction } from '@/application/dax/functions'
 import { suggest } from '@/application/dax/intent/suggest'
 import type { Suggestion } from '@/application/dax/intent/suggest'
 import { recordPick } from '@/application/dax/intent/memory'
+import { desktopPreview, desktopCreateMeasure } from '@/infrastructure/desktop/desktop-client'
 import { DependencyGraph } from './DependencyGraph'
 import './dax.css'
 
@@ -78,6 +79,8 @@ export function DaxView() {
   const deleteMeasure = useApp((s) => s.deleteMeasure)
   const generateMeasure = useApp((s) => s.generateMeasure)
   const commitMeasures = useApp((s) => s.commitMeasures)
+  const desktop = useApp((s) => s.desktop)
+  const refreshDesktop = useApp((s) => s.refreshDesktop)
 
   const [prompt, setPrompt] = useState('')
   const [explanation, setExplanation] = useState<string | null>(null)
@@ -85,7 +88,16 @@ export function DaxView() {
   const [warnings, setWarnings] = useState<string[]>([])
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [query, setQuery] = useState('')
+  const [desktopMsg, setDesktopMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [busy, setBusy] = useState(false)
   const codeRef = useRef<HTMLTextAreaElement>(null)
+
+  // Detect the local Power BI Desktop bridge (polls; fails soft when absent).
+  useEffect(() => {
+    void refreshDesktop()
+    const id = setInterval(() => void refreshDesktop(), 15000)
+    return () => clearInterval(id)
+  }, [refreshDesktop])
 
   const ctx = useMemo(() => makeCtx(model, datasets), [model, datasets])
 
@@ -106,6 +118,37 @@ export function DaxView() {
     () => (selected ? evaluateDax(selected.expression, ctx) : null),
     [selected, ctx],
   )
+
+  // Evaluate the selected measure on the REAL model in Power BI Desktop.
+  const verifyOnDesktop = async () => {
+    if (!selected) return
+    setBusy(true)
+    setDesktopMsg(null)
+    try {
+      const v = await desktopPreview(selected.expression, desktop.port)
+      setDesktopMsg({ ok: true, text: `Real value from Desktop: ${typeof v === 'number' ? v.toLocaleString() : String(v)}` })
+    } catch (e) {
+      setDesktopMsg({ ok: false, text: e instanceof Error ? e.message : 'Verify failed' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Write the selected measure straight into the live Desktop model.
+  const pushToDesktop = async () => {
+    if (!selected) return
+    setBusy(true)
+    setDesktopMsg(null)
+    try {
+      const r = await desktopCreateMeasure(selected.tableName, selected.name, selected.expression, selected.formatString, selected.displayFolder, desktop.port)
+      setDesktopMsg({ ok: true, text: `${r.status === 'created' ? 'Created' : 'Updated'} “${r.name}” in ${r.table} — it’s live in Power BI Desktop.` })
+      void refreshDesktop()
+    } catch (e) {
+      setDesktopMsg({ ok: false, text: e instanceof Error ? e.message : 'Push failed' })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   // Generate now proposes ranked suggestions; the user picks one to commit.
   const runGenerate = (text: string = prompt) => {
@@ -309,6 +352,25 @@ export function DaxView() {
                 <span className="dax-preview__value" data-error="true">
                   {preview?.note ?? '—'}
                 </span>
+              )}
+            </div>
+
+            {/* Power BI Desktop bridge — real preview + push, when connected */}
+            <div className="dax-desktop">
+              <span className={`dax-desktop__badge${desktop.connected ? ' is-on' : ''}`}>
+                {desktop.connected ? <MonitorCheck size={14} /> : <MonitorX size={14} />}
+                {desktop.connected ? `Power BI Desktop · ${desktop.database ?? 'connected'}` : 'Desktop not connected'}
+              </span>
+              {desktop.connected ? (
+                <>
+                  <Button size="sm" variant="subtle" icon={<PlayCircle size={14} />} onClick={verifyOnDesktop} disabled={busy}>Verify on Desktop</Button>
+                  <Button size="sm" variant="primary" icon={<Upload size={14} />} onClick={pushToDesktop} disabled={busy}>Push to Desktop</Button>
+                </>
+              ) : (
+                <span className="dax-desktop__hint">Run the local bridge + open a .pbix to get real previews &amp; one-click deploy.</span>
+              )}
+              {desktopMsg && (
+                <span className={`dax-desktop__msg${desktopMsg.ok ? '' : ' is-err'}`}>{desktopMsg.text}</span>
               )}
             </div>
 
