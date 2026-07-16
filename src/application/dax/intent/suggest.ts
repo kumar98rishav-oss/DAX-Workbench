@@ -6,7 +6,7 @@
  * preview. DAX generation itself is delegated to the deterministic architect
  * engine via a canonical phrasing, so suggestions reuse proven output.
  */
-import type { SemanticModel } from '@/domain/model'
+import type { SemanticModel, Table } from '@/domain/model'
 import { emptyModel } from '@/domain/model'
 import type { DatasetData } from '@/application/import/types'
 import { architectSolution } from '@/application/dax/architect/architect'
@@ -26,8 +26,12 @@ export interface DaxIntent {
   groupName?: string // resolved categorical column (e.g. "Category")
   filters: ResolvedFilter[] // structured, fuzzy-resolved predicates
   rollingPhrase?: string // e.g. "previous 15 days"
+  movingSpec?: string // e.g. "3 month" (for moving average)
+  iteratorCols?: [string, string] // two numeric columns for a row-by-row product
+  weightCol?: string // weight column for a weighted average
+  useRelationship?: { fromTable: string; fromColumn: string; toTable: string; toColumn: string; label: string }
   topN?: number
-  signals: Set<string> // yoy · ytd · mom · running · pctOfTotal · rank · topN · ratio · distinct
+  signals: Set<string>
   tokens: string[] // descriptive tokens (for synonym learning)
 }
 
@@ -69,6 +73,16 @@ const SIGNALS: [RegExp, string][] = [
   [/\b(ytd|year to date|year-to-date)\b/, 'ytd'],
   [/\b(mom|month over month|month-over-month|vs last month)\b/, 'mom'],
   [/\b(qoq|quarter over quarter|quarter-over-quarter|vs last quarter)\b/, 'qoq'],
+  [/\b(qtd|quarter to date|quarter-to-date)\b/, 'qtd'],
+  [/\b(mtd|month to date|month-to-date)\b/, 'mtd'],
+  [/\b(prior year|previous year|same period last year|sply|py value|last year value)\b/, 'priorYear'],
+  [/\b(moving average|rolling average|trailing average|moving avg)\b/, 'movingAvg'],
+  [/\b(weighted average|weighted avg|weighted mean)\b/, 'weightedAvg'],
+  [/\b(profit margin|gross margin|net margin|margin %|margin percent)\b/, 'profitMargin'],
+  [/\b(profit|gross profit|net profit|earnings)\b/, 'profit'],
+  [/\b(churn|churned|attrition|lost customers)\b/, 'churn'],
+  [/\b(retention|retained|repeat customers|returning customers)\b/, 'retention'],
+  [/\b(new customers|new clients|customer acquisition|acquired customers|new accounts)\b/, 'newCustomers'],
   [/\b(running|cumulative|running total|to date)\b/, 'running'],
   [/\b(% of total|percent of total|share of|proportion|contribution)\b/, 'pctOfTotal'],
   [/\b(rank|ranking|position|rank by)\b/, 'rank'],
@@ -96,6 +110,49 @@ export function parseIntent(prompt: string, model: SemanticModel, datasets: Data
   if (rollingPhrase) signals.add('rolling')
 
   const fieldName = resolveColumn(raw, model, num)
+
+  // Row-by-row product → SUMX iterator (e.g. "quantity times price").
+  let iteratorCols: [string, string] | undefined
+  const prodMatch = low.match(/\b([a-z_ ]+?)\s*(?:times|multiplied by|\*|×)\s*([a-z_ ]+)/)
+  if (prodMatch) {
+    const a = resolveColumn(prodMatch[1], model, num)
+    const b = resolveColumn(prodMatch[2], model, num)
+    if (a && b && a !== b) {
+      iteratorCols = [a, b]
+      signals.add('iterator')
+    }
+  }
+
+  // Moving-average window: "N unit moving average" (defaults to 3 month).
+  let movingSpec: string | undefined
+  if (signals.has('movingAvg')) {
+    const mm = low.match(/(\d+)\s*(day|week|month|quarter|year)/)
+    movingSpec = mm ? `${mm[1]} ${mm[2]}` : '3 month'
+  }
+
+  // Weighted average: "weighted average A by B" → B is the weight column.
+  let weightCol: string | undefined
+  if (signals.has('weightedAvg')) {
+    const wm = low.split(/\bby\b/)[1]
+    weightCol = wm ? resolveColumn(wm, model, num) : undefined
+  }
+
+  // USERELATIONSHIP: an INACTIVE date relationship whose column the prompt names.
+  let useRelationship: DaxIntent['useRelationship']
+  const spaced = ` ${low.replace(/_/g, ' ')} `
+  for (const r of model.relationships) {
+    if (r.isActive) continue
+    const fromT = model.tables.find((t) => t.id === r.fromTable)
+    const fromC = fromT?.columns.find((c) => c.id === r.fromColumn)
+    const toT = model.tables.find((t) => t.id === r.toTable)
+    const toC = toT?.columns.find((c) => c.id === r.toColumn)
+    if (!fromT || !fromC || !toT || !toC) continue
+    if (fromC.dataType !== 'date' && fromC.dataType !== 'dateTime') continue
+    if (spaced.includes(` ${fromC.name.toLowerCase().replace(/_/g, ' ')} `)) {
+      useRelationship = { fromTable: fromT.name, fromColumn: fromC.name, toTable: toT.name, toColumn: toC.name, label: fromC.name }
+      break
+    }
+  }
   // group: prefer a categorical column named after "by …"
   const byPart = low.split(/\bby\b/)[1]
   const groupName =
@@ -130,6 +187,10 @@ export function parseIntent(prompt: string, model: SemanticModel, datasets: Data
     groupName,
     filters,
     rollingPhrase,
+    movingSpec,
+    iteratorCols,
+    weightCol,
+    useRelationship,
     topN,
     signals,
     tokens: words(raw),
@@ -146,6 +207,8 @@ function nounAfterAgg(low: string): string | undefined {
 interface PatternCtx {
   hasDate: boolean
   factName: string
+  hasCost: boolean // a cost/expense column exists (enables profit / margin)
+  entityCol?: string // a customer/entity column (enables churn / retention / new)
 }
 
 interface DaxPattern {
@@ -159,7 +222,10 @@ interface DaxPattern {
 const field = (i: DaxIntent, ctx: PatternCtx) => i.fieldName ?? i.fieldPhrase ?? ctx.factName
 
 /** Which patterns accept a filtered CALCULATE wrapper. */
-const FILTERABLE = new Set(['total', 'average', 'count', 'distinct', 'yoy-pct', 'ytd', 'running'])
+const FILTERABLE = new Set([
+  'total', 'average', 'count', 'distinct', 'yoy-pct', 'mom-pct', 'qoq-pct',
+  'ytd', 'qtd', 'mtd', 'prior-year', 'moving-avg', 'running', 'rolling-period',
+])
 
 /** Wrap a base measure in a multi-predicate CALCULATE (we build the filter DAX
  * ourselves so all conditions land in ONE measure, correctly). */
@@ -241,6 +307,69 @@ const PATTERNS: DaxPattern[] = [
     canonical: (i, ctx) => `${field(i, ctx)} ${i.rollingPhrase}`,
   },
   {
+    id: 'qtd',
+    label: 'Quarter-to-date',
+    requires: (_i, ctx) => ctx.hasDate,
+    score: (i) => (i.signals.has('qtd') ? 0.94 : 0),
+    canonical: (i, ctx) => `${field(i, ctx)} qtd`,
+  },
+  {
+    id: 'mtd',
+    label: 'Month-to-date',
+    requires: (_i, ctx) => ctx.hasDate,
+    score: (i) => (i.signals.has('mtd') ? 0.94 : 0),
+    canonical: (i, ctx) => `${field(i, ctx)} mtd`,
+  },
+  {
+    id: 'prior-year',
+    label: 'Prior year (same period)',
+    requires: (_i, ctx) => ctx.hasDate,
+    score: (i) => (i.signals.has('priorYear') ? 0.9 : 0),
+    canonical: (i, ctx) => `${field(i, ctx)} prior year`,
+  },
+  {
+    id: 'moving-avg',
+    label: 'Moving average',
+    requires: (_i, ctx) => ctx.hasDate,
+    score: (i) => (i.signals.has('movingAvg') ? 0.93 : 0),
+    canonical: (i, ctx) => `${field(i, ctx)} ${i.movingSpec ?? '3 month'} moving average`,
+  },
+  {
+    id: 'profit-margin',
+    label: 'Profit margin %',
+    requires: (_i, ctx) => ctx.hasCost,
+    score: (i) => (i.signals.has('profitMargin') ? 0.94 : 0),
+    canonical: () => 'profit margin',
+  },
+  {
+    id: 'profit',
+    label: 'Profit',
+    requires: (_i, ctx) => ctx.hasCost,
+    score: (i) => (i.signals.has('profit') && !i.signals.has('profitMargin') ? 0.9 : 0),
+    canonical: () => 'total profit',
+  },
+  {
+    id: 'churn',
+    label: 'Churn rate %',
+    requires: (_i, ctx) => ctx.hasDate && !!ctx.entityCol,
+    score: (i) => (i.signals.has('churn') ? 0.92 : 0),
+    canonical: () => 'churned customers',
+  },
+  {
+    id: 'retention',
+    label: 'Retention rate %',
+    requires: (_i, ctx) => ctx.hasDate && !!ctx.entityCol,
+    score: (i) => (i.signals.has('retention') ? 0.92 : 0),
+    canonical: () => 'customer retention',
+  },
+  {
+    id: 'new-customers',
+    label: 'New customers',
+    requires: (_i, ctx) => ctx.hasDate && !!ctx.entityCol,
+    score: (i) => (i.signals.has('newCustomers') ? 0.92 : 0),
+    canonical: () => 'new customers',
+  },
+  {
     id: 'pct-total',
     label: '% of total',
     score: (i) => (i.signals.has('pctOfTotal') ? 0.9 : 0.2),
@@ -293,6 +422,20 @@ export function signatureOf(i: DaxIntent): string {
   return parts.join('+') || 'plain'
 }
 
+/** A DAX column reference from the fact's row context — direct if the column is
+ * on the fact, RELATED('Dim'[col]) if it's on a dimension reachable by a FK. */
+function colRef(colName: string, factTable: Table, model: SemanticModel): string | null {
+  if (factTable.columns.some((c) => c.name === colName)) return `'${factTable.name}'[${colName}]`
+  for (const t of model.tables) {
+    if (t.id === factTable.id) continue
+    if (!t.columns.some((c) => c.name === colName)) continue
+    if (model.relationships.some((r) => r.fromTable === factTable.id && r.toTable === t.id)) {
+      return `RELATED('${t.name}'[${colName}])`
+    }
+  }
+  return null
+}
+
 function withTempMeasures(model: SemanticModel, steps: SuggestionStep[]): SemanticModel {
   const tables = model.tables.map((t) => ({ ...t, measures: [...t.measures] }))
   const home = tables.find((t) => t.role === 'fact') ?? tables[0]
@@ -314,9 +457,13 @@ export function suggest(
   limit = 4,
 ): { intent: DaxIntent; suggestions: Suggestion[] } {
   const intent = parseIntent(prompt, model, datasets)
+  const factTable = model.tables.find((t) => t.role === 'fact') ?? model.tables[0]
+  const allCols = model.tables.flatMap((t) => t.columns)
   const ctx: PatternCtx = {
     hasDate: model.tables.some((t) => t.role === 'date' || t.columns.some((c) => c.dataType === 'date' || c.dataType === 'dateTime')),
-    factName: (model.tables.find((t) => t.role === 'fact') ?? model.tables[0])?.name ?? 'Table',
+    factName: factTable?.name ?? 'Table',
+    hasCost: allCols.some((c) => /integer|decimal/.test(c.dataType) && /cost|cogs|expense|spend/i.test(c.name)),
+    entityCol: allCols.find((c) => /customer|client|user|member|account|patient|guest|subscriber|donor|student/i.test(c.name))?.name,
   }
   const signature = signatureOf(intent)
   const corrections = intent.filters
@@ -329,6 +476,47 @@ export function suggest(
 
   const out: Suggestion[] = []
   const seenDax = new Set<string>()
+
+  // Iterator (SUMX row-by-row product) — built directly so the exact columns
+  // the user named are used (the engine picks columns heuristically).
+  if (intent.iteratorCols && factTable) {
+    const [a, b] = intent.iteratorCols
+    const aRef = colRef(a, factTable, model)
+    const bRef = colRef(b, factTable, model)
+    if (aRef && bRef) {
+      const name = `Total ${a} × ${b}`
+      const dax = `SUMX(\n    '${ctx.factName}',\n    ${aRef} * ${bRef}\n)`
+      const step: SuggestionStep = { name, dax, reason: `Row-by-row product of ${a} and ${b}, summed with SUMX${aRef.includes('RELATED') || bRef.includes('RELATED') ? ' (RELATED pulls the dimension value into the fact row)' : ''}.` }
+      const preview = evaluateDax(dax, makeCtx(withTempMeasures(model, [step]), datasets))
+      out.push({
+        patternId: 'iterator', label: 'Row-by-row (SUMX)', canonicalPrompt: prompt, measureName: name, dax,
+        plan: [step], explanation: `Sums ${a} × ${b} per row using the SUMX iterator.`, score: 0.95, signature,
+        tokens: intent.tokens, preview: preview.ok ? { ok: true, value: preview.value } : { ok: false, note: preview.note },
+        formatString: '#,##0', validationErrors: [], corrections,
+      })
+    }
+  }
+
+  // Weighted average — built directly: DIVIDE(SUMX(value × weight), SUM(weight)).
+  if (intent.signals.has('weightedAvg') && intent.weightCol && factTable) {
+    // The value column is named BEFORE "by"; the weight column after it.
+    const byIdx = intent.raw.toLowerCase().indexOf(' by ')
+    const val = resolveColumn(byIdx >= 0 ? intent.raw.slice(0, byIdx) : intent.raw, model, num) ?? intent.fieldName
+    const w = intent.weightCol
+    const onFact = (n: string) => factTable.columns.some((c) => c.name === n)
+    if (val && val !== w && onFact(val) && onFact(w)) {
+      const name = `Weighted Avg ${val}`
+      const dax = `DIVIDE(\n    SUMX('${ctx.factName}', '${ctx.factName}'[${val}] * '${ctx.factName}'[${w}]),\n    SUM('${ctx.factName}'[${w}])\n)`
+      const step: SuggestionStep = { name, dax, reason: `${val} weighted by ${w}: SUMX(value × weight) ÷ SUM(weight).` }
+      const preview = evaluateDax(dax, makeCtx(withTempMeasures(model, [step]), datasets))
+      out.push({
+        patternId: 'weighted-avg', label: 'Weighted average', canonicalPrompt: prompt, measureName: name, dax,
+        plan: [step], explanation: `Weighted average of ${val} using ${w} as the weight.`, score: 0.97, signature,
+        tokens: intent.tokens, preview: preview.ok ? { ok: true, value: preview.value } : { ok: false, note: preview.note },
+        formatString: '#,##0.00', validationErrors: [], corrections,
+      })
+    }
+  }
 
   for (const { p, s } of ranked) {
     if (out.length >= limit) break
@@ -348,8 +536,20 @@ export function suggest(
 
     // Wrap in a filtered CALCULATE when the intent carries filters.
     const applyFilters = intent.filters.length > 0 && FILTERABLE.has(p.id)
-    const steps = applyFilters ? [...baseSteps, filteredStep(baseFinal.name, intent.filters)] : baseSteps
-    const finalStep = steps[steps.length - 1]
+    let steps = applyFilters ? [...baseSteps, filteredStep(baseFinal.name, intent.filters)] : baseSteps
+    let finalStep = steps[steps.length - 1]
+
+    // Re-point time-intelligence to an INACTIVE relationship via USERELATIONSHIP.
+    if (intent.useRelationship && FILTERABLE.has(p.id)) {
+      const ur = intent.useRelationship
+      const urStep: SuggestionStep = {
+        name: `${finalStep.name} (by ${ur.label})`,
+        dax: `CALCULATE(\n    [${finalStep.name}],\n    USERELATIONSHIP('${ur.fromTable}'[${ur.fromColumn}], '${ur.toTable}'[${ur.toColumn}])\n)`,
+        reason: `Activates the inactive '${ur.fromColumn}'→'${ur.toColumn}' relationship for this calculation with USERELATIONSHIP.`,
+      }
+      steps = [...steps, urStep]
+      finalStep = urStep
+    }
 
     const key = `${finalStep.name}=${finalStep.dax}`.toLowerCase().replace(/\s+/g, '')
     if (seenDax.has(key)) continue
