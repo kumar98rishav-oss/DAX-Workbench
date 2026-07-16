@@ -148,6 +148,10 @@ interface AppState {
   desktop: DesktopStatus
   refreshDesktop: () => Promise<void>
   syncFromDesktop: () => Promise<void>
+  factoryOpen: boolean
+  doctorOpen: boolean
+  toggleFactory: (open?: boolean) => void
+  toggleDoctor: (open?: boolean) => void
   _pickFiles: (() => void) | null
   _pickPbip: (() => void) | null
   _pickPbix: (() => void) | null
@@ -299,6 +303,8 @@ export const useApp = create<AppState>((set, get) => ({
   pendingImport: null,
   pendingPbip: null,
   desktop: { bridge: false, connected: false },
+  factoryOpen: false,
+  doctorOpen: false,
   _pickFiles: null,
   _pickPbip: null,
   _pickPbix: null,
@@ -471,6 +477,8 @@ export const useApp = create<AppState>((set, get) => ({
   cancelPbip: () => set({ pendingPbip: null }),
 
   refreshDesktop: async () => set({ desktop: await probeDesktop() }),
+  toggleFactory: (open) => set((s) => ({ factoryOpen: open ?? !s.factoryOpen })),
+  toggleDoctor: (open) => set((s) => ({ doctorOpen: open ?? !s.doctorOpen })),
 
   // Pull the REAL model + data from the connected Power BI Desktop into the Studio.
   syncFromDesktop: async () => {

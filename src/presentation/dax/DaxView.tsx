@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle } from 'lucide-react'
+import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, EmptyState } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
@@ -82,6 +82,8 @@ export function DaxView() {
   const desktop = useApp((s) => s.desktop)
   const refreshDesktop = useApp((s) => s.refreshDesktop)
   const syncFromDesktop = useApp((s) => s.syncFromDesktop)
+  const toggleFactory = useApp((s) => s.toggleFactory)
+  const toggleDoctor = useApp((s) => s.toggleDoctor)
 
   const [prompt, setPrompt] = useState('')
   const [explanation, setExplanation] = useState<string | null>(null)
@@ -213,6 +215,14 @@ export function DaxView() {
           <Button size="sm" variant="ghost" icon={<Plus size={15} />} onClick={addMeasure}>
             New
           </Button>
+        </div>
+        <div className="dax-tools">
+          <button className="dax-tool" onClick={() => toggleFactory(true)} title="Build a whole measure suite for one field">
+            <Factory size={13} /> Factory
+          </button>
+          <button className="dax-tool" onClick={() => toggleDoctor(true)} title="Audit the model: formats, DAX issues, docs">
+            <Stethoscope size={13} /> Doctor
+          </button>
         </div>
         <div className="dax-list__body pbs-scroll">
           {model.tables

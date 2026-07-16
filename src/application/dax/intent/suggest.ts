@@ -455,6 +455,8 @@ export function suggest(
   model: SemanticModel,
   datasets: DatasetData[],
   limit = 4,
+  /** Pin the aggregated column (the Factory uses this so a suite can't drift to another field). */
+  valueOverride?: { table: string; column: string },
 ): { intent: DaxIntent; suggestions: Suggestion[] } {
   const intent = parseIntent(prompt, model, datasets)
   const factTable = model.tables.find((t) => t.role === 'fact') ?? model.tables[0]
@@ -525,7 +527,7 @@ export function suggest(
     // in the measure name as a filter). We resolve + wrap filters ourselves, so
     // always skip the engine's value→column injection.
     const canonical = p.canonical(intent, ctx).replace(/\s+/g, ' ').trim()
-    const sol = architectSolution(model, canonical, datasets, undefined, true)
+    const sol = architectSolution(model, canonical, datasets, valueOverride ? { value: valueOverride } : undefined, true)
     if (!sol) continue
     const baseSteps: SuggestionStep[] = sol.steps
       .filter((st) => st.objectType === 'Measure')
