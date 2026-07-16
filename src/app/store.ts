@@ -11,8 +11,10 @@ import { generateDaxFromNL } from '@/application/dax/nl-templates'
 import { architectSolution } from '@/application/dax/architect/architect'
 import type { TemplateDef } from '@/application/templates/catalog'
 import { makeTemplateFile } from '@/application/templates/generate'
-import { parsePbipFolder, parsePbixFile } from '@/application/import/pbi/open-project'
+import { parsePbipFolder, parsePbixFile, pbipSummary } from '@/application/import/pbi/open-project'
 import { assemblePbiProject } from '@/application/import/pbi/assemble'
+import type { ParsedDataset } from '@/application/import/types'
+import type { ImportedDataset } from '@/application/import/import-service'
 import { applyAccent, resetAccent } from '@/design-system/runtime-theme'
 import { services } from './services'
 
@@ -346,8 +348,33 @@ export const useApp = create<AppState>((set, get) => ({
     if (files.length === 0) return
     set({ importing: true, importError: null, importNote: null })
     try {
-      const { model, note } = await parsePbipFolder(files)
-      const load = assemblePbiProject(model, get().layoutId)
+      const { model, note, dataFiles } = await parsePbipFolder(files)
+
+      // Bind REAL rows from any data files present in the folder (source Excel/CSV
+      // referenced by the M, a bridge-exported <Table>.csv, etc.).
+      const realByName: Record<string, ParsedDataset> = {}
+      if (dataFiles && dataFiles.length) {
+        const svc = services.import()
+        const byFile: Record<string, ImportedDataset[]> = {}
+        const byName: Record<string, ParsedDataset> = {}
+        for (const file of dataFiles) {
+          const res = await svc.importFile(file)
+          if (!res.ok) continue
+          byFile[file.name.toLowerCase()] = res.value
+          for (const d of res.value) {
+            byName[d.data.name.toLowerCase()] = { name: d.data.name, columns: d.data.columns, rows: d.data.rows, rowCount: d.data.rowCount }
+          }
+        }
+        for (const t of model.tables) {
+          const nm = t.name.toLowerCase()
+          if (byName[nm]) { realByName[nm] = byName[nm]; continue } // a sheet/file named like the table
+          const f = t.source?.file?.toLowerCase() // the M's referenced Excel/CSV file
+          const hit = f ? byFile[f] : undefined
+          if (hit && hit[0]) realByName[nm] = { name: hit[0].data.name, columns: hit[0].data.columns, rows: hit[0].data.rows, rowCount: hit[0].data.rowCount }
+        }
+      }
+
+      const load = assemblePbiProject(model, get().layoutId, realByName)
       resetAccent()
       set({
         view: 'studio',
@@ -360,7 +387,7 @@ export const useApp = create<AppState>((set, get) => ({
         activeTemplateId: null,
         importing: false,
         importError: null,
-        importNote: note,
+        importNote: load.realCount > 0 ? pbipSummary(model, load.realCount) : note,
         selectedVisualId: null,
         selectedMeasureId: null,
         past: [],

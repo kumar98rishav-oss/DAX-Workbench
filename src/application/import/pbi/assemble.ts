@@ -11,7 +11,7 @@ import { buildModel } from '@/application/model/auto-model'
 import { generateLayout } from '@/application/insights/dashboard-generator'
 import { inferDataset } from '../infer-schema'
 import { slug } from '../import-service'
-import type { DatasetData } from '../types'
+import type { DatasetData, ParsedDataset } from '../types'
 import { synthesize } from './synth'
 import type { PbiModel } from './tmdl'
 
@@ -20,25 +20,42 @@ export interface PbiLoad {
   model: SemanticModel
   report: Report
   hasDashboard: boolean
+  realCount: number
 }
 
-export function assemblePbiProject(pbi: PbiModel, layoutId: string): PbiLoad {
-  // 1. Fabricate joinable rows, then profile them like any imported dataset.
-  const raws = synthesize(pbi)
+export function assemblePbiProject(
+  pbi: PbiModel,
+  layoutId: string,
+  realByName: Record<string, ParsedDataset> = {},
+): PbiLoad {
+  // 1. Per table: use REAL rows from a folder file when available, else fabricate
+  //    joinable sample rows. Everything is then profiled like any import.
+  const synthRaws = synthesize(pbi)
+  const synthByName = new Map(synthRaws.map((r) => [r.name, r]))
   const taken = new Set<string>()
   const datasets: DatasetData[] = []
   let tables: Table[] = []
   const idOf = new Map<string, string>()
+  let realCount = 0
 
-  for (const raw of raws) {
-    const parsed = inferDataset(raw.name, raw.headers, raw.rows)
-    if (parsed.columns.length === 0) continue
-    let id = slug(raw.name)
+  for (const t of pbi.tables) {
+    const real = realByName[t.name.toLowerCase()]
+    const isReal = !!real && real.rowCount > 0
+    let parsed: ParsedDataset | null = null
+    if (isReal) parsed = real
+    else {
+      const raw = synthByName.get(t.name)
+      if (raw) parsed = inferDataset(t.name, raw.headers, raw.rows)
+    }
+    if (!parsed || parsed.columns.length === 0) continue
+    if (isReal) realCount++
+
+    let id = slug(t.name)
     const base = id
     let k = 2
     while (taken.has(id)) id = `${base}_${k++}`
     taken.add(id)
-    idOf.set(raw.name, id)
+    idOf.set(t.name, id)
 
     const columns: Column[] = parsed.columns.map((c) => ({
       id: `${id}::${slug(c.name)}`,
@@ -50,8 +67,8 @@ export function assemblePbiProject(pbi: PbiModel, layoutId: string): PbiLoad {
       cardinalityRatio: parsed.rowCount ? c.profile.distinctCount / parsed.rowCount : 0,
       sampleValues: c.sampleValues,
     }))
-    tables.push({ id, name: raw.name, role: 'unknown', columns, measures: [], rowCount: parsed.rowCount, source: { kind: 'pbi', ref: pbi.name } })
-    datasets.push({ id, name: raw.name, columns: parsed.columns, rows: parsed.rows, rowCount: parsed.rowCount })
+    tables.push({ id, name: t.name, role: 'unknown', columns, measures: [], rowCount: parsed.rowCount, source: { kind: isReal ? 'file' : 'pbi', ref: pbi.name } })
+    datasets.push({ id, name: t.name, columns: parsed.columns, rows: parsed.rows, rowCount: parsed.rowCount })
   }
 
   // 2. Infer roles (fact/dimension/date/key) from the data.
@@ -137,5 +154,6 @@ export function assemblePbiProject(pbi: PbiModel, layoutId: string): PbiLoad {
     model: { ...baseModel, tables: finalTables },
     report,
     hasDashboard: (page.visuals?.length ?? 0) > 0,
+    realCount,
   }
 }

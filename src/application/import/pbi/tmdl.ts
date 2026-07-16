@@ -21,11 +21,20 @@ export interface PbiMeasure {
   displayFolder?: string
 }
 
+export type SourceKind = 'sql' | 'file' | 'inline' | 'web' | 'other'
+
+export interface PbiSource {
+  kind: SourceKind
+  file?: string // basename of a referenced Excel/CSV file (kind: 'file')
+  detail?: string // human summary, e.g. "SQL · MedLegalBI.dbo.vw_CaseDetails"
+}
+
 export interface PbiTable {
   name: string
   columns: PbiColumn[]
   measures: PbiMeasure[]
   isHidden?: boolean
+  source?: PbiSource
 }
 
 export interface PbiRelationship {
@@ -102,6 +111,26 @@ export function splitRef(ref: string): { table: string; column: string } | null 
 
 const PROP_KEYS = /^(dataType|formatString|summarizeBy|sourceColumn|lineageTag|isHidden|displayFolder|description|isKey|isNullable|annotation|changedProperty|sortByColumn|dataCategory|isDataTypeInferred|isAvailableInMdx)\b/
 
+/** Classify a table's Power Query (M) source: where does its data come from? */
+export function classifySource(m: string): PbiSource {
+  const s = m || ''
+  if (/\bTable\.FromRows\b|#table\b/.test(s)) return { kind: 'inline', detail: 'Inline data' }
+  const fileRef = (s.match(/Excel\.Workbook\s*\(\s*File\.Contents\s*\(\s*"([^"]+)"/i) ?? s.match(/Csv\.Document\s*\(\s*File\.Contents\s*\(\s*"([^"]+)"/i))?.[1]
+  if (fileRef) {
+    const file = fileRef.replace(/\\/g, '/').split('/').pop() ?? fileRef
+    return { kind: 'file', file, detail: `File · ${file}` }
+  }
+  const sql = s.match(/Sql\.Databases?\s*\(\s*"([^"]+)"(?:\s*,\s*"([^"]+)")?/i)
+  if (sql) {
+    const db = sql[2] ?? s.match(/\[Name\s*=\s*"([^"]+)"\]/i)?.[1]
+    const item = s.match(/Item\s*=\s*"([^"]+)"/i)?.[1]
+    return { kind: 'sql', detail: `SQL Server · ${[sql[1], db, item].filter(Boolean).join(' / ')}` }
+  }
+  if (/\bWeb\.Contents|OData\.Feed\b/.test(s)) return { kind: 'web', detail: 'Web / API' }
+  if (/\bOdbc\.|Snowflake\.|AmazonRedshift\.|PostgreSQL\.|MySQL\.|Oracle\.|GoogleBigQuery\./.test(s)) return { kind: 'other', detail: 'Database (ODBC / cloud)' }
+  return { kind: 'other', detail: 'Other source' }
+}
+
 /** Parse a single `<table>.tmdl` file body. */
 export function parseTableTmdl(text: string): PbiTable | null {
   const lines = text.split(/\r?\n/)
@@ -157,7 +186,16 @@ export function parseTableTmdl(text: string): PbiTable | null {
       continue
     }
 
-    // Skip partition / hierarchy / annotation blocks and table-level props.
+    // Partition — capture the M source to classify where the data comes from.
+    if (depth === 1 && line.startsWith('partition ')) {
+      const block: string[] = []
+      i++
+      while (i < lines.length && (lines[i].trim() === '' || indentOf(lines[i]) >= 2)) { block.push(lines[i]); i++ }
+      if (!table.source) table.source = classifySource(block.join('\n'))
+      continue
+    }
+
+    // Skip hierarchy / annotation blocks and table-level props.
     i++
   }
 

@@ -1,0 +1,13 @@
+{
+  "name": "pbip-data-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pull a Power BI project's real data (SQL Server / Excel / CSV) to CSVs the Studio can import.",
+  "bin": { "pbip-data-bridge": "index.mjs" },
+  "scripts": { "start": "node index.mjs" },
+  "dependencies": {
+    "mssql": "^11.0.1",
+    "xlsx": "^0.18.5"
+  }
+}

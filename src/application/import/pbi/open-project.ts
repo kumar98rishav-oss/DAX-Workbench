@@ -13,6 +13,8 @@ import type { PbiModel, PbiRelationship, PbiTable, TmdlFile } from './tmdl'
 export interface PbiParseResult {
   model: PbiModel
   note: string
+  /** Data files found in the dropped folder (Excel/CSV/Parquet) to bind as real rows. */
+  dataFiles?: File[]
 }
 
 /** Returned when a .pbix has no readable model — the UI offers next steps. */
@@ -32,12 +34,27 @@ function summary(model: PbiModel): string {
   return `Imported the MODEL of “${model.name}” — ${parts.join(', ')}. ⚠ A project file carries no row data, so sample data was generated — measure values are ILLUSTRATIVE, not your source numbers. Use “Import Data” to bind the real Excel/CSV/SQL export.`
 }
 
+/** Honest post-bind summary: how many tables got REAL data vs sample. */
+export function pbipSummary(model: PbiModel, realTables: number): string {
+  const total = model.tables.length
+  const sample = total - realTables
+  const external = model.tables.filter((t) => t.source && t.source.kind !== 'file' && t.source.kind !== 'inline').length
+  const parts = [`${realTables}/${total} tables with REAL data`]
+  if (sample > 0) parts.push(`${sample} sample`)
+  const tail =
+    external > 0
+      ? ` ${external} tables read from a database/API (e.g. SQL Server) that a browser can’t reach — run the data bridge or Import a CSV export for real numbers.`
+      : ''
+  return `Imported “${model.name}” — ${parts.join(', ')}.${tail}`
+}
+
 // ---- PBIP (folder) --------------------------------------------------------
 
 export async function parsePbipFolder(files: File[]): Promise<PbiParseResult> {
   const rel = (f: File) => ((f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name).replace(/\\/g, '/')
 
   const tmdl: TmdlFile[] = []
+  const dataFiles: File[] = []
   let projectName = ''
   for (const f of files) {
     const path = rel(f)
@@ -45,6 +62,8 @@ export async function parsePbipFolder(files: File[]): Promise<PbiParseResult> {
     if (lower.endsWith('.pbip')) projectName ||= f.name.replace(/\.pbip$/i, '')
     if (lower.includes('.semanticmodel/definition/') && lower.endsWith('.tmdl')) {
       tmdl.push({ path, text: await f.text() })
+    } else if (/\.(xlsx|xls|xlsm|csv|tsv|parquet|pqt)$/i.test(lower)) {
+      dataFiles.push(f) // real data present in the folder (Excel_Sources, bridge output, …)
     }
   }
 
@@ -64,7 +83,7 @@ export async function parsePbipFolder(files: File[]): Promise<PbiParseResult> {
 
   const model = parseTmdl(tmdl, projectName)
   if (model.tables.length === 0) throw new Error('The project’s semantic model had no readable tables.')
-  return { model, note: summary(model) }
+  return { model, note: summary(model), dataFiles }
 }
 
 // ---- PBIX (zip) -----------------------------------------------------------
