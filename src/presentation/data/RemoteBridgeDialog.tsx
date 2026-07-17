@@ -60,14 +60,20 @@ export function RemoteBridgeDialog() {
         <div className="impdlg__body pbs-scroll">
           <ol className="rb__steps">
             <li>
-              <b>On the other machine</b>, with the report open in Power BI Desktop, run the bridge
-              with <code>--remote</code>:
-              <pre className="rb__cmd">pbi-desktop-bridge.exe --remote</pre>
+              <b>Send them the bridge file</b> and have them open their report in Power BI Desktop.
               <a className="rb__grab" href="/download/BI-Design-Studio-Bridge.exe" download>
-                <Download size={13} /> Download the bridge to send them
+                <Download size={13} /> Download the bridge to send
               </a>
-              It prints an <b>address</b> and a <b>pairing token</b>. Ask for both. The token is new
-              every time it starts, and without it the bridge refuses every request from the network.
+            </li>
+            <li>
+              <b>They double-click it</b> and, when it asks, choose{' '}
+              <b>[2] This computer AND someone else's Studio</b>. (Windows may warn it's from an
+              unknown publisher — <i>More info → Run anyway</i>.)
+            </li>
+            <li>
+              The window then shows an <b>Address</b> and a <b>pairing token</b> — they send you both.
+              The token is new every time and, without it, the bridge refuses every request from the
+              network.
             </li>
             <li><b>Put them in here</b>, test, and connect.</li>
           </ol>

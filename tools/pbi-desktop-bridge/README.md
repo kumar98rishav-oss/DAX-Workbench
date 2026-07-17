@@ -56,16 +56,21 @@ the DAX Architect's **Power BI Desktop** badge turns green automatically.
 ## Remote — let another machine's Studio reach this report
 
 By default the bridge answers **only this machine** (loopback), no token. To let
-someone else's Studio work against the report open here, start it with
-`--remote`:
+someone else's Studio reach the report open here:
+
+1. **Double-click** the downloaded `BI-Design-Studio-Bridge.exe`.
+2. When it asks *who should be able to use this bridge*, type **`2`** (this
+   computer AND someone else's Studio) and press Enter.
+3. It prints an **Address** and a one-time **pairing token** — send both to the
+   other person. They paste them into Studio's *Remote connector* dialog ("The
+   report is on another machine?" on the front page).
+
+No terminal needed. If you prefer flags (or are scripting it), `--remote` skips
+the question and `--local` forces loopback-only:
 
 ```powershell
-.\pbi-desktop-bridge.exe --remote
+.\BI-Design-Studio-Bridge.exe --remote
 ```
-
-It binds all interfaces and prints an **address** and a one-time **pairing
-token**. Give both to the other person; they paste them into Studio's *Remote
-connector* dialog ("The report is on another machine?" on the front page).
 
 - **Loopback stays token-free.** Only requests arriving over the network are
   challenged, so nothing about the normal local flow changes.

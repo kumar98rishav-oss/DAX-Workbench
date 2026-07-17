@@ -8,8 +8,9 @@ using Tom = Microsoft.AnalysisServices.Tabular;
 // Services directly, so this local helper does it (TOM to read/write the model,
 // ADOMD to run DAX). No cloud, no AI — just the Studio ⇄ Desktop link.
 //
-//   pbi-desktop-bridge.exe            loopback only, no token — the normal case
-//   pbi-desktop-bridge.exe --remote   also answer the network, token required
+//   double-click it            -> asks: this machine only, or share with another
+//   ...exe  --local            loopback only, no token (skip the question)
+//   ...exe  --remote           answer the network, token required (skip the question)
 //   --listen <ip>  --port <n>  --token <secret>
 
 static string? Arg(string[] a, string name)
@@ -20,6 +21,25 @@ static string? Arg(string[] a, string name)
 static bool Flag(string[] a, string name) => a.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
 
 var remoteMode = Flag(args, "--remote");
+
+// If no mode was chosen and someone just double-clicked this (a real console,
+// stdin not piped), ask in plain words instead of making them know a flag exists.
+if (!remoteMode && !Flag(args, "--local") && Arg(args, "--listen") is null && !Console.IsInputRedirected)
+{
+    Console.WriteLine();
+    Console.WriteLine("  Power BI Desktop Bridge");
+    Console.WriteLine("  =======================================================");
+    Console.WriteLine();
+    Console.WriteLine("  Who should be able to use this bridge?");
+    Console.WriteLine();
+    Console.WriteLine("    [1]  Only this computer                    (default)");
+    Console.WriteLine("    [2]  This computer AND someone else's Studio");
+    Console.WriteLine();
+    Console.Write("  Type 1 or 2, then press Enter:  ");
+    remoteMode = Console.ReadLine()?.Trim() == "2";
+    Console.WriteLine();
+}
+
 var listenIp = Arg(args, "--listen") ?? (remoteMode ? "0.0.0.0" : "127.0.0.1");
 var listenPort = int.TryParse(Arg(args, "--port"), out var p0) ? p0 : 5177;
 var isRemote = listenIp != "127.0.0.1" && listenIp != "localhost";
@@ -226,7 +246,7 @@ else
     Console.WriteLine();
     Console.WriteLine($"  Bridge listening on http://127.0.0.1:{listenPort} — this machine only.");
     Console.WriteLine("  Leave this window open. Open a .pbix in Power BI Desktop, then the Studio.");
-    Console.WriteLine("  For another machine to reach it, restart with:  --remote");
+    Console.WriteLine("  To share with another machine, close this and run it again, choosing [2].");
     Console.WriteLine();
 }
 

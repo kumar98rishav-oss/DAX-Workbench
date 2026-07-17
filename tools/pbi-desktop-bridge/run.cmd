@@ -30,7 +30,8 @@ if not exist "%EXE%" (
 )
 
 echo.
-echo Power BI Desktop bridge listening on http://127.0.0.1:5177
+echo Power BI Desktop bridge (developer run) — local only.
 echo Leave this window open. Open a .pbix in Power BI Desktop, then use the Studio.
 echo.
-"%EXE%"
+REM --local skips the this-machine/remote question for the scripted dev path.
+"%EXE%" --local
