@@ -639,3 +639,17 @@
   text-underline-offset: 2px;
 }
 .pbs-inlinelink:hover { text-decoration-thickness: 2px; }
+
+.pbs-panel__grab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.pbs-panel__grabnote {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}

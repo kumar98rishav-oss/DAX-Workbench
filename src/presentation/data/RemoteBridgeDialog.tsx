@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Radio, Loader2, Check, AlertTriangle, MonitorSmartphone } from 'lucide-react'
+import { X, Radio, Loader2, Check, AlertTriangle, MonitorSmartphone, Download } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, IconButton } from '@/design-system/components'
 import { testBridge, LOCAL_BRIDGE } from '@/infrastructure/desktop/desktop-client'
@@ -63,6 +63,9 @@ export function RemoteBridgeDialog() {
               <b>On the other machine</b>, with the report open in Power BI Desktop, run the bridge
               with <code>--remote</code>:
               <pre className="rb__cmd">pbi-desktop-bridge.exe --remote</pre>
+              <a className="rb__grab" href="/download/BI-Design-Studio-Bridge.exe" download>
+                <Download size={13} /> Download the bridge to send them
+              </a>
               It prints an <b>address</b> and a <b>pairing token</b>. Ask for both. The token is new
               every time it starts, and without it the bridge refuses every request from the network.
             </li>

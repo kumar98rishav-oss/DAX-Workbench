@@ -338,6 +338,16 @@ export function HomeScreen() {
               </button>
             </span>
           </p>
+
+          {/* Always reachable — you may want the file to send to someone else for the
+              remote connector, even while your own bridge is running. */}
+          <div className="pbs-panel__grab">
+            <a className="pbs-inlinelink" href={BRIDGE_DOWNLOAD} download>
+              <Download size={13} style={{ verticalAlign: -2, marginRight: 4 }} />
+              Download the bridge{desktop.bridge ? ' again' : ''}
+            </a>
+            <span className="pbs-panel__grabnote">Windows · {BRIDGE_SIZE} · send it to whoever has the report open</span>
+          </div>
         </section>
 
         {/* The three things the tool is for. */}

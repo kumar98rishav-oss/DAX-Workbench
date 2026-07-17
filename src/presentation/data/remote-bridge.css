@@ -106,3 +106,15 @@
   .rb__grid { flex-direction: column; align-items: stretch; }
   .rb__grid .dax-field { max-width: none !important; }
 }
+
+.rb__grab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: var(--space-2) 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--accent);
+  text-decoration: none;
+}
+.rb__grab:hover { text-decoration: underline; text-underline-offset: 2px; }
