@@ -100,6 +100,43 @@ same way Tabular Editor and DAX Studio do.
 - **Loopback only by default**, CORS restricted to an exact origin list, and it makes no
   outbound call of its own. Your data never leaves the machine.
 
+### Ship the formula to the data — why measures stay exact at any size
+
+Two very different things travel over the bridge, and only one of them is capped:
+
+**Sync moves raw rows.** When Studio pulls your model in, each table comes over as
+`EVALUATE 'Table'`, capped at **10,000 rows per table** — a deliberate guard on browser
+memory and sync time. This sample only feeds the *in-browser* previews: the quick numbers
+on suggestion cards and the local mini-DAX evaluator. If a table is larger than 10K, those
+local previews become indicative rather than exact.
+
+**Measures move as text.** *Verify on Desktop*, previews against the engine, and deployed
+measures never touch the sample. Studio sends the **DAX expression itself** — a few
+hundred bytes — and Analysis Services evaluates it inside Desktop **over every row it
+has**, returning just the answer:
+
+```
+EVALUATE ROW("v", SUM('Fact_Cases'[TotalBilled]))
+→ {"value": 46856025.71}
+```
+
+One row comes back whether the fact table holds 600 rows or 60 million — the cap limits
+rows *returned*, never rows *computed over*. Photocopying every invoice to add them up
+yourself is capped; asking the accountant for the total is not.
+
+| The number you're looking at | Computed from | Exact on huge models? |
+|---|---|---|
+| Suggestion-card preview / in-browser evaluator | Synced sample (≤10K/table) | Indicative if a table was truncated |
+| **Verify on Desktop** | Full data, in Analysis Services | **Always** |
+| A deployed measure in your report | Full data, computed by Desktop itself | **Always** |
+
+The proof from a live model: `TotalBilled 3-Month Moving Avg` uses `DATESINPERIOD`, which
+the in-browser evaluator doesn't support — it honestly says *preview n/a*. Deployed and
+evaluated on the real engine, it returns **125,354.10** over the full data. And a deployed
+measure contains no data at all — it's formula text stored in your model, which Desktop
+computes in your visuals from then on. The bridge could vanish and the measure would keep
+being correct.
+
 ### Remote connector
 
 Work on a report that's open on **another machine**: they double-click the bridge and
