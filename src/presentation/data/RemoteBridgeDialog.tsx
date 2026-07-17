@@ -6,7 +6,11 @@ import { testBridge, LOCAL_BRIDGE } from '@/infrastructure/desktop/desktop-clien
 import '@/presentation/data/import-preview.css'
 import './remote-bridge.css'
 
-type Probe = { state: 'idle' } | { state: 'testing' } | { state: 'ok'; machine?: string; models: number } | { state: 'fail'; reason: string }
+type Probe =
+  | { state: 'idle' }
+  | { state: 'testing' }
+  | { state: 'ok'; machine?: string; models: number }
+  | { state: 'fail'; reason: string; kind?: string }
 
 /** Point Studio at a bridge running on someone else's machine. */
 export function RemoteBridgeDialog() {
@@ -38,7 +42,7 @@ export function RemoteBridgeDialog() {
   const test = async () => {
     setProbe({ state: 'testing' })
     const r = await testBridge(url, token)
-    setProbe(r.ok ? { state: 'ok', machine: r.machine, models: r.models } : { state: 'fail', reason: r.reason })
+    setProbe(r.ok ? { state: 'ok', machine: r.machine, models: r.models } : { state: 'fail', reason: r.reason, kind: r.kind })
   }
 
   const save = async () => {
@@ -67,6 +71,8 @@ export function RemoteBridgeDialog() {
           <ol className="rb__steps">
             <li>
               <b>Send them the bridge file</b> and have them open their report in Power BI Desktop.
+              Both machines must be on the <b>same Wi-Fi/network</b> — a phone hotspot counts as a
+              different network.
               <a className="rb__grab" href="/download/BI-Design-Studio-Bridge.exe" download>
                 <Download size={13} /> Download the bridge to send
               </a>
@@ -74,7 +80,8 @@ export function RemoteBridgeDialog() {
             <li>
               <b>They double-click it</b> and, when it asks, choose{' '}
               <b>[2] This computer AND someone else's Studio</b>. (Windows may warn it's from an
-              unknown publisher — <i>More info → Run anyway</i>.)
+              unknown publisher — <i>More info → Run anyway</i>. And when <b>Windows Firewall</b>{' '}
+              asks, click <b>Allow access</b>, ticking both network types.)
             </li>
             <li>
               The window then shows an <b>Address</b> and a <b>pairing token</b> — they send you both.
@@ -129,7 +136,34 @@ export function RemoteBridgeDialog() {
             </div>
           )}
           {probe.state === 'fail' && (
-            <div className="rb__note rb__note--fail"><AlertTriangle size={15} /><div>{probe.reason}</div></div>
+            <div className="rb__note rb__note--fail">
+              <AlertTriangle size={15} />
+              <div>
+                <b>{probe.reason}</b>
+                {probe.kind === 'unreachable' && (
+                  <ul>
+                    <li>
+                      <b>Same network?</b> Both machines must be on the same Wi-Fi/LAN. An address
+                      like <code>10.x.x.x</code> when your network uses <code>192.168.x.x</code>
+                      usually means they're on a phone hotspot or a different network — no token can
+                      fix that. Put both on the same Wi-Fi and have them re-run the bridge (the
+                      address and token will change).
+                    </li>
+                    <li>
+                      <b>Their firewall?</b> The first time the bridge runs in remote mode, Windows
+                      asks to allow it. They should re-run it and click <b>Allow access</b>, ticking
+                      both Private and Public networks.
+                    </li>
+                    <li>
+                      <b>Quick check:</b> open{' '}
+                      <a href={`${url}/health`} target="_blank" rel="noopener noreferrer">{url}/health</a>{' '}
+                      in a new tab. Text appears (even an error) → the network path works, so re-check
+                      the token. Endless loading → the network or firewall is blocking it.
+                    </li>
+                  </ul>
+                )}
+              </div>
+            </div>
           )}
 
           <div className="rb__note">

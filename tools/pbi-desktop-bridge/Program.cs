@@ -220,8 +220,17 @@ app.MapPost("/measure", (MeasureReq req) =>
 // What the person on the far machine reads off their screen and sends over.
 if (isRemote)
 {
-    var lan = Dns.GetHostAddresses(Dns.GetHostName())
-        .FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && !IPAddress.IsLoopback(a));
+    // Every up adapter's IPv4, with its name. Dns.GetHostAddresses returns one
+    // arbitrary address — on a machine with a hotspot/VPN/virtual adapter that
+    // was often the WRONG one, and the other side got "nothing answered".
+    var candidates = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+        .Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up
+                    && n.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
+        .SelectMany(n => n.GetIPProperties().UnicastAddresses
+            .Where(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            .Select(a => (Iface: n.Name, Ip: a.Address.ToString())))
+        .ToList();
+
     // ASCII only: the default console code page turns box-drawing characters
     // into mojibake, and this is the one screen a stranger has to read.
     Console.WriteLine();
@@ -229,15 +238,32 @@ if (isRemote)
     Console.WriteLine("    REMOTE BRIDGE - give these two lines to the Studio user");
     Console.WriteLine("  ===========================================================");
     Console.WriteLine();
-    Console.WriteLine($"     Address :  {lan?.ToString() ?? "<this machine's IP>"}:{listenPort}");
+    if (candidates.Count == 0)
+        Console.WriteLine($"     Address :  <this machine's IP>:{listenPort}");
+    else
+        foreach (var (iface, ip) in candidates)
+            Console.WriteLine($"     Address :  {ip}:{listenPort}   ({iface})");
     Console.WriteLine($"     Token   :  {token}");
+    Console.WriteLine();
+    if (candidates.Count > 1)
+    {
+        Console.WriteLine("     More than one address? Use the one on the SAME network as");
+        Console.WriteLine("     the other person (usually Wi-Fi/Ethernet). If one doesn't");
+        Console.WriteLine("     answer, try the next.");
+        Console.WriteLine();
+    }
+    Console.WriteLine("     IMPORTANT - two things that block most connections:");
+    Console.WriteLine("       1. Both machines must be on the SAME network (same Wi-Fi).");
+    Console.WriteLine("          A phone hotspot is its own network.");
+    Console.WriteLine("       2. When Windows Firewall asks about this app, click");
+    Console.WriteLine("          'Allow access' and tick BOTH Private and Public.");
     Console.WriteLine();
     Console.WriteLine("     Anyone with that token can read this model and write measures");
     Console.WriteLine("     into it. Send it privately, and close this window when done.");
     Console.WriteLine("     The token changes every time this starts.");
     Console.WriteLine();
     Console.WriteLine("     Traffic is plain HTTP. On an untrusted network, prefer:");
-    Console.WriteLine($"       ssh -N -L {listenPort}:127.0.0.1:{listenPort} <user>@{lan?.ToString() ?? "<ip>"}");
+    Console.WriteLine($"       ssh -N -L {listenPort}:127.0.0.1:{listenPort} <user>@{candidates.FirstOrDefault().Ip ?? "<ip>"}");
     Console.WriteLine("     then connect to 127.0.0.1 instead — no token, and encrypted.");
     Console.WriteLine();
 }

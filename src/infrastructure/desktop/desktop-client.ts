@@ -45,16 +45,20 @@ async function req<T>(path: string, init?: RequestInit, timeoutMs = 6000): Promi
   return body as T
 }
 
+export type BridgeTestResult =
+  | { ok: true; machine?: string; models: number }
+  | { ok: false; kind: 'auth' | 'local-only' | 'http' | 'mixed-content' | 'unreachable'; reason: string }
+
 /** Reach a specific bridge without touching the configured one — the "test this
  * address before I save it" path. Returns a readable reason when it fails. */
-export async function testBridge(url: string, pairingToken?: string | null): Promise<{ ok: true; machine?: string; models: number } | { ok: false; reason: string }> {
+export async function testBridge(url: string, pairingToken?: string | null): Promise<BridgeTestResult> {
   const target = url.replace(/\/+$/, '')
   const headers: HeadersInit = pairingToken?.trim() ? { Authorization: `Bearer ${pairingToken.trim()}` } : {}
   try {
     const h = await fetch(`${target}/health`, { headers, signal: AbortSignal.timeout(5000) })
-    if (h.status === 401) return { ok: false, reason: 'The bridge is running, but that pairing token is wrong.' }
-    if (h.status === 403) return { ok: false, reason: 'That bridge only answers its own machine. Ask them to restart it with --remote.' }
-    if (!h.ok) return { ok: false, reason: `The bridge answered HTTP ${h.status}.` }
+    if (h.status === 401) return { ok: false, kind: 'auth', reason: 'The bridge is running, but that pairing token is wrong.' }
+    if (h.status === 403) return { ok: false, kind: 'local-only', reason: 'That bridge only answers its own machine. Ask them to run it again and choose [2].' }
+    if (!h.ok) return { ok: false, kind: 'http', reason: `The bridge answered HTTP ${h.status}.` }
     const info = (await h.json()) as { machine?: string }
     const d = await fetch(`${target}/discover`, { headers, signal: AbortSignal.timeout(8000) })
     const models = d.ok ? ((await d.json()) as unknown[]).length : 0
@@ -62,12 +66,13 @@ export async function testBridge(url: string, pairingToken?: string | null): Pro
   } catch {
     // fetch() hides the cause, so name the two that actually happen.
     const mixed = location.protocol === 'https:' && target.startsWith('http://') && !/\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(target)
-    return {
-      ok: false,
-      reason: mixed
-        ? 'Your browser blocked this: a page served over HTTPS cannot call a plain-HTTP address unless it is on your own machine. Use an SSH tunnel (below), or open Studio from localhost.'
-        : 'Nothing answered. Check the address, that the bridge is running with --remote, and that a firewall isn\'t in the way.',
-    }
+    return mixed
+      ? {
+          ok: false,
+          kind: 'mixed-content',
+          reason: 'Your browser blocked this: a page served over HTTPS cannot call a plain-HTTP address unless it is on your own machine. Use an SSH tunnel (below), or open Studio from localhost.',
+        }
+      : { ok: false, kind: 'unreachable', reason: 'Nothing answered — the request never reached a bridge.' }
   }
 }
 
