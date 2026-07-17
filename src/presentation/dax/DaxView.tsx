@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope } from 'lucide-react'
+import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, EmptyState } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
 import { evaluateDax } from '@/application/dax/evaluator'
+import { buildArchitectLearnUrl } from '@/application/dax/architect/learn-link'
 import { searchDax, DAX_CATALOG } from '@/application/dax/functions'
 import type { DaxFunction } from '@/application/dax/functions'
 import { suggest } from '@/application/dax/intent/suggest'
@@ -222,6 +223,20 @@ export function DaxView() {
           </button>
           <button className="dax-tool" onClick={() => toggleDoctor(true)} title="Audit the model: formats, DAX issues, docs">
             <Stethoscope size={13} /> Doctor
+          </button>
+          <button
+            className="dax-tool"
+            onClick={() => {
+              // Carries the model's tables, types and relationships (and the
+              // current prompt) into the standalone learning tool via its own
+              // share-link format — schema only, never data rows.
+              const url = buildArchitectLearnUrl(model, prompt)
+              if (url) window.open(url, '_blank', 'noopener,noreferrer')
+            }}
+            disabled={model.tables.every((t) => t.columns.length === 0)}
+            title="Practice on YOUR model in DAX Architect — the standalone learning tool this engine came from. Opens with your tables and relationships already loaded."
+          >
+            <GraduationCap size={13} /> Learn
           </button>
         </div>
         <div className="dax-list__body pbs-scroll">
