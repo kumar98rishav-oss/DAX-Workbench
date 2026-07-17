@@ -1,3 +1,5 @@
+using System.Net;
+using System.Security.Cryptography;
 using PbiDesktopBridge;
 using Tom = Microsoft.AnalysisServices.Tabular;
 
@@ -5,16 +7,40 @@ using Tom = Microsoft.AnalysisServices.Tabular;
 // against the live Power BI Desktop model. The browser can't speak Analysis
 // Services directly, so this local helper does it (TOM to read/write the model,
 // ADOMD to run DAX). No cloud, no AI — just the Studio ⇄ Desktop link.
+//
+//   pbi-desktop-bridge.exe            loopback only, no token — the normal case
+//   pbi-desktop-bridge.exe --remote   also answer the network, token required
+//   --listen <ip>  --port <n>  --token <secret>
+
+static string? Arg(string[] a, string name)
+{
+    var i = Array.FindIndex(a, x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
+    return i >= 0 && i + 1 < a.Length && !a[i + 1].StartsWith("--") ? a[i + 1] : null;
+}
+static bool Flag(string[] a, string name) => a.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
+
+var remoteMode = Flag(args, "--remote");
+var listenIp = Arg(args, "--listen") ?? (remoteMode ? "0.0.0.0" : "127.0.0.1");
+var listenPort = int.TryParse(Arg(args, "--port"), out var p0) ? p0 : 5177;
+var isRemote = listenIp != "127.0.0.1" && listenIp != "localhost";
+
+// A token is MANDATORY the moment this answers anything but loopback. Requests
+// from loopback never need one, so the normal local flow is untouched.
+var token = Arg(args, "--token")
+            ?? Environment.GetEnvironmentVariable("PBI_BRIDGE_TOKEN")
+            ?? (isRemote ? Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant() : null);
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Origins allowed to drive this bridge, beyond localhost and a Tauri/Electron
-// shell. This bridge is UNAUTHENTICATED and can read the whole model and write
-// measures into it, so this list is the only thing gating that: keep it to exact
-// origins. Never a wildcard suffix like "*.onrender.com" — anyone can deploy
-// there, and any of them could then reach a running bridge. Drop an origin the
-// moment it stops being yours: a released subdomain can be claimed by someone
-// else. Override or extend with PBI_BRIDGE_ORIGINS=https://a.example,https://b.example
+// shell. On loopback there is no token, so this list is the only thing gating a
+// web page from reading the model: keep it to exact origins. Never a wildcard
+// suffix like "*.onrender.com" — anyone can deploy there, and any of them could
+// then reach a running bridge. Drop an origin the moment it stops being yours: a
+// released subdomain can be claimed by someone else. Note CORS is a BROWSER rule
+// and does nothing against curl — over the network the token is the real gate,
+// which is why one is mandatory there.
+// Override or extend with PBI_BRIDGE_ORIGINS=https://a.example,https://b.example
 var allowedOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
     "https://pbi-design-studio.onrender.com", // the hosted Studio
@@ -48,9 +74,44 @@ app.Use(async (ctx, next) =>
 
 app.UseCors();
 
+// Auth gate. Runs AFTER UseCors so the CORS preflight — which never carries an
+// Authorization header — isn't rejected before the real request is allowed to
+// ask. Loopback callers are trusted (they're already on this machine); anything
+// arriving over the network must present the pairing token.
+app.Use(async (ctx, next) =>
+{
+    if (HttpMethods.IsOptions(ctx.Request.Method)) { await next(); return; }
+
+    var ip = ctx.Connection.RemoteIpAddress;
+    var loopback = ip is not null && IPAddress.IsLoopback(ip);
+    if (!loopback)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            ctx.Response.StatusCode = 403;
+            await ctx.Response.WriteAsJsonAsync(new { error = "This bridge only answers the local machine. Start it with --remote to allow network access." });
+            return;
+        }
+        var sent = ctx.Request.Headers.Authorization.ToString();
+        var expected = $"Bearer {token}";
+        // Fixed-time compare — a token check that leaks timing is not a check.
+        var ok = sent.Length == expected.Length &&
+                 CryptographicOperations.FixedTimeEquals(
+                     System.Text.Encoding.UTF8.GetBytes(sent),
+                     System.Text.Encoding.UTF8.GetBytes(expected));
+        if (!ok)
+        {
+            ctx.Response.StatusCode = 401;
+            await ctx.Response.WriteAsJsonAsync(new { error = "Missing or wrong pairing token." });
+            return;
+        }
+    }
+    await next();
+});
+
 static IResult Fail(Exception e) => Results.Json(new { error = e.Message }, statusCode: 500);
 
-app.MapGet("/health", () => Results.Json(new { ok = true, product = "pbi-desktop-bridge", version = "0.1.0" }));
+app.MapGet("/health", () => Results.Json(new { ok = true, product = "pbi-desktop-bridge", version = "0.2.0", remote = isRemote, machine = Environment.MachineName }));
 
 app.MapGet("/discover", () =>
 {
@@ -136,7 +197,40 @@ app.MapPost("/measure", (MeasureReq req) =>
     catch (Exception e) { return Fail(e); }
 });
 
-app.Run("http://127.0.0.1:5177");
+// What the person on the far machine reads off their screen and sends over.
+if (isRemote)
+{
+    var lan = Dns.GetHostAddresses(Dns.GetHostName())
+        .FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && !IPAddress.IsLoopback(a));
+    // ASCII only: the default console code page turns box-drawing characters
+    // into mojibake, and this is the one screen a stranger has to read.
+    Console.WriteLine();
+    Console.WriteLine("  ===========================================================");
+    Console.WriteLine("    REMOTE BRIDGE - give these two lines to the Studio user");
+    Console.WriteLine("  ===========================================================");
+    Console.WriteLine();
+    Console.WriteLine($"     Address :  {lan?.ToString() ?? "<this machine's IP>"}:{listenPort}");
+    Console.WriteLine($"     Token   :  {token}");
+    Console.WriteLine();
+    Console.WriteLine("     Anyone with that token can read this model and write measures");
+    Console.WriteLine("     into it. Send it privately, and close this window when done.");
+    Console.WriteLine("     The token changes every time this starts.");
+    Console.WriteLine();
+    Console.WriteLine("     Traffic is plain HTTP. On an untrusted network, prefer:");
+    Console.WriteLine($"       ssh -N -L {listenPort}:127.0.0.1:{listenPort} <user>@{lan?.ToString() ?? "<ip>"}");
+    Console.WriteLine("     then connect to 127.0.0.1 instead — no token, and encrypted.");
+    Console.WriteLine();
+}
+else
+{
+    Console.WriteLine();
+    Console.WriteLine($"  Bridge listening on http://127.0.0.1:{listenPort} — this machine only.");
+    Console.WriteLine("  Leave this window open. Open a .pbix in Power BI Desktop, then the Studio.");
+    Console.WriteLine("  For another machine to reach it, restart with:  --remote");
+    Console.WriteLine();
+}
+
+app.Run($"http://{listenIp}:{listenPort}");
 
 record DaxReq(string Dax, int? Port);
 record PreviewReq(string Expression, int? Port);

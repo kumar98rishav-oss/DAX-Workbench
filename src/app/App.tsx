@@ -7,6 +7,7 @@ import { ImportHost } from '@/presentation/data/ImportHost'
 import { ImportPreviewDialog } from '@/presentation/data/ImportPreviewDialog'
 import { PbixFallbackDialog } from '@/presentation/data/PbixFallbackDialog'
 import { PbipSourceDialog } from '@/presentation/data/PbipSourceDialog'
+import { RemoteBridgeDialog } from '@/presentation/data/RemoteBridgeDialog'
 import { MeasureFactoryDialog } from '@/presentation/dax/MeasureFactoryDialog'
 import { ModelDoctorDialog } from '@/presentation/dax/ModelDoctorDialog'
 import { AnalystPanel } from '@/presentation/analyst/AnalystPanel'
@@ -52,6 +53,7 @@ export function App() {
       <ImportPreviewDialog />
       <PbixFallbackDialog />
       <PbipSourceDialog />
+      <RemoteBridgeDialog />
       <MeasureFactoryDialog />
       <ModelDoctorDialog />
       <AnalystPanel />

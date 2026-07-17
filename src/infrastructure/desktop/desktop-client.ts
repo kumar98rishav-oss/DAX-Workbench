@@ -6,13 +6,28 @@
  * Every call fails soft — if the bridge is absent, the Studio stays in its
  * in-browser (sample-data) mode.
  */
-const BASE = 'http://127.0.0.1:5177'
+export const LOCAL_BRIDGE = 'http://127.0.0.1:5177'
+
+/** Where the bridge is, and the token to reach it if it isn't on this machine.
+ * Module-level rather than passed around: every call site already existed and
+ * shouldn't have to learn about remote. */
+let base = LOCAL_BRIDGE
+let token: string | null = null
+
+export function configureBridge(url?: string | null, pairingToken?: string | null): void {
+  base = (url || LOCAL_BRIDGE).replace(/\/+$/, '')
+  token = pairingToken?.trim() || null
+}
+export const bridgeBase = (): string => base
+export const isRemoteBridge = (): boolean => !/^https?:\/\/(127\.0\.0\.1|localhost)(:|$)/i.test(base)
 
 export interface DesktopStatus {
-  bridge: boolean // the local bridge service is reachable
+  bridge: boolean // the bridge service is reachable
   connected: boolean // a .pbix model is open + bound
   database?: string
   port?: number
+  /** The machine actually serving it — worth showing when it isn't this one. */
+  machine?: string
 }
 
 export interface DesktopColumn { name: string; dataType: string }
@@ -22,10 +37,38 @@ export interface DesktopRelationship { fromTable: string; fromColumn: string; to
 export interface DesktopModel { database: string; port: number; tables: DesktopTable[]; relationships: DesktopRelationship[] }
 
 async function req<T>(path: string, init?: RequestInit, timeoutMs = 6000): Promise<T> {
-  const r = await fetch(`${BASE}${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) })
+  const headers = new Headers(init?.headers)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const r = await fetch(`${base}${path}`, { ...init, headers, signal: AbortSignal.timeout(timeoutMs) })
   const body = (await r.json().catch(() => ({}))) as T & { error?: string }
   if (!r.ok || body?.error) throw new Error(body?.error || `Bridge error (HTTP ${r.status})`)
   return body as T
+}
+
+/** Reach a specific bridge without touching the configured one — the "test this
+ * address before I save it" path. Returns a readable reason when it fails. */
+export async function testBridge(url: string, pairingToken?: string | null): Promise<{ ok: true; machine?: string; models: number } | { ok: false; reason: string }> {
+  const target = url.replace(/\/+$/, '')
+  const headers: HeadersInit = pairingToken?.trim() ? { Authorization: `Bearer ${pairingToken.trim()}` } : {}
+  try {
+    const h = await fetch(`${target}/health`, { headers, signal: AbortSignal.timeout(5000) })
+    if (h.status === 401) return { ok: false, reason: 'The bridge is running, but that pairing token is wrong.' }
+    if (h.status === 403) return { ok: false, reason: 'That bridge only answers its own machine. Ask them to restart it with --remote.' }
+    if (!h.ok) return { ok: false, reason: `The bridge answered HTTP ${h.status}.` }
+    const info = (await h.json()) as { machine?: string }
+    const d = await fetch(`${target}/discover`, { headers, signal: AbortSignal.timeout(8000) })
+    const models = d.ok ? ((await d.json()) as unknown[]).length : 0
+    return { ok: true, machine: info.machine, models }
+  } catch {
+    // fetch() hides the cause, so name the two that actually happen.
+    const mixed = location.protocol === 'https:' && target.startsWith('http://') && !/\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(target)
+    return {
+      ok: false,
+      reason: mixed
+        ? 'Your browser blocked this: a page served over HTTPS cannot call a plain-HTTP address unless it is on your own machine. Use an SSH tunnel (below), or open Studio from localhost.'
+        : 'Nothing answered. Check the address, that the bridge is running with --remote, and that a firewall isn\'t in the way.',
+    }
+  }
 }
 
 /** Is the bridge up, and is a model open? Never throws. */
@@ -34,10 +77,11 @@ export async function probeDesktop(): Promise<DesktopStatus> {
     // The bridge serialises camelCase — reading Port/Database here left the port
     // undefined, so every later call silently fell back to the bridge picking a
     // model for us. That's only correct while exactly one .pbix is open.
-    const list = await req<{ port: number; database: string }[]>('/discover', undefined, 1500)
-    return list.length > 0
-      ? { bridge: true, connected: true, database: list[0].database, port: list[0].port }
-      : { bridge: true, connected: false }
+    const list = await req<{ port: number; database: string }[]>('/discover', undefined, 2500)
+    if (list.length === 0) return { bridge: true, connected: false }
+    let machine: string | undefined
+    try { machine = (await req<{ machine?: string }>('/health', undefined, 2000)).machine } catch { /* optional */ }
+    return { bridge: true, connected: true, database: list[0].database, port: list[0].port, machine }
   } catch {
     return { bridge: false, connected: false }
   }

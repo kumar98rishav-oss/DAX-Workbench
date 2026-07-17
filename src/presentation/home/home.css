@@ -627,3 +627,15 @@
   .pbs-boundary__row { flex-direction: column; }
   .pbs-boundary__link { width: 1.5px; height: 14px; }
 }
+
+.pbs-inlinelink {
+  font-size: inherit;
+  font-weight: var(--weight-medium);
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.pbs-inlinelink:hover { text-decoration-thickness: 2px; }

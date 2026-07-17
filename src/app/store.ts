@@ -13,7 +13,7 @@ import { parsePbipFolder, parsePbixFile, pbipSummary } from '@/application/impor
 import { assemblePbiProject } from '@/application/import/pbi/assemble'
 import type { ParsedDataset } from '@/application/import/types'
 import type { PbiModel } from '@/application/import/pbi/tmdl'
-import { probeDesktop, getDesktopModel, desktopRunDax, modelLabel } from '@/infrastructure/desktop/desktop-client'
+import { probeDesktop, getDesktopModel, desktopRunDax, modelLabel, configureBridge, LOCAL_BRIDGE } from '@/infrastructure/desktop/desktop-client'
 import type { DesktopStatus } from '@/infrastructure/desktop/desktop-client'
 import { mapTmdlType } from '@/application/import/pbi/tmdl'
 import { inferDataset } from '@/application/import/infer-schema'
@@ -42,6 +42,28 @@ export interface PendingImport {
   fileNames: string[]
   currentTables: number
   currentMeasures: number
+}
+
+/** A remembered remote bridge, restored before the first probe so a reload
+ * reconnects to the same machine instead of silently falling back to this one. */
+const BRIDGE_KEY = 'pbistudio.bridge.v1'
+const savedBridge: { url: string; token: string | null } = (() => {
+  try {
+    const raw = localStorage.getItem(BRIDGE_KEY)
+    if (raw) {
+      const v = JSON.parse(raw) as { url?: string; token?: string | null }
+      if (v.url) return { url: v.url, token: v.token ?? null }
+    }
+  } catch { /* private mode, corrupt value — fall back to local */ }
+  return { url: LOCAL_BRIDGE, token: null }
+})()
+configureBridge(savedBridge.url, savedBridge.token)
+
+function persistBridge(url: string, token: string | null): void {
+  try {
+    if (url === LOCAL_BRIDGE && !token) localStorage.removeItem(BRIDGE_KEY)
+    else localStorage.setItem(BRIDGE_KEY, JSON.stringify({ url, token }))
+  } catch { /* nothing we can do, and not worth failing the connect over */ }
 }
 
 /** Run the auto-model engine over the current datasets + tables. */
@@ -141,8 +163,14 @@ interface AppState {
   pendingImport: PendingImport | null
   pendingPbip: PendingPbip | null
   desktop: DesktopStatus
+  /** Where the bridge lives. Remote = another machine, reached with a token. */
+  bridgeUrl: string
+  bridgeToken: string | null
+  remoteOpen: boolean
   refreshDesktop: () => Promise<void>
   syncFromDesktop: () => Promise<void>
+  setBridge: (url: string, token: string | null) => Promise<void>
+  toggleRemote: (open?: boolean) => void
   factoryOpen: boolean
   doctorOpen: boolean
   toggleFactory: (open?: boolean) => void
@@ -296,6 +324,9 @@ export const useApp = create<AppState>((set, get) => ({
   pendingImport: null,
   pendingPbip: null,
   desktop: { bridge: false, connected: false },
+  bridgeUrl: savedBridge.url,
+  bridgeToken: savedBridge.token,
+  remoteOpen: false,
   factoryOpen: false,
   doctorOpen: false,
   _pickFiles: null,
@@ -447,6 +478,15 @@ export const useApp = create<AppState>((set, get) => ({
   cancelPbip: () => set({ pendingPbip: null }),
 
   refreshDesktop: async () => set({ desktop: await probeDesktop() }),
+
+  setBridge: async (url, token) => {
+    const clean = (url || LOCAL_BRIDGE).replace(/\/+$/, '')
+    configureBridge(clean, token)
+    persistBridge(clean, token)
+    set({ bridgeUrl: clean, bridgeToken: token, remoteOpen: false })
+    await get().refreshDesktop()
+  },
+  toggleRemote: (open) => set((s) => ({ remoteOpen: open ?? !s.remoteOpen })),
   toggleFactory: (open) => set((s) => ({ factoryOpen: open ?? !s.factoryOpen })),
   toggleDoctor: (open) => set((s) => ({ doctorOpen: open ?? !s.doctorOpen })),
 

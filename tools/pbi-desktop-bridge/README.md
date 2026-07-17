@@ -53,6 +53,35 @@ dotnet publish -c Release -r win-x64 --self-contained true -o publish
 Then open the Studio (http://localhost:5175) with a `.pbix` open in Desktop —
 the DAX Architect's **Power BI Desktop** badge turns green automatically.
 
+## Remote — let another machine's Studio reach this report
+
+By default the bridge answers **only this machine** (loopback), no token. To let
+someone else's Studio work against the report open here, start it with
+`--remote`:
+
+```powershell
+.\pbi-desktop-bridge.exe --remote
+```
+
+It binds all interfaces and prints an **address** and a one-time **pairing
+token**. Give both to the other person; they paste them into Studio's *Remote
+connector* dialog ("The report is on another machine?" on the front page).
+
+- **Loopback stays token-free.** Only requests arriving over the network are
+  challenged, so nothing about the normal local flow changes.
+- **The token is mandatory over the network and regenerates every start.**
+  Without the right token, every network request is refused (401); with
+  `--remote` off, the network is refused outright (403). Set a fixed one with
+  `--token <secret>` or `PBI_BRIDGE_TOKEN`, and change the port with `--port`.
+- **Traffic is plain HTTP.** On an untrusted network, don't use `--remote` — use
+  an SSH tunnel instead and keep the bridge loopback-only on both ends:
+  ```
+  ssh -N -L 5177:127.0.0.1:5177 <user>@<their-ip>
+  ```
+  Then Studio connects to `127.0.0.1` — encrypted, authenticated by SSH, no
+  token, and no browser mixed-content block (a page on `https://` cannot call a
+  plain-`http://` address on another machine, but loopback is exempt).
+
 ## How it connects
 
 Power BI Desktop hosts a local Analysis Services instance on a dynamic port. The
@@ -66,19 +95,23 @@ the model and **ADOMD** to run DAX.
 - Writing measures via TOM is standard external-tool behaviour — reversible
   (undo in Desktop, or overwrite/remove).
 - `/dax` caps results at 10,000 rows.
-- Everything stays on your machine. The bridge only ever listens on loopback,
-  and no data is sent anywhere — the hosted Studio is a static page that runs
-  in your browser and calls this bridge directly.
+- By default everything stays on your machine — the bridge listens on loopback
+  only, and no data is sent anywhere. The hosted Studio is a static page that
+  runs in your browser and calls this bridge directly.
 
 ### Who is allowed to call it
 
-The bridge is **unauthenticated**: anything that can call it can read your whole
-model and write measures into it. The CORS allowlist is the only gate, so it is
-deliberately narrow:
+On **loopback** the bridge is unauthenticated — anything already on this machine
+can call it, and the CORS allowlist is what stops an arbitrary web page from
+doing so. Keep that list narrow:
 
 - `localhost` / `127.0.0.1` (any port) — the Studio in dev or preview
 - `tauri://` / `file://` — a desktop shell
 - `https://pbi-design-studio.onrender.com` — the hosted Studio
+
+Over the **network** (`--remote`) CORS protects nothing — it's a browser rule,
+and `curl` ignores it — so a **pairing token** is required instead, and is the
+real gate there. See *Remote* above.
 
 Add your own with a comma-separated env var:
 

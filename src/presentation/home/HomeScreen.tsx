@@ -29,7 +29,7 @@ import {
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '@/app/store'
-import { modelLabel } from '@/infrastructure/desktop/desktop-client'
+import { modelLabel, LOCAL_BRIDGE } from '@/infrastructure/desktop/desktop-client'
 import { Kbd } from '@/design-system/components'
 import './home.css'
 
@@ -138,6 +138,8 @@ export function HomeScreen() {
   const desktop = useApp((s) => s.desktop)
   const importing = useApp((s) => s.importing)
   const refreshDesktop = useApp((s) => s.refreshDesktop)
+  const toggleRemote = useApp((s) => s.toggleRemote)
+  const bridgeUrl = useApp((s) => s.bridgeUrl)
   const syncFromDesktop = useApp((s) => s.syncFromDesktop)
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -217,11 +219,12 @@ export function HomeScreen() {
   ]
 
   const label = modelLabel(desktop.database)
+  const remote = bridgeUrl !== LOCAL_BRIDGE
   const status = desktop.connected
-    ? { cls: 'live', text: label ? `Live · ${label}` : 'Live · model connected' }
+    ? { cls: 'live', text: remote ? `Live · ${desktop.machine ?? 'remote machine'}` : label ? `Live · ${label}` : 'Live · model connected' }
     : desktop.bridge
-      ? { cls: 'waiting', text: 'Bridge running — waiting for a model' }
-      : { cls: 'off', text: 'Bridge not running' }
+      ? { cls: 'waiting', text: remote ? 'Remote bridge up — waiting for a model' : 'Bridge running — waiting for a model' }
+      : { cls: 'off', text: remote ? 'Remote bridge unreachable' : 'Bridge not running' }
 
   return (
     <div className="pbs-home pbs-scroll">
@@ -329,7 +332,10 @@ export function HomeScreen() {
               The bridge runs entirely on your machine. It listens on loopback only, accepts calls
               from this site alone, and uploads nothing anywhere. It can read your model and write
               measures into it — that is what makes Studio work — so only ever run a copy you
-              downloaded from here.
+              downloaded from here.{' '}
+              <button className="pbs-inlinelink" onClick={() => toggleRemote(true)}>
+                The report is on another machine?
+              </button>
             </span>
           </p>
         </section>
