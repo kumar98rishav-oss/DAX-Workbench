@@ -31,6 +31,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useApp } from '@/app/store'
 import { modelLabel, LOCAL_BRIDGE } from '@/infrastructure/desktop/desktop-client'
 import { Kbd } from '@/design-system/components'
+import { WaveSea } from './WaveSea'
 import './home.css'
 
 // Served from the site itself, so this works on localhost and in production alike.
@@ -228,6 +229,7 @@ export function HomeScreen() {
 
   return (
     <div className="pbs-home pbs-scroll">
+      <WaveSea />
       <div className="pbs-home__topbar">
         <span className="pbs-home__brand">
           <span className="pbs-home__logo">
@@ -257,6 +259,8 @@ export function HomeScreen() {
             builds the DAX, and writes it straight back. Nothing is estimated.
           </p>
 
+          {/* The glass panel — their prompt box, our connect box. */}
+          <div className="pbs-glass">
           <div className="pbs-home__cta">
             <button className="pbs-connect" onClick={connect} disabled={importing} data-live={desktop.connected}>
               {importing ? <Loader2 size={18} className="pbs-spin" /> : <MonitorCheck size={18} />}
@@ -286,6 +290,13 @@ export function HomeScreen() {
                 </div>
               )}
             </div>
+          </div>
+          <div className="pbs-glass__chips">
+            <span className="pbs-gchip"><b>DAX Architect</b> · plain English in, ranked DAX out</span>
+            <span className="pbs-gchip"><b>Measure Factory</b> · a whole suite per field</span>
+            <span className="pbs-gchip"><b>Model Doctor</b> · one-click fixes</span>
+            <span className="pbs-gchip">Data stays on your machine</span>
+          </div>
           </div>
         </section>
 

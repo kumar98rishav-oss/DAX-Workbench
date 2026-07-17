@@ -2,12 +2,69 @@
    HOME / LAUNCHER
    ========================================================================== */
 
+/* The landing commits to dark — it's a statement piece, like the ocean behind
+   it. Scoping the dark tokens here means every section inherits the look in
+   BOTH app themes, while the studio views stay theme-aware. */
 .pbs-home {
+  --bg: #04050a;
+  --bg-elevated: #10131e;
+  --surface: rgba(16, 19, 30, 0.55);
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --surface-3: rgba(255, 255, 255, 0.08);
+  --surface-inset: rgba(8, 10, 16, 0.7);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-focus: #38508f;
+  --text: #f3f4f7;
+  --text-muted: #a7aebc;
+  --text-subtle: #6b7280;
+  --text-onaccent: #ffffff;
+  --accent: #5b84ff;
+  --accent-hover: #6f93ff;
+  --accent-active: #4a76f5;
+  --accent-soft: rgba(91, 132, 255, 0.14);
+  --accent-soft-hover: rgba(91, 132, 255, 0.22);
+  --accent-ring: rgba(91, 132, 255, 0.4);
+  --success: #2dd4a0;
+  --success-soft: rgba(45, 212, 160, 0.14);
+  --warning: #e2a336;
+  --warning-soft: rgba(226, 163, 54, 0.16);
+  --danger: #ff6369;
+  --danger-soft: rgba(255, 99, 105, 0.14);
+  --glass-bg: rgba(6, 8, 14, 0.6);
+  color-scheme: dark;
+
   flex: 1;
   overflow-y: auto;
-  background:
-    radial-gradient(1200px 600px at 50% -10%, var(--accent-soft), transparent 70%),
-    var(--bg);
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ---- the ocean ---- */
+.pbs-sea {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+}
+.pbs-sea__dots {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.13) 1px, transparent 1.3px);
+  background-size: 26px 26px;
+  opacity: 0.45;
+}
+/* keep the headline zone deep black so the waves feel like they stay at the shore */
+.pbs-sea__vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(1100px 520px at 50% 16%, rgba(4, 5, 10, 0.82), transparent 62%);
 }
 
 .pbs-home__topbar {
@@ -652,4 +709,103 @@
 .pbs-panel__grabnote {
   font-size: var(--text-xs);
   color: var(--text-subtle);
+}
+
+/* ============================================================================
+   OCEAN LANDING — layering, hero scale, glass
+   ========================================================================== */
+
+/* content rides above the fixed sea */
+.pbs-home__inner { position: relative; z-index: 1; }
+.pbs-home__topbar { z-index: var(--z-docked); }
+
+/* the hero goes big, like the reference */
+.pbs-home__hero { padding-top: clamp(2rem, 6vh, 5rem); }
+.pbs-home__title {
+  font-size: clamp(2.8rem, 7.5vw, 5rem);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+  max-width: 15ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+.pbs-home__title em {
+  background: linear-gradient(100deg, #7fb0ff, #b98bff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.pbs-home__lede { color: var(--text-muted); }
+
+/* the glass panel — their prompt box, our connect box */
+.pbs-glass {
+  width: min(760px, 100%);
+  margin: var(--space-6) auto 0;
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  text-align: left;
+  background: rgba(16, 19, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 22px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.6);
+}
+.pbs-glass .pbs-home__cta {
+  justify-content: flex-start;
+  margin-top: 0;
+}
+.pbs-glass__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.pbs-gchip {
+  font-size: 0.74rem;
+  font-weight: var(--weight-regular);
+  letter-spacing: 0.02em;
+  padding: 5px 12px;
+  color: #9aa4b8;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+.pbs-gchip b { color: #cdd5e4; font-weight: var(--weight-semibold); }
+
+/* CTA button leans into the aurora */
+.pbs-connect {
+  background: linear-gradient(135deg, #4f7dff, #8a5cff);
+  box-shadow: 0 10px 34px rgba(96, 110, 255, 0.4);
+}
+.pbs-connect:hover:not(:disabled) {
+  box-shadow: 0 14px 40px rgba(96, 110, 255, 0.55);
+}
+.pbs-home__logo {
+  background: linear-gradient(135deg, #4f7dff, #8a5cff);
+  box-shadow: 0 0 18px rgba(110, 120, 255, 0.55);
+}
+
+/* sections below become dark glass over the same sea */
+.pbs-panel,
+.pbs-pillar,
+.pbs-privacy {
+  background: rgba(13, 16, 26, 0.62);
+  backdrop-filter: blur(14px);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.pbs-footer__link {
+  background: rgba(16, 19, 30, 0.55);
+  backdrop-filter: blur(10px);
+}
+.pbs-node { background: rgba(10, 13, 21, 0.75); }
+
+@media (max-width: 720px) {
+  .pbs-gchip { white-space: normal; }
+}
+
+/* dropdown must stay readable over the sea */
+.pbs-menu__pop {
+  background: rgba(13, 16, 26, 0.92);
+  backdrop-filter: blur(18px);
 }
