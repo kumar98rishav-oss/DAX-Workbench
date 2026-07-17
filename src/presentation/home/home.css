@@ -737,8 +737,15 @@
 }
 .pbs-home__lede { color: var(--text-muted); }
 
-/* the glass panel — their prompt box, our connect box */
+/* the glass panel — their prompt box, our connect box.
+   position+z-index matter: backdrop-filter puts this AND the sections below in
+   their own stacking contexts, and later siblings paint on top — which buried
+   the "Other ways to start" dropdown under the connect panel. Lifting the
+   glass's whole context above its (z-index auto) siblings fixes it; the sticky
+   topbar stays higher at --z-docked. */
 .pbs-glass {
+  position: relative;
+  z-index: 5;
   width: min(760px, 100%);
   margin: var(--space-6) auto 0;
   padding: var(--space-5) var(--space-5) var(--space-4);
@@ -808,4 +815,10 @@
 .pbs-menu__pop {
   background: rgba(13, 16, 26, 0.92);
   backdrop-filter: blur(18px);
+}
+
+/* drop-up variant: anchored above the button when the fold is too close */
+.pbs-menu__pop--up {
+  top: auto;
+  bottom: calc(100% + 6px);
 }

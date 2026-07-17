@@ -144,6 +144,9 @@ export function HomeScreen() {
   const syncFromDesktop = useApp((s) => s.syncFromDesktop)
 
   const [menuOpen, setMenuOpen] = useState(false)
+  // Open upward when there isn't room below — otherwise the last items land
+  // beneath the fold (or, before the z-fix, under the connect panel).
+  const [dropUp, setDropUp] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Poll while we're on Home so the steps tick over as the user starts the
@@ -272,12 +275,21 @@ export function HomeScreen() {
             </button>
 
             <div className="pbs-menu" ref={menuRef}>
-              <button className="pbs-menu__btn" onClick={() => setMenuOpen((o) => !o)} aria-expanded={menuOpen} aria-haspopup="menu">
+              <button
+                className="pbs-menu__btn"
+                onClick={() => {
+                  const r = menuRef.current?.getBoundingClientRect()
+                  setDropUp(!!r && r.bottom + 270 > window.innerHeight)
+                  setMenuOpen((o) => !o)
+                }}
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+              >
                 Other ways to start
                 <ChevronDown size={15} style={{ transform: menuOpen ? 'rotate(180deg)' : undefined }} />
               </button>
               {menuOpen && (
-                <div className="pbs-menu__pop" role="menu">
+                <div className={`pbs-menu__pop${dropUp ? ' pbs-menu__pop--up' : ''}`} role="menu">
                   {OTHER_WAYS.map((o) => (
                     <button key={o.id} className="pbs-menu__item" role="menuitem" onClick={() => pick(o)}>
                       <span className="pbs-menu__icon">{o.icon}</span>
