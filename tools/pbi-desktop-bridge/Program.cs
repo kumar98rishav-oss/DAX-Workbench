@@ -217,6 +217,101 @@ app.MapPost("/measure", (MeasureReq req) =>
     catch (Exception e) { return Fail(e); }
 });
 
+// Create or update a CALCULATED TABLE (e.g. a generated date table). The DAX
+// expression is the table; the engine materialises its columns on commit.
+app.MapPost("/table", (TableReq req) =>
+{
+    if (string.IsNullOrWhiteSpace(req.Dax))
+        return Results.Json(new { error = "Missing 'dax'. Refusing to write an empty table expression." }, statusCode: 400);
+    if (string.IsNullOrWhiteSpace(req.Name))
+        return Results.Json(new { error = "'name' is required." }, statusCode: 400);
+
+    try
+    {
+        var inst = PowerBi.Resolve(req.Port);
+        var db = PowerBi.ConnectDatabase(inst, out var server);
+        using var _ = server;
+        var t = db.Model.Tables.Find(req.Name);
+        var created = t is null;
+        if (t is null)
+        {
+            t = new Tom.Table { Name = req.Name };
+            t.Partitions.Add(new Tom.Partition
+            {
+                Name = req.Name,
+                Source = new Tom.CalculatedPartitionSource { Expression = req.Dax },
+            });
+            db.Model.Tables.Add(t);
+        }
+        else if (t.Partitions.Count == 1 && t.Partitions[0].Source is Tom.CalculatedPartitionSource cps)
+        {
+            cps.Expression = req.Dax;
+        }
+        else
+        {
+            // Never overwrite a real data table with a formula.
+            return Results.Json(new { error = $"Table '{req.Name}' exists and is not a calculated table — choose another name." }, statusCode: 409);
+        }
+        db.Model.SaveChanges();
+
+        // Best-effort second pass on a fresh connection (the calculated columns
+        // only exist after the commit above): mark it as the model's date table
+        // and relate it to the reference column the range came from. Failure
+        // here must not undo the table — report it instead.
+        string? note = null;
+        try
+        {
+            var db2 = PowerBi.ConnectDatabase(inst, out var server2);
+            using var __ = server2;
+            var dt = db2.Model.Tables.Find(req.Name);
+            var dateCol = dt?.Columns.Find("Date");
+            if (dt is not null && dateCol is not null)
+            {
+                dt.DataCategory = "Time";
+                dateCol.IsKey = true;
+
+                if (!string.IsNullOrWhiteSpace(req.RelateTable) && !string.IsNullOrWhiteSpace(req.RelateColumn))
+                {
+                    var ft = db2.Model.Tables.Find(req.RelateTable);
+                    var fc = ft?.Columns.Find(req.RelateColumn);
+                    var already = db2.Model.Relationships.OfType<Tom.SingleColumnRelationship>()
+                        .Any(r => r.FromColumn == fc && r.ToColumn == dateCol);
+                    if (fc is not null && !already)
+                    {
+                        // Only one ACTIVE relationship may exist between a table
+                        // pair — add inactive if one is already there.
+                        var activeExists = db2.Model.Relationships.OfType<Tom.SingleColumnRelationship>()
+                            .Any(r => r.IsActive &&
+                                ((r.FromColumn.Table == ft && r.ToColumn.Table == dt) ||
+                                 (r.FromColumn.Table == dt && r.ToColumn.Table == ft)));
+                        db2.Model.Relationships.Add(new Tom.SingleColumnRelationship
+                        {
+                            Name = Guid.NewGuid().ToString("N"),
+                            FromColumn = fc,
+                            FromCardinality = Tom.RelationshipEndCardinality.Many,
+                            ToColumn = dateCol,
+                            ToCardinality = Tom.RelationshipEndCardinality.One,
+                            IsActive = !activeExists,
+                        });
+                        note = activeExists
+                            ? $"Related '{req.RelateTable}'[{req.RelateColumn}] as INACTIVE (an active relationship already exists between the tables)."
+                            : $"Marked as date table and related '{req.RelateTable}'[{req.RelateColumn}] → '{req.Name}'[Date].";
+                    }
+                    else if (already) note = "Marked as date table (relationship already existed).";
+                }
+                else note = "Marked as date table.";
+                db2.Model.SaveChanges();
+            }
+        }
+        catch (Exception e2)
+        {
+            note = $"Table {(created ? "created" : "updated")}, but marking/relating failed: {e2.Message}";
+        }
+        return Results.Json(new { status = created ? "created" : "updated", table = req.Name, note });
+    }
+    catch (Exception e) { return Fail(e); }
+});
+
 // What the person on the far machine reads off their screen and sends over.
 if (isRemote)
 {
@@ -281,3 +376,4 @@ app.Run($"http://{listenIp}:{listenPort}");
 record DaxReq(string Dax, int? Port);
 record PreviewReq(string Expression, int? Port);
 record MeasureReq(string Table, string Name, string Dax, string? FormatString, string? DisplayFolder, int? Port);
+record TableReq(string Name, string Dax, string? RelateTable, string? RelateColumn, int? Port);

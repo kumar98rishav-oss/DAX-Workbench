@@ -115,6 +115,22 @@ export const desktopRunDax = (dax: string, port?: number) =>
     body: JSON.stringify({ dax, port }),
   })
 
+/** Create or update a CALCULATED TABLE (e.g. a generated date table) in the
+ * live model. relateTable/relateColumn asks the bridge to also mark it as the
+ * model's date table and relate it to the reference column (best-effort). */
+export const desktopCreateTable = (
+  name: string,
+  dax: string,
+  relateTable?: string,
+  relateColumn?: string,
+  port?: number,
+) =>
+  req<{ status: string; table: string; note?: string }>('/table', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name, dax, relateTable, relateColumn, port }),
+  }, 20000) // the engine materialises the whole table on commit — give it room
+
 export const desktopCreateMeasure = (
   table: string,
   name: string,

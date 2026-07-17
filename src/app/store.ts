@@ -173,8 +173,10 @@ interface AppState {
   toggleRemote: (open?: boolean) => void
   factoryOpen: boolean
   doctorOpen: boolean
+  dateTableOpen: boolean
   toggleFactory: (open?: boolean) => void
   toggleDoctor: (open?: boolean) => void
+  toggleDateTable: (open?: boolean) => void
   _pickFiles: (() => void) | null
   _pickPbip: (() => void) | null
   _pickPbix: (() => void) | null
@@ -329,6 +331,7 @@ export const useApp = create<AppState>((set, get) => ({
   remoteOpen: false,
   factoryOpen: false,
   doctorOpen: false,
+  dateTableOpen: false,
   _pickFiles: null,
   _pickPbip: null,
   _pickPbix: null,
@@ -489,6 +492,7 @@ export const useApp = create<AppState>((set, get) => ({
   toggleRemote: (open) => set((s) => ({ remoteOpen: open ?? !s.remoteOpen })),
   toggleFactory: (open) => set((s) => ({ factoryOpen: open ?? !s.factoryOpen })),
   toggleDoctor: (open) => set((s) => ({ doctorOpen: open ?? !s.doctorOpen })),
+  toggleDateTable: (open) => set((s) => ({ dateTableOpen: open ?? !s.dateTableOpen })),
 
   // Pull the REAL model + data from the connected Power BI Desktop into the Studio.
   syncFromDesktop: async () => {

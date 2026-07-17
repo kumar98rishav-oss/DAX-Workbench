@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap } from 'lucide-react'
+import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap, CalendarDays } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, EmptyState } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
@@ -85,6 +85,7 @@ export function DaxView() {
   const syncFromDesktop = useApp((s) => s.syncFromDesktop)
   const toggleFactory = useApp((s) => s.toggleFactory)
   const toggleDoctor = useApp((s) => s.toggleDoctor)
+  const toggleDateTable = useApp((s) => s.toggleDateTable)
 
   const [prompt, setPrompt] = useState('')
   const [explanation, setExplanation] = useState<string | null>(null)
@@ -157,6 +158,11 @@ export function DaxView() {
   // Generate now proposes ranked suggestions; the user picks one to commit.
   const runGenerate = (text: string = prompt) => {
     if (!text.trim()) return
+    // "create a date table" is a structure request, not a measure — open the builder.
+    if (/\b(date|calendar)\s*table\b/i.test(text)) {
+      toggleDateTable(true)
+      return
+    }
     const { suggestions: sugg } = suggest(text, model, datasets)
     if (sugg.length > 0) {
       setSuggestions(sugg)
@@ -223,6 +229,9 @@ export function DaxView() {
           </button>
           <button className="dax-tool" onClick={() => toggleDoctor(true)} title="Audit the model: formats, DAX issues, docs">
             <Stethoscope size={13} /> Doctor
+          </button>
+          <button className="dax-tool" onClick={() => toggleDateTable(true)} title="Generate a date table — pick columns and the fact table it ranges over, deploy to Desktop">
+            <CalendarDays size={13} /> Dates
           </button>
           <button
             className="dax-tool"
