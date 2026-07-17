@@ -1,6 +1,7 @@
 import {
   Sparkles,
-  Search,
+  Palette,
+  ArrowUpRight,
   MonitorCheck,
   ChevronDown,
   Upload,
@@ -30,7 +31,6 @@ import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '@/app/store'
 import { modelLabel, LOCAL_BRIDGE } from '@/infrastructure/desktop/desktop-client'
-import { Kbd } from '@/design-system/components'
 import { WaveSea } from './WaveSea'
 import './home.css'
 
@@ -132,7 +132,6 @@ const PILLARS = [
 
 export function HomeScreen() {
   const openStudio = useApp((s) => s.openStudio)
-  const setCommandPalette = useApp((s) => s.setCommandPalette)
   const requestImport = useApp((s) => s.requestImport)
   const requestOpenPbip = useApp((s) => s.requestOpenPbip)
   const requestOpenPbix = useApp((s) => s.requestOpenPbix)
@@ -241,11 +240,21 @@ export function HomeScreen() {
           BI Design Studio
         </span>
         <span style={{ flex: 1 }} />
-        <button className="pbs-topbar__cmd" onClick={() => setCommandPalette(true)}>
-          <Search size={15} />
-          <span className="pbs-topbar__cmd-label">Search</span>
-          <Kbd keys={['Ctrl', 'K']} />
-        </button>
+        {/* Sister tool: the report-design companion. Ctrl+K still opens search —
+            its handler is global — the landing just doesn't need the bar. */}
+        <a
+          className="pbs-sister"
+          href="https://bi-visual-design-02.onrender.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span className="pbs-sister__icon"><Palette size={14} /></span>
+          <span className="pbs-sister__label">
+            BI Visual Design
+            <span className="pbs-sister__hint">style your report visuals</span>
+          </span>
+          <ArrowUpRight size={14} className="pbs-sister__arrow" />
+        </a>
       </div>
 
       <div className="pbs-home__inner">

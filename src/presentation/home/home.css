@@ -822,3 +822,59 @@
   top: auto;
   bottom: calc(100% + 6px);
 }
+
+/* ---- sister-tool link (topbar): BI Visual Design ---- */
+.pbs-sister {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 7px;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+.pbs-sister:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 4px 24px rgba(96, 110, 255, 0.25);
+}
+.pbs-sister__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  color: #fff;
+  background: linear-gradient(135deg, #4f7dff, #8a5cff);
+  box-shadow: 0 0 14px rgba(110, 120, 255, 0.45);
+}
+.pbs-sister__label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.pbs-sister__hint {
+  font-size: 0.65rem;
+  font-weight: var(--weight-regular);
+  letter-spacing: 0.02em;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+.pbs-sister__arrow {
+  color: var(--text-subtle);
+  transition: transform var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.pbs-sister:hover .pbs-sister__arrow {
+  color: var(--accent);
+  transform: translate(2px, -2px);
+}
+@media (max-width: 640px) {
+  .pbs-sister__hint { display: none; }
+}
