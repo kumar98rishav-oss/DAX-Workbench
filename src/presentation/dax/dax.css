@@ -570,13 +570,14 @@
 
 /* ---- factory / doctor launcher ---- */
 .dax-tools {
-  display: flex;
+  /* Four tools in a 232px rail — a single flex row overflowed. */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
 }
 .dax-tool {
-  flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
