@@ -24,8 +24,14 @@ export function RemoteBridgeDialog() {
 
   if (!open) return null
 
-  const url = `http://${host.trim()}:${port.trim() || '5177'}`
-  const targetsAnotherMachine = !!host.trim() && !/^(127\.0\.0\.1|localhost)$/i.test(host.trim())
+  // The banner prints the address as one "ip:port" string, so people paste the
+  // whole thing into Address. Accept that: strip any scheme, and if a port is
+  // baked into the address use it instead of the separate field.
+  const rawHost = host.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '')
+  const hostname = rawHost.split(':')[0]
+  const embeddedPort = rawHost.split(':')[1]
+  const url = `http://${hostname}:${(embeddedPort || port.trim() || '5177')}`
+  const targetsAnotherMachine = !!hostname && !/^(127\.0\.0\.1|localhost)$/i.test(hostname)
   // The single thing that makes this fail for most people, so say it before they try.
   const httpsBlocked = location.protocol === 'https:' && targetsAnotherMachine
 
