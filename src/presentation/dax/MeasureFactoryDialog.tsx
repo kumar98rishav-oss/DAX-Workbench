@@ -4,7 +4,8 @@ import { useApp } from '@/app/store'
 import { Button, IconButton } from '@/design-system/components'
 import { SUITE_KINDS, buildSuite, suiteFields, suitePlan, modelHasDate } from '@/application/dax/factory'
 import type { SuiteMeasure } from '@/application/dax/factory'
-import { desktopCreateMeasure } from '@/infrastructure/desktop/desktop-client'
+import { desktopCreateMeasure, desktopEvaluateScalar } from '@/infrastructure/desktop/desktop-client'
+import { buildDefineQuery, dependencyClosure, modelMeasures, defineHomeTable } from '@/application/dax/live-preview'
 import '@/presentation/data/import-preview.css'
 import './dax.css'
 
@@ -38,7 +39,26 @@ export function MeasureFactoryDialog() {
 
   const build = () => {
     setMsg(null)
-    setSuite(buildSuite(activeField, model, datasets, sel))
+    const built = buildSuite(activeField, model, datasets, sel)
+    setSuite(built)
+    // Swap each row's sample number for the real engine's, sequentially so a
+    // 12-measure suite doesn't hammer Desktop with parallel queries.
+    if (desktop.connected) {
+      const home = defineHomeTable(model)
+      if (!home) return
+      void (async () => {
+        for (const m of built) {
+          try {
+            const pool = [...m.plan.map((st) => ({ name: st.name, dax: st.dax })), ...modelMeasures(model)]
+            const chain = dependencyClosure(pool, m.name)
+            const v = await desktopEvaluateScalar(buildDefineQuery(chain, m.name, home), desktop.port)
+            if (typeof v === 'number') {
+              setSuite((rows) => rows.map((r) => (r.name === m.name ? { ...r, preview: { ok: true, value: v }, live: true } : r)))
+            }
+          } catch { /* row keeps its sample value */ }
+        }
+      })()
+    }
   }
   const toggleKind = (id: string) => setPicked(sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id])
   const toggleRow = (name: string) => setSuite((s) => s.map((m) => (m.name === name ? { ...m, selected: !m.selected } : m)))
@@ -118,7 +138,10 @@ export function MeasureFactoryDialog() {
                   <div className="fct__name">{m.name} <span className="fct__label">{m.label}</span></div>
                   <code className="fct__dax">{m.dax.replace(/\s+/g, ' ')}</code>
                 </div>
-                <span className={`fct__val${m.preview.ok ? '' : ' is-na'}`}>{m.preview.ok ? fmt(m.preview.value) : 'preview n/a'}</span>
+                <span className={`fct__val${m.preview.ok ? '' : ' is-na'}`}>
+                  {m.preview.ok ? fmt(m.preview.value) : 'preview n/a'}
+                  {m.live && <em className="dax-badge dax-badge--live">live</em>}
+                </span>
               </div>
             ))
           )}

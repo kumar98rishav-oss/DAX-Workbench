@@ -1,17 +1,26 @@
 using System.Net;
+using System.Reflection;
 using System.Security.Cryptography;
+// Sdk.NET (needed for WinForms) doesn't inject the web implicit usings the
+// old Sdk.Web project got for free — they're explicit here.
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using PbiDesktopBridge;
 using Tom = Microsoft.AnalysisServices.Tabular;
 
-// PBI Desktop Bridge — a tiny LOCAL HTTP API the web Studio calls to work
-// against the live Power BI Desktop model. The browser can't speak Analysis
-// Services directly, so this local helper does it (TOM to read/write the model,
-// ADOMD to run DAX). No cloud, no AI — just the Studio ⇄ Desktop link.
+// BI Design Studio bridge — now the WHOLE product in one exe: a system-tray app
+// that serves the embedded Studio UI at http://127.0.0.1:5177 and speaks
+// TOM/ADOMD to Power BI Desktop's embedded Analysis Services. No console, no
+// separate website needed, no cloud.
 //
-//   double-click it            -> asks: this machine only, or share with another
-//   ...exe  --local            loopback only, no token (skip the question)
-//   ...exe  --remote           answer the network, token required (skip the question)
-//   --listen <ip>  --port <n>  --token <secret>
+//   double-click                 tray icon + opens the Studio (local only)
+//   --local | --remote           skip straight to a mode (tray can switch too)
+//   --launch "srv" "db"          how Power BI Desktop's External Tools ribbon starts us
+//   --register-external-tool     write the pbitool.json (needs admin; tray offers it)
+//       [--dir <path>]           ...write to a custom dir instead (testing; silent)
+//   --listen <ip> --port <n> --token <secret>
 
 static string? Arg(string[] a, string name)
 {
@@ -20,28 +29,24 @@ static string? Arg(string[] a, string name)
 }
 static bool Flag(string[] a, string name) => a.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
 
-var remoteMode = Flag(args, "--remote");
-
-// If no mode was chosen and someone just double-clicked this (a real console,
-// stdin not piped), ask in plain words instead of making them know a flag exists.
-if (!remoteMode && !Flag(args, "--local") && Arg(args, "--listen") is null && !Console.IsInputRedirected)
+// ---- one-shot modes that never start the server ----
+if (Flag(args, "--register-external-tool"))
 {
-    Console.WriteLine();
-    Console.WriteLine("  Power BI Desktop Bridge");
-    Console.WriteLine("  =======================================================");
-    Console.WriteLine();
-    Console.WriteLine("  Who should be able to use this bridge?");
-    Console.WriteLine();
-    Console.WriteLine("    [1]  Only this computer                    (default)");
-    Console.WriteLine("    [2]  This computer AND someone else's Studio");
-    Console.WriteLine();
-    Console.Write("  Type 1 or 2, then press Enter:  ");
-    remoteMode = Console.ReadLine()?.Trim() == "2";
-    Console.WriteLine();
+    Tray.RegisterExternalTool(Arg(args, "--dir"));
+    return;
 }
 
-var listenIp = Arg(args, "--listen") ?? (remoteMode ? "0.0.0.0" : "127.0.0.1");
+// ---- single instance: a second launch just brings the Studio up ----
 var listenPort = int.TryParse(Arg(args, "--port"), out var p0) ? p0 : 5177;
+using var single = new Mutex(true, "Local\\bi-design-studio-bridge", out var firstInstance);
+if (!firstInstance)
+{
+    Tray.OpenStudio(listenPort);
+    return;
+}
+
+var remoteMode = Flag(args, "--remote");
+var listenIp = Arg(args, "--listen") ?? (remoteMode ? "0.0.0.0" : "127.0.0.1");
 var isRemote = listenIp != "127.0.0.1" && listenIp != "localhost";
 
 // A token is MANDATORY the moment this answers anything but loopback. Requests
@@ -50,17 +55,17 @@ var token = Arg(args, "--token")
             ?? Environment.GetEnvironmentVariable("PBI_BRIDGE_TOKEN")
             ?? (isRemote ? Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant() : null);
 
-var builder = WebApplication.CreateBuilder(args);
+// A restart (tray mode-switch) starts the new process while the old one is
+// still letting go of the port — wait for it rather than crash.
+Tray.WaitForPortFree(listenPort, 8000);
 
-// Origins allowed to drive this bridge, beyond localhost and a Tauri/Electron
-// shell. On loopback there is no token, so this list is the only thing gating a
-// web page from reading the model: keep it to exact origins. Never a wildcard
-// suffix like "*.onrender.com" — anyone can deploy there, and any of them could
-// then reach a running bridge. Drop an origin the moment it stops being yours: a
-// released subdomain can be claimed by someone else. Note CORS is a BROWSER rule
-// and does nothing against curl — over the network the token is the real gate,
-// which is why one is mandatory there.
-// Override or extend with PBI_BRIDGE_ORIGINS=https://a.example,https://b.example
+var builder = WebApplication.CreateBuilder();
+
+// Origins allowed to drive this bridge beyond its own UI and localhost dev.
+// On loopback there is no token, so this list is the only thing gating a web
+// page from reading the model: keep it to exact origins, never a wildcard
+// suffix. CORS is a BROWSER rule and does nothing against curl — over the
+// network the token is the real gate, which is why one is mandatory there.
 var allowedOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
     "https://pbi-design-studio.onrender.com", // the hosted Studio
@@ -81,10 +86,8 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 
 var app = builder.Build();
 
-// Chrome's Private Network Access: a page on a public origin reaching a private
-// (loopback) address gets an extra preflight, which fails unless we opt in here.
-// Not enforced for this today, but it is rolling out — without this the hosted
-// Studio would break silently on a future Chrome.
+// Chrome's Private Network Access preflight — a public page reaching loopback
+// needs this opt-in as enforcement rolls out.
 app.Use(async (ctx, next) =>
 {
     if (ctx.Request.Headers.ContainsKey("Access-Control-Request-Private-Network"))
@@ -94,14 +97,26 @@ app.Use(async (ctx, next) =>
 
 app.UseCors();
 
-// Auth gate. Runs AFTER UseCors so the CORS preflight — which never carries an
-// Authorization header — isn't rejected before the real request is allowed to
-// ask. Loopback callers are trusted (they're already on this machine); anything
-// arriving over the network must present the pairing token.
+// ---- the embedded Studio UI ----
+// The vite build is compiled INTO this exe; ManifestEmbeddedFileProvider serves
+// it. Static files sit in front of the auth gate on purpose: the app shell is
+// not sensitive, the API is — and remote users still need the token for data.
+var assembly = Assembly.GetExecutingAssembly();
+var ui = new ManifestEmbeddedFileProvider(assembly, "wwwroot");
+app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = ui });
+app.UseStaticFiles(new StaticFileOptions { FileProvider = ui });
+
+// Auth gate — API paths only. Runs AFTER UseCors so preflights (which never
+// carry Authorization) aren't rejected before the real request can ask.
+var apiPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    { "/health", "/discover", "/model", "/dax", "/preview", "/measure", "/table" };
 app.Use(async (ctx, next) =>
 {
-    if (HttpMethods.IsOptions(ctx.Request.Method)) { await next(); return; }
-
+    if (!apiPaths.Contains(ctx.Request.Path.Value ?? "") || HttpMethods.IsOptions(ctx.Request.Method))
+    {
+        await next();
+        return;
+    }
     var ip = ctx.Connection.RemoteIpAddress;
     var loopback = ip is not null && IPAddress.IsLoopback(ip);
     if (!loopback)
@@ -109,7 +124,7 @@ app.Use(async (ctx, next) =>
         if (string.IsNullOrEmpty(token))
         {
             ctx.Response.StatusCode = 403;
-            await ctx.Response.WriteAsJsonAsync(new { error = "This bridge only answers the local machine. Start it with --remote to allow network access." });
+            await ctx.Response.WriteAsJsonAsync(new { error = "This bridge only answers the local machine. Enable sharing from the tray icon to allow network access." });
             return;
         }
         var sent = ctx.Request.Headers.Authorization.ToString();
@@ -131,7 +146,7 @@ app.Use(async (ctx, next) =>
 
 static IResult Fail(Exception e) => Results.Json(new { error = e.Message }, statusCode: 500);
 
-app.MapGet("/health", () => Results.Json(new { ok = true, product = "pbi-desktop-bridge", version = "0.2.0", remote = isRemote, machine = Environment.MachineName }));
+app.MapGet("/health", () => Results.Json(new { ok = true, product = "pbi-desktop-bridge", version = "0.3.0", ui = true, remote = isRemote, machine = Environment.MachineName }));
 
 app.MapGet("/discover", () =>
 {
@@ -312,12 +327,24 @@ app.MapPost("/table", (TableReq req) =>
     catch (Exception e) { return Fail(e); }
 });
 
-// What the person on the far machine reads off their screen and sends over.
+// Anything that isn't a file or an API route is a client-side route — the SPA
+// answers it. This is what makes deep links into the Studio work.
+app.MapFallback(async ctx =>
+{
+    var index = ui.GetFileInfo("index.html");
+    if (!index.Exists) { ctx.Response.StatusCode = 404; return; }
+    ctx.Response.ContentType = "text/html; charset=utf-8";
+    await using var s = index.CreateReadStream();
+    await s.CopyToAsync(ctx.Response.Body);
+});
+
+// ---- run: server in the background, tray in the foreground ----
+_ = app.RunAsync($"http://{listenIp}:{listenPort}");
+
+// What the tray's "pairing info" dialog shows when sharing is on.
+string? pairingInfo = null;
 if (isRemote)
 {
-    // Every up adapter's IPv4, with its name. Dns.GetHostAddresses returns one
-    // arbitrary address — on a machine with a hotspot/VPN/virtual adapter that
-    // was often the WRONG one, and the other side got "nothing answered".
     var candidates = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
         .Where(n => n.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up
                     && n.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
@@ -325,53 +352,28 @@ if (isRemote)
             .Where(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
             .Select(a => (Iface: n.Name, Ip: a.Address.ToString())))
         .ToList();
-
-    // ASCII only: the default console code page turns box-drawing characters
-    // into mojibake, and this is the one screen a stranger has to read.
-    Console.WriteLine();
-    Console.WriteLine("  ===========================================================");
-    Console.WriteLine("    REMOTE BRIDGE - give these two lines to the Studio user");
-    Console.WriteLine("  ===========================================================");
-    Console.WriteLine();
-    if (candidates.Count == 0)
-        Console.WriteLine($"     Address :  <this machine's IP>:{listenPort}");
-    else
-        foreach (var (iface, ip) in candidates)
-            Console.WriteLine($"     Address :  {ip}:{listenPort}   ({iface})");
-    Console.WriteLine($"     Token   :  {token}");
-    Console.WriteLine();
-    if (candidates.Count > 1)
-    {
-        Console.WriteLine("     More than one address? Use the one on the SAME network as");
-        Console.WriteLine("     the other person (usually Wi-Fi/Ethernet). If one doesn't");
-        Console.WriteLine("     answer, try the next.");
-        Console.WriteLine();
-    }
-    Console.WriteLine("     IMPORTANT - two things that block most connections:");
-    Console.WriteLine("       1. Both machines must be on the SAME network (same Wi-Fi).");
-    Console.WriteLine("          A phone hotspot is its own network.");
-    Console.WriteLine("       2. When Windows Firewall asks about this app, click");
-    Console.WriteLine("          'Allow access' and tick BOTH Private and Public.");
-    Console.WriteLine();
-    Console.WriteLine("     Anyone with that token can read this model and write measures");
-    Console.WriteLine("     into it. Send it privately, and close this window when done.");
-    Console.WriteLine("     The token changes every time this starts.");
-    Console.WriteLine();
-    Console.WriteLine("     Traffic is plain HTTP. On an untrusted network, prefer:");
-    Console.WriteLine($"       ssh -N -L {listenPort}:127.0.0.1:{listenPort} <user>@{candidates.FirstOrDefault().Ip ?? "<ip>"}");
-    Console.WriteLine("     then connect to 127.0.0.1 instead — no token, and encrypted.");
-    Console.WriteLine();
+    var lines = new List<string> { "Give these to the person connecting:", "" };
+    if (candidates.Count == 0) lines.Add($"Address:  <this machine's IP>:{listenPort}");
+    else lines.AddRange(candidates.Select(c => $"Address:  {c.Ip}:{listenPort}   ({c.Iface})"));
+    lines.Add($"Token:    {token}");
+    lines.Add("");
+    if (candidates.Count > 1) lines.Add("Multiple addresses? Use the one on the SAME network as them.");
+    lines.Add("Both machines must be on the same Wi-Fi (a phone hotspot is its own network).");
+    lines.Add("When Windows Firewall asks, click Allow and tick BOTH network types.");
+    lines.Add("The token changes every time sharing starts.");
+    pairingInfo = string.Join(Environment.NewLine, lines);
 }
-else
+
+// Opened from Desktop's ribbon, or plainly double-clicked → show the Studio.
+if (Flag(args, "--launch") || args.Length == 0) Tray.OpenStudio(listenPort);
+
+Tray.Run(new TrayOptions
 {
-    Console.WriteLine();
-    Console.WriteLine($"  Bridge listening on http://127.0.0.1:{listenPort} — this machine only.");
-    Console.WriteLine("  Leave this window open. Open a .pbix in Power BI Desktop, then the Studio.");
-    Console.WriteLine("  To share with another machine, close this and run it again, choosing [2].");
-    Console.WriteLine();
-}
-
-app.Run($"http://{listenIp}:{listenPort}");
+    Port = listenPort,
+    IsRemote = isRemote,
+    PairingInfo = pairingInfo,
+    ReleaseSingleInstance = () => { try { single.ReleaseMutex(); single.Dispose(); } catch { /* already gone */ } },
+});
 
 record DaxReq(string Dax, int? Port);
 record PreviewReq(string Expression, int? Port);

@@ -696,3 +696,29 @@
   overflow: auto;
   white-space: pre;
 }
+
+/* ---- preview provenance badges: never let a sample impersonate the truth ---- */
+.dax-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: var(--radius-full);
+  vertical-align: middle;
+}
+.dax-badge--live {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+.dax-badge--sample {
+  color: var(--warning, #b45309);
+  background: color-mix(in srgb, var(--warning, #d97706) 12%, transparent);
+}
+.dax-badge--local {
+  color: var(--text-subtle);
+  background: var(--surface-2);
+}

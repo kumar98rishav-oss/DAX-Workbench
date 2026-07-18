@@ -40,3 +40,11 @@ tools/**/obj/
 tools/**/publish*/
 tools/**/node_modules/
 StudioData/
+# bridge build artifacts: the embedded UI is copied in by build-full.cmd
+tools/pbi-desktop-bridge/wwwroot/
+
+# personal documents — never in the repo
+Rishav_Kumar*.pdf
+Rishav_Kumar*.docx
+_cv_backup_original/
+~$*

@@ -22,6 +22,8 @@ export interface SuiteMeasure {
   plan: SuiteStep[]
   formatString: string
   preview: { ok: boolean; value?: number; note?: string }
+  /** True once the value came from the real engine, not the sample. */
+  live?: boolean
   selected: boolean
 }
 

@@ -1,23 +1,39 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- net8.0-windows + WinForms: the bridge is now a TRAY APP serving the
+         embedded Studio UI, not a console API. The ~40MB the WindowsDesktop
+         framework adds back is the cost of a real system-tray experience.
+         Sdk.NET (not Sdk.Web) + an AspNetCore FrameworkReference is the
+         supported hybrid for web-server-inside-desktop-app. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- net8.0, NOT net8.0-windows: the -windows TFM drags in the WindowsDesktop
-         framework (WPF + WinForms, ~43MB of PresentationFramework/System.Windows.Forms)
-         that a headless HTTP service never touches. Verified TOM + ADOMD still work.
-         Analysis Services client libs are x64-only. -->
+    <!-- Analysis Services client libs are x64-only. -->
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>pbi-desktop-bridge</AssemblyName>
     <RootNamespace>PbiDesktopBridge</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- The built Studio frontend is embedded so ONE exe is the whole product. -->
+    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <!-- Read/write the Tabular model (TOM) + run DAX (ADOMD), .NET Core builds. -->
     <PackageReference Include="Microsoft.AnalysisServices.NetCore.retail.amd64" Version="19.84.1" />
     <PackageReference Include="Microsoft.AnalysisServices.AdomdClient.NetCore.retail.amd64" Version="19.84.1" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- wwwroot/ is the Studio's vite build output, copied in by build-full.cmd. -->
+    <EmbeddedResource Include="wwwroot\**\*" />
+    <EmbeddedResource Include="assets\icon.png" />
+    <EmbeddedResource Include="app.ico" />
   </ItemGroup>
 
 </Project>

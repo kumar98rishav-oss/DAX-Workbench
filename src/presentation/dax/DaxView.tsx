@@ -10,7 +10,8 @@ import type { DaxFunction } from '@/application/dax/functions'
 import { suggest } from '@/application/dax/intent/suggest'
 import type { Suggestion } from '@/application/dax/intent/suggest'
 import { recordPick } from '@/application/dax/intent/memory'
-import { desktopPreview, desktopCreateMeasure, modelLabel } from '@/infrastructure/desktop/desktop-client'
+import { desktopPreview, desktopCreateMeasure, desktopEvaluateScalar, modelLabel } from '@/infrastructure/desktop/desktop-client'
+import { buildDefineQuery, dependencyClosure, modelMeasures, defineHomeTable } from '@/application/dax/live-preview'
 import { DependencyGraph } from './DependencyGraph'
 import './dax.css'
 
@@ -124,6 +125,35 @@ export function DaxView() {
     [selected, ctx],
   )
 
+  // LIVE preview — when Desktop is connected, the number shown by default comes
+  // from the REAL engine over the full data. A DEFINE query carries the whole
+  // dependency chain, so even measures that exist only in the Studio evaluate
+  // exactly. The in-browser value renders instantly and is replaced when the
+  // real one lands; on any failure we quietly keep the local number.
+  const [live, setLive] = useState<{ key: string; value: unknown } | null>(null)
+  useEffect(() => {
+    setLive(null)
+    if (!selected || !desktop.connected) return
+    const home = defineHomeTable(model)
+    if (!home) return
+    const key = `${selected.id}:${selected.expression}`
+    const t = setTimeout(() => {
+      const chain = dependencyClosure(modelMeasures(model), selected.name)
+      const query = buildDefineQuery(chain, selected.name, home)
+      desktopEvaluateScalar(query, desktop.port)
+        .then((v) => setLive({ key, value: v }))
+        .catch(() => { /* local preview remains */ })
+    }, 500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, selected?.expression, selected?.name, desktop.connected, desktop.port, model])
+
+  const liveValue =
+    live && selected && live.key === `${selected.id}:${selected.expression}` ? live.value : undefined
+
+  // Live values for suggestion cards, keyed by measure name.
+  const [liveCards, setLiveCards] = useState<Record<string, unknown>>({})
+
   // Evaluate the selected measure on the REAL model in Power BI Desktop.
   const verifyOnDesktop = async () => {
     if (!selected) return
@@ -166,6 +196,20 @@ export function DaxView() {
     const { suggestions: sugg } = suggest(text, model, datasets)
     if (sugg.length > 0) {
       setSuggestions(sugg)
+      // Replace each card's sample number with the real engine's, as they land.
+      setLiveCards({})
+      const home = defineHomeTable(model)
+      if (desktop.connected && home) {
+        for (const s of sugg) {
+          // Plan steps first so the suggestion's DAX wins over same-named
+          // model measures; the closure trims to what this card needs.
+          const pool = [...s.plan.map((st) => ({ name: st.name, dax: st.dax })), ...modelMeasures(model)]
+          const chain = dependencyClosure(pool, s.measureName)
+          desktopEvaluateScalar(buildDefineQuery(chain, s.measureName, home), desktop.port)
+            .then((v) => setLiveCards((prev) => ({ ...prev, [s.measureName]: v })))
+            .catch(() => { /* card keeps its sample value */ })
+        }
+      }
       return
     }
     // No model / nothing to rank — commit directly.
@@ -338,7 +382,21 @@ export function DaxView() {
                       )}
                       <div className="dax-sugg__foot">
                         <span className="dax-sugg__preview">
-                          {s.preview.ok ? formatByString(s.preview.value ?? 0, s.formatString) : s.preview.note}
+                          {liveCards[s.measureName] !== undefined ? (
+                            <>
+                              {typeof liveCards[s.measureName] === 'number'
+                                ? formatByString(liveCards[s.measureName] as number, s.formatString)
+                                : String(liveCards[s.measureName] ?? '—')}
+                              <em className="dax-badge dax-badge--live">live</em>
+                            </>
+                          ) : s.preview.ok ? (
+                            <>
+                              {formatByString(s.preview.value ?? 0, s.formatString)}
+                              {desktop.connected && <em className="dax-badge dax-badge--sample">sample</em>}
+                            </>
+                          ) : (
+                            s.preview.note
+                          )}
                         </span>
                         <span className="dax-sugg__use">Use →</span>
                       </div>
@@ -376,11 +434,24 @@ export function DaxView() {
 
             <div className="dax-preview">
               <span className="dax-preview__label">Preview</span>
-              {preview?.ok ? (
+              {liveValue !== undefined ? (
+                <>
+                  <span className="dax-preview__value">
+                    {typeof liveValue === 'number'
+                      ? formatByString(liveValue, selected.formatString ?? '#,##0')
+                      : String(liveValue ?? '—')}
+                  </span>
+                  <em className="dax-badge dax-badge--live">live · full data</em>
+                  <Check size={18} className="dax-preview__ok" />
+                </>
+              ) : preview?.ok ? (
                 <>
                   <span className="dax-preview__value">
                     {formatByString(preview.value, selected.formatString ?? '#,##0')}
                   </span>
+                  <em className={`dax-badge ${desktop.connected ? 'dax-badge--sample' : 'dax-badge--local'}`}>
+                    {desktop.connected ? 'sample · fetching live…' : 'local sample'}
+                  </em>
                   <Check size={18} className="dax-preview__ok" />
                 </>
               ) : (

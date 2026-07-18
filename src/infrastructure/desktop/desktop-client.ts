@@ -6,7 +6,12 @@
  * Every call fails soft — if the bridge is absent, the Studio stays in its
  * in-browser (sample-data) mode.
  */
-export const LOCAL_BRIDGE = 'http://127.0.0.1:5177'
+/** When the app is SERVED BY the bridge itself (the embedded local build on
+ * port 5177), talk to our own origin — that also makes it work under any
+ * hostname the user reached us by. Otherwise (dev server, hosted site) target
+ * the conventional local bridge address. */
+export const LOCAL_BRIDGE =
+  typeof location !== 'undefined' && location.port === '5177' ? location.origin : 'http://127.0.0.1:5177'
 
 /** Where the bridge is, and the token to reach it if it isn't on this machine.
  * Module-level rather than passed around: every call site already existed and
@@ -107,6 +112,19 @@ export const desktopPreview = (expression: string, port?: number) =>
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ expression, port }),
   }).then((r) => r.value)
+
+/** Run a scalar DEFINE/EVALUATE query and return the single value — the
+ * live-preview path for measures that exist only in the Studio. Longer timeout:
+ * the first query after connect pays the formula-engine warm-up. */
+export const desktopEvaluateScalar = async (query: string, port?: number): Promise<unknown> => {
+  const r = await req<{ columns: string[]; rows: Record<string, unknown>[] }>('/dax', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ dax: query, port }),
+  }, 15000)
+  const row = r.rows[0]
+  return row ? row[r.columns[0]] : null
+}
 
 export const desktopRunDax = (dax: string, port?: number) =>
   req<{ columns: string[]; rowCount: number; rows: Record<string, unknown>[] }>('/dax', {
