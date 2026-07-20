@@ -19,7 +19,6 @@ export function PluginsDialog() {
 
   const stats = [
     { n: r.plugins.length, label: 'Plugins' },
-    { n: r.exporters.length, label: 'Exporters' },
     { n: r.rules.length, label: 'Rules' },
     { n: r.visuals.length, label: 'Visuals' },
   ]

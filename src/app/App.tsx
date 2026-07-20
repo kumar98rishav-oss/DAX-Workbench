@@ -12,7 +12,6 @@ import { MeasureFactoryDialog } from '@/presentation/dax/MeasureFactoryDialog'
 import { ModelDoctorDialog } from '@/presentation/dax/ModelDoctorDialog'
 import { DateTableDialog } from '@/presentation/dax/DateTableDialog'
 import { AnalystPanel } from '@/presentation/analyst/AnalystPanel'
-import { ExportDialog } from '@/presentation/export/ExportDialog'
 import { PluginsDialog } from '@/presentation/plugins/PluginsDialog'
 import { LayoutChooser } from '@/presentation/design/LayoutChooser'
 import { CommandPalette } from '@/design-system/components'
@@ -59,7 +58,6 @@ export function App() {
       <ModelDoctorDialog />
       <DateTableDialog />
       <AnalystPanel />
-      <ExportDialog />
       <PluginsDialog />
       <LayoutChooser />
       <CommandPalette

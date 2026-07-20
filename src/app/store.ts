@@ -152,9 +152,6 @@ interface AppState {
   analystThinking: boolean
   analystMessages: AnalystMessage[]
 
-  // ---- export ----
-  exportOpen: boolean
-
   // ---- plugins ----
   pluginsOpen: boolean
 
@@ -259,9 +256,6 @@ interface AppState {
   toggleAnalyst: (open?: boolean) => void
   askAnalyst: (question: string) => Promise<void>
 
-  // export
-  toggleExport: (open?: boolean) => void
-
   // plugins
   togglePlugins: (open?: boolean) => void
 }
@@ -335,7 +329,6 @@ export const useApp = create<AppState>((set, get) => ({
   analystThinking: false,
   analystMessages: [],
 
-  exportOpen: false,
   pluginsOpen: false,
 
   importing: false,
@@ -1125,9 +1118,6 @@ export const useApp = create<AppState>((set, get) => ({
     if (finalId) set({ model: { ...s.model, tables: tablesCopy }, selectedMeasureId: finalId })
     return finalId
   },
-
-  // ---- export ----
-  toggleExport: (open) => set((s) => ({ exportOpen: open ?? !s.exportOpen })),
 
   // ---- plugins ----
   togglePlugins: (open) => set((s) => ({ pluginsOpen: open ?? !s.pluginsOpen })),

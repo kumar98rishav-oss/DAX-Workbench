@@ -71,8 +71,7 @@ Audits the live model for what renders badly, scales badly, or breaks quietly.
 
 - 📥 **Data** — CSV / Excel / Parquet parsed in a Web Worker; schema inference, column profiling, multi-sheet + side-by-side table splitting, virtualized grid
 - 🧠 **Model** — automatic star-schema detection (keys, relationships, fact/dimension/date roles) with an interactive relationship graph
-- 🎨 **Design** — drag-and-drop canvas, 21 hand-rendered SVG visual types, 6 dashboard layout recipes, undo/redo, ⌘K command palette
-- 📤 **Export** — TMDL, PBIP (zip), interactive HTML, Markdown docs, theme JSON, Tabular Editor C# script
+- 📊 **KPI** — a live answers surface: a 12-card board that auto-fills as you create measures, plus matrix and table pages computed by the real engine; click any card to open its DAX, zoom/fit to your screen
 - 🧩 **Plugin SDK** — Workbench's own features register through its public extension points; structural model validation included
 - 📂 **Open PBIP/PBIX** — parse a Power BI project's TMDL, bind real data from its source files, honest fallbacks where a format can't be read in a browser
 
@@ -202,9 +201,9 @@ is undoable in Desktop.
 src/
   domain/          pure types — SemanticModel, Report, VisualKind (zero imports)
   application/     the engine room — dax/ (architect, intent, evaluator, factory,
-                   doctor), import/ (+pbi), insights/, query/, export/, plugins/
-  infrastructure/  the outside world — bridge client, worker parsing, zip
-  presentation/    React only — home, shell, design, data, model, dax, plugins
+                   doctor, answers), import/ (+pbi), insights/, query/, plugins/
+  infrastructure/  the outside world — bridge client, worker parsing
+  presentation/    React only — home, shell, kpi, data, model, dax, plugins
   app/             composition root — store, commands, DI wiring
   design-system/   tokens + hand-built primitives (no UI framework)
   shared/          Result, EventBus, CommandBus, DI container

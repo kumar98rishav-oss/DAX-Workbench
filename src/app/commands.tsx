@@ -99,14 +99,6 @@ export function buildCommands(): Command[] {
       run: () => s.togglePanel('bottom'),
     },
     {
-      id: 'export.open',
-      title: 'Export…',
-      group: 'Project',
-      icon: <Upload size={16} />,
-      keywords: ['tmdl', 'pbip', 'html', 'markdown', 'theme', 'download', 'json'],
-      run: () => s.toggleExport(true),
-    },
-    {
       id: 'plugins.open',
       title: 'Plugins & Model Health…',
       group: 'Preferences',

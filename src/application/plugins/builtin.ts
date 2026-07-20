@@ -4,66 +4,9 @@
  * the extension points are load-bearing, not decorative.
  */
 import { LocalAnalystProvider } from '@/application/insights/analyst-provider'
-import {
-  toTMDL,
-  toMarkdown,
-  toThemeJSON,
-  toProjectJSON,
-  toTabularEditorScript,
-  toInteractiveHTML,
-  buildPBIP,
-} from '@/application/export/exporters'
-import { createZip } from '@/infrastructure/export/zip'
 import { modelHasDate } from '@/application/dax/factory'
 import type { SemanticModel } from '@/domain/model'
 import type { Plugin, ValidationIssue } from './types'
-
-const textBlob = (content: string, mime: string) => new Blob([content], { type: `${mime};charset=utf-8` })
-
-export const coreExportersPlugin: Plugin = {
-  id: 'core.exporters',
-  name: 'Open-format Exporters',
-  version: '1.0.0',
-  author: 'DAX Workbench',
-  description: 'Export the model and report to TMDL, PBIP, HTML, Markdown, theme, script, and JSON.',
-  activate(host) {
-    host.registerExporter({
-      id: 'tmdl', name: 'TMDL', icon: 'FileCode2',
-      description: 'Tabular Model Definition Language.',
-      run: ({ model, name }) => ({ filename: `${name}.tmdl`, blob: textBlob(toTMDL(model), 'text/plain') }),
-    })
-    host.registerExporter({
-      id: 'pbip', name: 'PBIP Project (.zip)', icon: 'FolderArchive',
-      description: 'Power BI Project folder bundled as a zip.',
-      run: ({ model, report, name }) => ({ filename: `${name}.pbip.zip`, blob: createZip(buildPBIP(model, report, name)) }),
-    })
-    host.registerExporter({
-      id: 'html', name: 'Interactive HTML', icon: 'Globe',
-      description: 'Self-contained dashboard page with data inlined.',
-      run: ({ model, report, datasets, name }) => ({ filename: `${name}.html`, blob: textBlob(toInteractiveHTML(model, report, datasets), 'text/html') }),
-    })
-    host.registerExporter({
-      id: 'markdown', name: 'Markdown docs', icon: 'FileText',
-      description: 'Model documentation.',
-      run: ({ model, report, name }) => ({ filename: `${name}.md`, blob: textBlob(toMarkdown(model, report), 'text/markdown') }),
-    })
-    host.registerExporter({
-      id: 'tabular', name: 'Tabular Editor script', icon: 'Terminal',
-      description: 'C# script that recreates every measure.',
-      run: ({ model, name }) => ({ filename: `${name}-measures.csx`, blob: textBlob(toTabularEditorScript(model), 'text/plain') }),
-    })
-    host.registerExporter({
-      id: 'theme', name: 'Theme JSON', icon: 'Palette',
-      description: 'A Power BI theme matching the Workbench.',
-      run: () => ({ filename: 'studio-theme.json', blob: textBlob(toThemeJSON(), 'application/json') }),
-    })
-    host.registerExporter({
-      id: 'json', name: 'Project JSON', icon: 'Braces',
-      description: 'Portable model + report JSON.',
-      run: ({ model, report, name }) => ({ filename: `${name}.json`, blob: textBlob(toProjectJSON(model, report), 'application/json') }),
-    })
-  },
-}
 
 /** Tables that exist to hold measures or drive a what-if/field parameter. They
  * have no data of their own and are disconnected on purpose, so structural rules
@@ -184,7 +127,6 @@ export const coreVisualsPlugin: Plugin = {
 }
 
 export const BUILTIN_PLUGINS: Plugin[] = [
-  coreExportersPlugin,
   coreVisualsPlugin,
   coreValidationPlugin,
   coreAnalystPlugin,

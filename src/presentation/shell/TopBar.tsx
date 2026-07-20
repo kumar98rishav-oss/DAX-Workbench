@@ -8,7 +8,6 @@ import {
   Search,
   ChevronRight,
   Wand2,
-  Download,
 } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { IconButton, Kbd, Segmented } from '@/design-system/components'
@@ -33,7 +32,6 @@ export function TopBar() {
   const goHome = useApp((s) => s.goHome)
   const toggleAnalyst = useApp((s) => s.toggleAnalyst)
   const analystOpen = useApp((s) => s.analystOpen)
-  const toggleExport = useApp((s) => s.toggleExport)
 
   return (
     <header className="pbs-topbar">
@@ -79,10 +77,6 @@ export function TopBar() {
         onClick={() => toggleAnalyst()}
       >
         <Wand2 size={17} />
-      </IconButton>
-
-      <IconButton label="Export" onClick={() => toggleExport(true)}>
-        <Download size={17} />
       </IconButton>
 
       <IconButton
