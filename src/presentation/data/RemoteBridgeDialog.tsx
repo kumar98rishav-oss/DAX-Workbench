@@ -73,13 +73,13 @@ export function RemoteBridgeDialog() {
               <b>Send them the bridge file</b> and have them open their report in Power BI Desktop.
               Both machines must be on the <b>same Wi-Fi/network</b> — a phone hotspot counts as a
               different network.
-              <a className="rb__grab" href="/download/BI-Design-Studio-Bridge.exe" download>
+              <a className="rb__grab" href="/download/DAX-Workbench-Bridge.exe" download>
                 <Download size={13} /> Download the bridge to send
               </a>
             </li>
             <li>
               <b>They double-click it</b> and, when it asks, choose{' '}
-              <b>[2] This computer AND someone else's Studio</b>. (Windows may warn it's from an
+              <b>[2] This computer AND someone else's Workbench</b>. (Windows may warn it's from an
               unknown publisher — <i>More info → Run anyway</i>. And when <b>Windows Firewall</b>{' '}
               asks, click <b>Allow access</b>, ticking both network types.)
             </li>
@@ -118,7 +118,7 @@ export function RemoteBridgeDialog() {
                     <code>ssh -N -L {port || '5177'}:127.0.0.1:{port || '5177'} user@{host || '<their-ip>'}</code>,
                     then connect to <code>127.0.0.1</code> here instead. Encrypted, and no token needed.
                   </li>
-                  <li><b>Or run Studio locally</b> over <code>http://localhost:5175</code>, where this restriction doesn't apply.</li>
+                  <li><b>Or run the Workbench locally</b> over <code>http://localhost:5175</code>, where this restriction doesn't apply.</li>
                 </ul>
               </div>
             </div>

@@ -1,7 +1,7 @@
 # Power BI Desktop Bridge
 
-A tiny **local HTTP service** that lets the web Studio work against the **live
-Power BI Desktop model**. No cloud, no AI — just the Studio ⇄ Desktop link.
+A tiny **local HTTP service** that lets the web Workbench work against the **live
+Power BI Desktop model**. No cloud, no AI — just the Workbench ⇄ Desktop link.
 
 The browser can't speak Analysis Services' protocol, so this helper does it for
 it: it finds the open Desktop model, reads the real schema, runs DAX against the
@@ -19,9 +19,9 @@ same libraries Tabular Editor and DAX Studio use).
 | POST | `/preview` | `{ expression }` → the real scalar value |
 | POST | `/measure` | `{ table, name, dax, formatString?, displayFolder? }` → create/update live |
 
-The Studio auto-detects the bridge (`/health`) and lights up a **● Connected to
+The Workbench auto-detects the bridge (`/health`) and lights up a **● Connected to
 Power BI Desktop** badge — real previews + a **Push to Desktop** button appear.
-If the bridge isn't running, the Studio silently falls back to its in-browser
+If the bridge isn't running, the Workbench silently falls back to its in-browser
 (sample-data) mode.
 
 ## Requirements
@@ -50,26 +50,26 @@ dotnet publish -c Release -r win-x64 --self-contained true -o publish
 > With the **x86** SDK, `dotnet run` can't launch an x64 app — so we publish a
 > self-contained x64 `.exe` and run that (or grab the x64 SDK).
 
-Then open the Studio (http://localhost:5175) with a `.pbix` open in Desktop —
+Then open the Workbench (http://localhost:5175) with a `.pbix` open in Desktop —
 the DAX Architect's **Power BI Desktop** badge turns green automatically.
 
-## Remote — let another machine's Studio reach this report
+## Remote — let another machine's Workbench reach this report
 
 By default the bridge answers **only this machine** (loopback), no token. To let
-someone else's Studio reach the report open here:
+someone else's Workbench reach the report open here:
 
-1. **Double-click** the downloaded `BI-Design-Studio-Bridge.exe`.
+1. **Double-click** the downloaded `DAX-Workbench-Bridge.exe`.
 2. When it asks *who should be able to use this bridge*, type **`2`** (this
-   computer AND someone else's Studio) and press Enter.
+   computer AND someone else's Workbench) and press Enter.
 3. It prints an **Address** and a one-time **pairing token** — send both to the
-   other person. They paste them into Studio's *Remote connector* dialog ("The
+   other person. They paste them into Workbench's *Remote connector* dialog ("The
    report is on another machine?" on the front page).
 
 No terminal needed. If you prefer flags (or are scripting it), `--remote` skips
 the question and `--local` forces loopback-only:
 
 ```powershell
-.\BI-Design-Studio-Bridge.exe --remote
+.\DAX-Workbench-Bridge.exe --remote
 ```
 
 - **Loopback stays token-free.** Only requests arriving over the network are
@@ -83,7 +83,7 @@ the question and `--local` forces loopback-only:
   ```
   ssh -N -L 5177:127.0.0.1:5177 <user>@<their-ip>
   ```
-  Then Studio connects to `127.0.0.1` — encrypted, authenticated by SSH, no
+  Then Workbench connects to `127.0.0.1` — encrypted, authenticated by SSH, no
   token, and no browser mixed-content block (a page on `https://` cannot call a
   plain-`http://` address on another machine, but loopback is exempt).
 
@@ -101,7 +101,7 @@ the model and **ADOMD** to run DAX.
   (undo in Desktop, or overwrite/remove).
 - `/dax` caps results at 10,000 rows.
 - By default everything stays on your machine — the bridge listens on loopback
-  only, and no data is sent anywhere. The hosted Studio is a static page that
+  only, and no data is sent anywhere. The hosted Workbench is a static page that
   runs in your browser and calls this bridge directly.
 
 ### Who is allowed to call it
@@ -110,9 +110,9 @@ On **loopback** the bridge is unauthenticated — anything already on this machi
 can call it, and the CORS allowlist is what stops an arbitrary web page from
 doing so. Keep that list narrow:
 
-- `localhost` / `127.0.0.1` (any port) — the Studio in dev or preview
+- `localhost` / `127.0.0.1` (any port) — the Workbench in dev or preview
 - `tauri://` / `file://` — a desktop shell
-- `https://pbi-design-studio.onrender.com` — the hosted Studio
+- `https://pbi-design-studio.onrender.com` — the hosted Workbench
 
 Over the **network** (`--remote`) CORS protects nothing — it's a browser rule,
 and `curl` ignores it — so a **pairing token** is required instead, and is the

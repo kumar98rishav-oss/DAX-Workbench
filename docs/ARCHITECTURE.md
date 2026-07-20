@@ -1,6 +1,6 @@
-# BI Design Studio — Product & Technical Architecture
+# DAX Workbench — Product & Technical Architecture
 
-> A modern, local-first **Design Studio** for building Power BI solutions.
+> A modern, local-first **Design Workbench** for building Power BI solutions.
 > Not a clone of Power BI Desktop — a dramatically simpler creation experience
 > that stays 100% compatible with the Microsoft ecosystem via open formats
 > (**PBIP**, **TMDL**).
@@ -44,7 +44,7 @@ App
 │   ├── Quick actions  → Import · New · Open PBIP · Open PBIX
 │   ├── Template gallery (17 industry templates)
 │   └── Recent projects
-└── Studio (workspace shell)
+└── Workbench (workspace shell)
     ├── TopBar        — brand · project · ⌘K · mode switch · panel + theme toggles
     ├── LeftSidebar   — Assets: Data, Measures, Pages, Visuals
     ├── Canvas        — Design ⇆ Preview ⇆ Model ⇆ DAX (wireframe designer)

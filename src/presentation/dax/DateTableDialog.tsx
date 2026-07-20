@@ -87,7 +87,7 @@ export function DateTableDialog() {
     try {
       const { csv, rowCount, capped } = buildDateTableCsv(opts, range.min, range.max)
       await importFiles([new File([csv], `${opts.name}.csv`, { type: 'text/csv' })])
-      setMsg({ ok: true, text: `Added “${opts.name}” to the Studio — ${rowCount.toLocaleString()} days${capped ? ' (capped at 40 years)' : ''}. Time intelligence is now available here too.` })
+      setMsg({ ok: true, text: `Added “${opts.name}” to the Workbench — ${rowCount.toLocaleString()} days${capped ? ' (capped at 40 years)' : ''}. Time intelligence is now available here too.` })
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : 'Add failed' })
     } finally {
@@ -188,7 +188,7 @@ export function DateTableDialog() {
         <div className="impdlg__foot">
           {msg && <span style={{ marginRight: 'auto', fontSize: 'var(--text-sm)', color: msg.ok ? 'var(--success)' : 'var(--danger)' }}>{msg.text}</span>}
           <Button variant="ghost" icon={<Copy size={15} />} onClick={() => void copyDax()}>Copy DAX</Button>
-          <Button variant="ghost" icon={<PlusSquare size={15} />} onClick={() => void addToStudio()} disabled={busy}>Add to Studio</Button>
+          <Button variant="ghost" icon={<PlusSquare size={15} />} onClick={() => void addToStudio()} disabled={busy}>Add to Workbench</Button>
           <Button variant="primary" icon={<Upload size={15} />} onClick={() => void deploy()} disabled={busy || !desktop.connected}>
             {desktop.connected ? 'Deploy to Desktop' : 'Desktop not connected'}
           </Button>

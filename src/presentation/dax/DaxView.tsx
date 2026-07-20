@@ -329,7 +329,7 @@ export function DaxView() {
             <EmptyState
               icon={<FunctionSquare size={26} />}
               title="DAX Architect"
-              description="Select or create a measure, describe it in plain language, and Studio writes best-practice DAX with a live preview."
+              description="Select or create a measure, describe it in plain language, and the Workbench writes best-practice DAX with a live preview."
               action={<Button variant="primary" icon={<Plus size={16} />} onClick={addMeasure}>New measure</Button>}
             />
           </div>

@@ -1,7 +1,7 @@
 # PBIP Data Bridge
 
 A browser **cannot** connect to SQL Server or other databases — no drivers, no
-network, sandboxed. So a `.pbip` opened in **BI Design Studio** shows the model +
+network, sandboxed. So a `.pbip` opened in **DAX Workbench** shows the model +
 **sample** data for any SQL/database-backed table.
 
 This tiny local CLI closes that gap. It runs on your machine (where the drivers
@@ -9,11 +9,11 @@ and DB access live), reads each table's Power Query (M) source from the project,
 pulls the **real rows**, and writes one `<Table>.csv` per table into a
 `StudioData/` folder next to the project.
 
-Then **drop the project folder into the Studio again** — it binds each
+Then **drop the project folder into the Workbench again** — it binds each
 `<Table>.csv` to its table automatically. Real numbers everywhere.
 
 ```
-PBIP folder ──(this bridge, locally)──▶ StudioData/*.csv ──(drop folder)──▶ Studio = real data
+PBIP folder ──(this bridge, locally)──▶ StudioData/*.csv ──(drop folder)──▶ Workbench = real data
 ```
 
 ## Setup
@@ -61,7 +61,7 @@ Done. Wrote CSVs to: ...\StudioData
 |---|---|
 | `Sql.Database(...)` | `SELECT * FROM [schema].[item]` → CSV |
 | `Excel.Workbook` / `Csv.Document` (file in folder) | read file → CSV |
-| `Table.FromRows` (inline) | already in the model; the Studio reads it directly |
+| `Table.FromRows` (inline) | already in the model; the Workbench reads it directly |
 | Web / OData / other | not yet — export manually to CSV and drop it in as `<Table>.csv` |
 
 ## Notes

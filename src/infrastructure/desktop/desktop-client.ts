@@ -75,7 +75,7 @@ export async function testBridge(url: string, pairingToken?: string | null): Pro
       ? {
           ok: false,
           kind: 'mixed-content',
-          reason: 'Your browser blocked this: a page served over HTTPS cannot call a plain-HTTP address unless it is on your own machine. Use an SSH tunnel (below), or open Studio from localhost.',
+          reason: 'Your browser blocked this: a page served over HTTPS cannot call a plain-HTTP address unless it is on your own machine. Use an SSH tunnel (below), or open the Workbench from localhost.',
         }
       : { ok: false, kind: 'unreachable', reason: 'Nothing answered — the request never reached a bridge.' }
   }

@@ -22,9 +22,9 @@ public sealed class TrayOptions
 
 public static class Tray
 {
-    private const string AppName = "BI Design Studio";
+    private const string AppName = "DAX Workbench";
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunValue = "BIDesignStudioBridge";
+    private const string RunValue = "DAXWorkbenchBridge";
     private const string ExternalToolsDir =
         @"C:\Program Files (x86)\Common Files\Microsoft Shared\Power BI Desktop\External Tools";
 
@@ -98,15 +98,18 @@ public static class Tray
             {
                 version = "1.0.0",
                 name = AppName,
-                description = "Work on this model in BI Design Studio — deterministic DAX, Measure Factory, Model Doctor, date tables. Local only; nothing leaves this machine.",
+                description = "Work on this model in DAX Workbench — deterministic DAX, Measure Factory, Model Doctor, date tables. Local only; nothing leaves this machine.",
                 path = exe,
                 arguments = "--launch \"%server%\" \"%database%\"",
                 iconData = $"data:image/png;base64,{LoadIconBase64()}",
             };
             Directory.CreateDirectory(dir);
             File.WriteAllText(
-                Path.Combine(dir, "bi-design-studio.pbitool.json"),
+                Path.Combine(dir, "dax-workbench.pbitool.json"),
                 JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+            // The tool used to register as "BI Design Studio" — drop the stale entry
+            // so the ribbon doesn't show two buttons for the same exe.
+            File.Delete(Path.Combine(dir, "bi-design-studio.pbitool.json"));
             if (!silent)
                 RunStaMessageBox(
                     $"Added to Power BI Desktop.\n\nRestart Power BI Desktop and look for \"{AppName}\" in the External Tools ribbon.",
@@ -141,6 +144,7 @@ public static class Tray
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
         if (on) key.SetValue(RunValue, $"\"{Environment.ProcessPath}\" --local");
         else key.DeleteValue(RunValue, throwOnMissingValue: false);
+        key.DeleteValue("BIDesignStudioBridge", throwOnMissingValue: false); // pre-rename key
     }
 }
 
@@ -154,7 +158,7 @@ internal sealed class TrayContext : ApplicationContext
         _o = o;
         var menu = new ContextMenuStrip();
 
-        var open = new ToolStripMenuItem("Open Studio", null, (_, _) => Tray.OpenStudio(_o.Port))
+        var open = new ToolStripMenuItem("Open DAX Workbench", null, (_, _) => Tray.OpenStudio(_o.Port))
         { Font = new Font(Control.DefaultFont, FontStyle.Bold) };
         menu.Items.Add(open);
         menu.Items.Add(new ToolStripSeparator());
@@ -179,7 +183,7 @@ internal sealed class TrayContext : ApplicationContext
             {
                 var yes = MessageBox.Show(
                     "This restarts the bridge so other machines on your network can connect with a pairing token.\n\n" +
-                    "Their Studio can then read this model and write measures into it — only share on a network you trust.\n\nContinue?",
+                    "Their Workbench can then read this model and write measures into it — only share on a network you trust.\n\nContinue?",
                     "Share with another machine", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (yes == DialogResult.Yes) Restart(remote: true);
             }));
@@ -202,7 +206,7 @@ internal sealed class TrayContext : ApplicationContext
         _icon = new NotifyIcon
         {
             Icon = Tray.LoadTrayIcon(),
-            Text = _o.IsRemote ? "BI Design Studio — sharing ON" : "BI Design Studio — local",
+            Text = _o.IsRemote ? "DAX Workbench — sharing ON" : "DAX Workbench — local",
             Visible = true,
             ContextMenuStrip = menu,
         };

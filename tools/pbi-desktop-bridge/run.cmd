@@ -3,7 +3,7 @@ REM Start the Power BI Desktop bridge (local HTTP API on 127.0.0.1:5177).
 REM
 REM This is the DEVELOPER path — build from source, then run. End users need
 REM neither this nor the .NET SDK: they download the prebuilt bridge from the
-REM Studio's front page and double-click it (it is self-contained).
+REM Workbench's front page and double-click it (it is self-contained).
 REM
 REM Builds a single self-contained x64 exe on first run (works even with an x86
 REM .NET SDK, which cannot "dotnet run" an x64 app). Pass -rebuild after changing
@@ -31,7 +31,7 @@ if not exist "%EXE%" (
 
 echo.
 echo Power BI Desktop bridge (developer run) — local only.
-echo Leave this window open. Open a .pbix in Power BI Desktop, then use the Studio.
+echo Leave this window open. Open a .pbix in Power BI Desktop, then use the Workbench.
 echo.
 REM --local skips the this-machine/remote question for the scripted dev path.
 "%EXE%" --local

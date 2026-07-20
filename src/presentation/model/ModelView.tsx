@@ -17,7 +17,7 @@ export function ModelView() {
           <EmptyState
             icon={<Share2 size={26} />}
             title="No model yet"
-            description="Import data and Studio will detect keys, relationships, and the fact/dimension structure automatically."
+            description="Import data and the Workbench will detect keys, relationships, and the fact/dimension structure automatically."
             action={
               <Button variant="primary" icon={<Upload size={16} />} onClick={requestImport}>
                 Import data

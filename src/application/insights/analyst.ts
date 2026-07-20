@@ -162,7 +162,7 @@ function visualSuggestions(f: Facts, model: SemanticModel): AnalystTurn {
   if (f.cat) lines.push(`• A **bar chart** by ${f.cat.name} to compare contributors.`)
   if (dims.length > 1) lines.push(`• A **matrix** crossing ${dims.slice(0, 2).join(' × ')} for a two-dimensional view.`)
   lines.push(`• **KPI cards** for your headline measures, plus a **slicer** for interactive filtering.`)
-  lines.push(`\nWant me to build them? Use **Generate dashboard** and Studio lays them out automatically.`)
+  lines.push(`\nWant me to build them? Use **Generate dashboard** and the Workbench lays them out automatically.`)
   return { text: lines.join('\n'), chips: ['Generate dashboard', 'Show me insights'] }
 }
 

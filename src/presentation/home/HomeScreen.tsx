@@ -35,7 +35,7 @@ import { WaveSea } from './WaveSea'
 import './home.css'
 
 // Served from the site itself, so this works on localhost and in production alike.
-const BRIDGE_DOWNLOAD = '/download/BI-Design-Studio-Bridge.exe'
+const BRIDGE_DOWNLOAD = '/download/DAX-Workbench-Bridge.exe'
 const BRIDGE_SIZE = '52 MB'
 const LINKEDIN = 'https://www.linkedin.com/in/rishav98kumar'
 const EMAIL = 'Kumar98rishav@gmail.com'
@@ -62,12 +62,12 @@ const PRIVACY = [
   {
     icon: <KeyRound size={15} />,
     title: 'No account, no sign-in, no server of ours',
-    body: 'There is nothing to register for and nowhere for your data to be sent. Studio has no backend — it is a page that runs in your browser.',
+    body: 'There is nothing to register for and nowhere for your data to be sent. The Workbench has no backend — it is a page that runs in your browser.',
   },
   {
     icon: <Home size={15} />,
     title: 'One network call, and it goes to your own machine',
-    body: 'Studio makes exactly one kind of request: to the bridge at 127.0.0.1:5177. Your tables, rows and measures are read there and stay in your browser\'s memory.',
+    body: 'The Workbench makes exactly one kind of request: to the bridge at 127.0.0.1:5177. Your tables, rows and measures are read there and stay in your browser\'s memory.',
   },
   {
     icon: <WifiOff size={15} />,
@@ -96,7 +96,7 @@ const PILLARS = [
     id: 'dax',
     icon: <Sigma size={20} />,
     name: 'DAX Architect',
-    blurb: 'Describe the measure in plain English. Studio ranks the ways to build it and you pick.',
+    blurb: 'Describe the measure in plain English. the Workbench ranks the ways to build it and you pick.',
     points: [
       'Ranked suggestions, not one guess — you choose',
       'Branched plans: base measures built for you',
@@ -212,12 +212,12 @@ export function HomeScreen() {
     {
       label: 'Open your report in Power BI Desktop',
       done: desktop.connected,
-      body: <>Open any <code>.pbix</code>. Studio finds the model on its own — nothing to configure.</>,
+      body: <>Open any <code>.pbix</code>. the Workbench finds the model on its own — nothing to configure.</>,
     },
     {
       label: 'Connect',
       done: false,
-      body: <>This page notices the bridge on its own. Studio then reads your tables, rows and measures — and writes DAX back into Desktop.</>,
+      body: <>This page notices the bridge on its own. the Workbench then reads your tables, rows and measures — and writes DAX back into Desktop.</>,
     },
   ]
 
@@ -237,7 +237,7 @@ export function HomeScreen() {
           <span className="pbs-home__logo">
             <Sparkles size={16} />
           </span>
-          BI Design Studio
+          DAX Workbench
         </span>
         <span style={{ flex: 1 }} />
         {/* Sister tool: the report-design companion. Ctrl+K still opens search —
@@ -267,7 +267,7 @@ export function HomeScreen() {
             Work on your <em>real</em> Power BI model
           </h1>
           <p className="pbs-home__lede">
-            Studio reads the model open in Power BI Desktop — real rows, real measures, real values —
+            The Workbench reads the model open in Power BI Desktop — real rows, real measures, real values —
             builds the DAX, and writes it straight back. Nothing is estimated.
           </p>
 
@@ -329,7 +329,7 @@ export function HomeScreen() {
               <h2 className="pbs-panel__title">Connect to Power BI Desktop</h2>
               <p className="pbs-panel__sub">
                 Power BI Desktop runs a private Analysis Services engine behind your report. A small
-                local bridge lets Studio talk to it — the same way Tabular Editor and DAX Studio do.
+                local bridge lets the Workbench talk to it — the same way Tabular Editor and DAX Studio do.
                 Your data never leaves this machine.
               </p>
             </div>
@@ -363,7 +363,7 @@ export function HomeScreen() {
             <span>
               The bridge runs entirely on your machine. It listens on loopback only, accepts calls
               from this site alone, and uploads nothing anywhere. It can read your model and write
-              measures into it — that is what makes Studio work — so only ever run a copy you
+              measures into it — that is what makes the Workbench work — so only ever run a copy you
               downloaded from here.{' '}
               <button className="pbs-inlinelink" onClick={() => toggleRemote(true)}>
                 The report is on another machine?
@@ -435,7 +435,7 @@ export function HomeScreen() {
               <span className="pbs-boundary__link" aria-hidden="true" />
               <div className="pbs-node">
                 <Sparkles size={16} />
-                <strong>Studio</strong>
+                <strong>The Workbench</strong>
                 <span>running in your browser</span>
               </div>
             </div>
@@ -467,12 +467,12 @@ export function HomeScreen() {
             <a className="pbs-footer__link" href={LINKEDIN} target="_blank" rel="noopener noreferrer">
               <Linkedin size={14} /> linkedin.com/in/rishav98kumar
             </a>
-            <a className="pbs-footer__link" href={`mailto:${EMAIL}?subject=BI%20Design%20Studio%20feedback`}>
+            <a className="pbs-footer__link" href={`mailto:${EMAIL}?subject=DAX%20Workbench%20feedback`}>
               <Mail size={14} /> {EMAIL}
             </a>
           </div>
           <p className="pbs-footer__legal">
-            © 2026 BI Design Studio. All rights reserved. Built by Rishav K. Not affiliated with or
+            © 2026 DAX Workbench. All rights reserved. Built by Rishav K. Not affiliated with or
             endorsed by Microsoft. Power BI is a trademark of Microsoft Corporation.
           </p>
         </footer>

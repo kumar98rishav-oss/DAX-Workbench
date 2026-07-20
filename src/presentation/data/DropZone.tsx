@@ -33,7 +33,7 @@ export function DropZone() {
       <h2 className="dropzone__title">Drop data to begin</h2>
       <p className="dropzone__desc">
         Drag a <strong>CSV</strong>, <strong>Excel</strong>, or <strong>Parquet</strong> file
-        here. Studio infers the schema and profiles every column automatically.
+        here. The Workbench infers the schema and profiles every column automatically.
       </p>
       <div className="dropzone__actions">
         <Button

@@ -84,7 +84,7 @@ export function MeasureFactoryDialog() {
           pushed++
         }
       }
-      setMsg({ ok: true, text: desktop.connected ? `Added ${steps.length} measures to the Studio and deployed ${pushed} to Power BI Desktop.` : `Added ${steps.length} measures to the Studio. Connect Desktop to deploy them.` })
+      setMsg({ ok: true, text: desktop.connected ? `Added ${steps.length} measures to the Workbench and deployed ${pushed} to Power BI Desktop.` : `Added ${steps.length} measures to the Workbench. Connect Desktop to deploy them.` })
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : 'Deploy failed' })
     } finally {
@@ -154,7 +154,7 @@ export function MeasureFactoryDialog() {
           {msg && <span style={{ fontSize: 'var(--text-sm)', color: msg.ok ? 'var(--success)' : 'var(--danger)', marginRight: 8 }}>{msg.text}</span>}
           <Button variant="ghost" onClick={() => toggle(false)}>Close</Button>
           <Button variant="primary" icon={<Upload size={15} />} onClick={() => void deploy()} disabled={busy || selectedCount === 0}>
-            {desktop.connected ? 'Add + deploy to Desktop' : 'Add to Studio'}
+            {desktop.connected ? 'Add + deploy to Desktop' : 'Add to Workbench'}
           </Button>
         </div>
       </div>

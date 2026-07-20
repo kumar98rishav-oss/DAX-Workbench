@@ -1,15 +1,15 @@
 <div align="center">
 
-# ⚡ BI Design Studio
+# ⚡ DAX Workbench
 
 **Work on your *real* Power BI model.**
 
-Studio reads the model open in Power BI Desktop — real rows, real measures, real values —
+Workbench reads the model open in Power BI Desktop — real rows, real measures, real values —
 builds the DAX, verifies it on Microsoft's own engine, and writes it straight back.
 Nothing is estimated, and no AI sits anywhere in that path.
 
-[**Live Studio**](https://pbi-design-studio.onrender.com) ·
-[**Download the bridge**](https://pbi-design-studio.onrender.com/download/BI-Design-Studio-Bridge.exe) ·
+[**Live Workbench**](https://pbi-design-studio.onrender.com) ·
+[**Download the bridge**](https://pbi-design-studio.onrender.com/download/DAX-Workbench-Bridge.exe) ·
 [Architecture](./docs/ARCHITECTURE.md) ·
 [Bridge internals](./tools/pbi-desktop-bridge/README.md)
 
@@ -22,7 +22,7 @@ Nothing is estimated, and no AI sits anywhere in that path.
 
 <br>
 
-![BI Design Studio — landing](./docs/media/landing.png)
+![DAX Workbench — landing](./docs/media/landing.png)
 
 </div>
 
@@ -34,13 +34,13 @@ Every "AI writes your DAX" tool shares one failure mode: it produces formulas th
 right. A hallucinated filter on a column that exists, against a value that doesn't, returns
 a number — not an error — and someone makes a decision on it.
 
-Studio inverts that. Natural language is parsed into a structured intent and resolved
+Workbench inverts that. Natural language is parsed into a structured intent and resolved
 **against the live model**: the column must exist, the value must appear in that column's
 actual data, or the filter is dropped. What survives is matched against a library of
 hand-written DAX patterns, each of which emits a known-good shape. The engine can be wrong
 about what you *meant*. It cannot invent a column, and it cannot invent a value.
 
-Because generation is deterministic, output is reviewable — Studio proposes ranked
+Because generation is deterministic, output is reviewable — Workbench proposes ranked
 candidates and **you pick**. Because the model is live, every candidate is **previewed
 before you commit**, and verified numbers come from the same Analysis Services engine your
 report runs on.
@@ -48,7 +48,7 @@ report runs on.
 ## The three tools
 
 ### ƒ DAX Architect
-Describe the measure in plain English; Studio ranks the ways to build it.
+Describe the measure in plain English; Workbench ranks the ways to build it.
 - Ranked suggestions with live previews — you choose, it never just guesses
 - **Branched build plans**: ask for YoY and get the base total, the prior-year measure, and the growth measure that divides them
 - Time intelligence, iterators (`SUMX`/`RELATED`), `VAR`/`RETURN`, `USERELATIONSHIP`, typo-tolerant filters resolved against real data
@@ -73,19 +73,19 @@ Audits the live model for what renders badly, scales badly, or breaks quietly.
 - 🧠 **Model** — automatic star-schema detection (keys, relationships, fact/dimension/date roles) with an interactive relationship graph
 - 🎨 **Design** — drag-and-drop canvas, 21 hand-rendered SVG visual types, 6 dashboard layout recipes, undo/redo, ⌘K command palette
 - 📤 **Export** — TMDL, PBIP (zip), interactive HTML, Markdown docs, theme JSON, Tabular Editor C# script
-- 🧩 **Plugin SDK** — Studio's own features register through its public extension points; structural model validation included
+- 🧩 **Plugin SDK** — Workbench's own features register through its public extension points; structural model validation included
 - 📂 **Open PBIP/PBIX** — parse a Power BI project's TMDL, bind real data from its source files, honest fallbacks where a format can't be read in a browser
 
 ## How the live connector works
 
 Power BI Desktop already runs a private Analysis Services instance behind every open
-report. Studio's entire connection strategy is to find it and speak to it properly — the
+report. Workbench's entire connection strategy is to find it and speak to it properly — the
 same way Tabular Editor and DAX Studio do.
 
 ```
 ┌─────────────────────────  your computer  ─────────────────────────┐
 │                                                                   │
-│  Power BI Desktop  ◄──TOM / ADOMD──►  Bridge  ◄──HTTP──►  Studio  │
+│  Power BI Desktop  ◄──TOM / ADOMD──►  Bridge  ◄──HTTP──►  Workbench  │
 │  (msmdsrv.exe, your model)     (127.0.0.1:5177)      (in browser) │
 │                                                                   │
 └───────────────────────────────────────────────────────────────────┘
@@ -104,14 +104,14 @@ same way Tabular Editor and DAX Studio do.
 
 Two very different things travel over the bridge, and only one of them is capped:
 
-**Sync moves raw rows.** When Studio pulls your model in, each table comes over as
+**Sync moves raw rows.** When Workbench pulls your model in, each table comes over as
 `EVALUATE 'Table'`, capped at **10,000 rows per table** — a deliberate guard on browser
 memory and sync time. This sample only feeds the *in-browser* previews: the quick numbers
 on suggestion cards and the local mini-DAX evaluator. If a table is larger than 10K, those
 local previews become indicative rather than exact.
 
 **Measures move as text.** *Verify on Desktop*, previews against the engine, and deployed
-measures never touch the sample. Studio sends the **DAX expression itself** — a few
+measures never touch the sample. Workbench sends the **DAX expression itself** — a few
 hundred bytes — and Analysis Services evaluates it inside Desktop **over every row it
 has**, returning just the answer:
 
@@ -140,7 +140,7 @@ being correct.
 ### Remote connector
 
 Work on a report that's open on **another machine**: they double-click the bridge and
-choose *"[2] This computer AND someone else's Studio"* — it prints an address and a
+choose *"[2] This computer AND someone else's Workbench"* — it prints an address and a
 one-time **pairing token** (mandatory over the network, fixed-time compared; loopback
 stays token-free). Both machines must be on the same network, and Windows Firewall must be
 allowed when it asks. On untrusted networks, use the SSH tunnel the dialog suggests
@@ -150,7 +150,7 @@ instead — encrypted, no token, no mixed-content restrictions.
 
 **As a user** — nothing to install except the bridge:
 
-1. Open the [live Studio](https://pbi-design-studio.onrender.com)
+1. Open the [live Workbench](https://pbi-design-studio.onrender.com)
 2. Download the bridge from the front page and double-click it
    (unsigned binary — Windows will say *unknown publisher*; choose **More info → Run anyway**)
 3. Open your report in Power BI Desktop
@@ -183,7 +183,7 @@ run.cmd -rebuild   # after changing bridge source
 
 ## Privacy
 
-Not a policy — a consequence of how it's built. The Studio is a static page with **no
+Not a policy — a consequence of how it's built. The Workbench is a static page with **no
 backend**: no account, no sign-in, no analytics, no error reporting, no third-party
 scripts, no external fonts. The app makes exactly **one kind of network call — to the
 bridge on your own machine** — and the bridge talks to Power BI Desktop and nothing else.
@@ -220,7 +220,7 @@ Designed with ❤️ by **Rishav K.** — love to hear about your experience.
 
 [LinkedIn](https://www.linkedin.com/in/rishav98kumar) · [Kumar98rishav@gmail.com](mailto:Kumar98rishav@gmail.com)
 
-© 2026 BI Design Studio. All rights reserved.
+© 2026 DAX Workbench. All rights reserved.
 Not affiliated with or endorsed by Microsoft. Power BI is a trademark of Microsoft Corporation.
 
 </div>

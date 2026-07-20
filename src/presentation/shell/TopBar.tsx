@@ -41,7 +41,7 @@ export function TopBar() {
         <span className="pbs-topbar__logo">
           <Sparkles size={15} />
         </span>
-        BI Design Studio
+        DAX Workbench
       </button>
 
       <span className="pbs-topbar__divider" />

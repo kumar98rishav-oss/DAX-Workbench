@@ -21,7 +21,7 @@ export interface AnalystProvider {
 
 export class LocalAnalystProvider implements AnalystProvider {
   id = 'local'
-  name = 'Studio Analyst (local)'
+  name = 'Workbench Analyst (local)'
   async ask(question: string, ctx: AnalystContext): Promise<AnalystTurn> {
     return askLocalAnalyst(question, ctx.model, ctx.datasets)
   }

@@ -24,7 +24,7 @@ export const coreExportersPlugin: Plugin = {
   id: 'core.exporters',
   name: 'Open-format Exporters',
   version: '1.0.0',
-  author: 'BI Design Studio',
+  author: 'DAX Workbench',
   description: 'Export the model and report to TMDL, PBIP, HTML, Markdown, theme, script, and JSON.',
   activate(host) {
     host.registerExporter({
@@ -54,7 +54,7 @@ export const coreExportersPlugin: Plugin = {
     })
     host.registerExporter({
       id: 'theme', name: 'Theme JSON', icon: 'Palette',
-      description: 'A Power BI theme matching Studio.',
+      description: 'A Power BI theme matching the Workbench.',
       run: () => ({ filename: 'studio-theme.json', blob: textBlob(toThemeJSON(), 'application/json') }),
     })
     host.registerExporter({
@@ -77,7 +77,7 @@ export const coreValidationPlugin: Plugin = {
   id: 'core.validation',
   name: 'Model Validator',
   version: '2.0.0',
-  author: 'BI Design Studio',
+  author: 'DAX Workbench',
   // Structure only. Measure quality (formats, DAX shape, folders) belongs to the
   // Model Doctor — two features answering the same question is how they end up
   // contradicting each other.
@@ -140,14 +140,14 @@ export const coreValidationPlugin: Plugin = {
 
 export const coreThemePlugin: Plugin = {
   id: 'core.theme',
-  name: 'Studio Theme',
+  name: 'Workbench Theme',
   version: '1.0.0',
-  author: 'BI Design Studio',
+  author: 'DAX Workbench',
   description: 'The default monochrome + blue accent theme.',
   activate(host) {
     host.registerTheme({
       id: 'studio',
-      name: 'Studio Default',
+      name: 'Workbench Default',
       colors: ['#3b6ef6', '#17a673', '#d98a15', '#8b5cf6', '#e5484d', '#0ea5e9', '#ec4899', '#64748b'],
     })
   },
@@ -157,7 +157,7 @@ export const coreAnalystPlugin: Plugin = {
   id: 'core.analyst',
   name: 'Local Analyst',
   version: '1.0.0',
-  author: 'BI Design Studio',
+  author: 'DAX Workbench',
   description: 'The offline heuristic business analyst (LLM providers can replace it).',
   activate(host) {
     host.registerAIProvider(new LocalAnalystProvider())
@@ -168,7 +168,7 @@ export const coreVisualsPlugin: Plugin = {
   id: 'core.visuals',
   name: 'Core Visuals',
   version: '1.0.0',
-  author: 'BI Design Studio',
+  author: 'DAX Workbench',
   description: 'The built-in visual renderers.',
   activate(host) {
     const visuals = [

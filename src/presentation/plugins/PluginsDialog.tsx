@@ -30,7 +30,7 @@ export function PluginsDialog() {
         <div className="plugins__head">
           <div>
             <div className="plugins__title">Plugins & Model Health</div>
-            <div className="plugins__sub">Studio's features run on its own plugin SDK</div>
+            <div className="plugins__sub">The Workbench's features run on its own plugin SDK</div>
           </div>
           <IconButton label="Close" onClick={() => toggle(false)}>
             <X size={18} />

@@ -22,7 +22,7 @@ export function ExportDialog() {
 
   if (!open) return null
 
-  const name = (projectName ?? model.name ?? 'PowerBIStudio').replace(/[^A-Za-z0-9_-]+/g, '_')
+  const name = (projectName ?? model.name ?? 'DAXWorkbench').replace(/[^A-Za-z0-9_-]+/g, '_')
   const hasModel = model.tables.length > 0
 
   return (

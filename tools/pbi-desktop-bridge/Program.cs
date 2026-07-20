@@ -10,7 +10,7 @@ using Microsoft.Extensions.FileProviders;
 using PbiDesktopBridge;
 using Tom = Microsoft.AnalysisServices.Tabular;
 
-// BI Design Studio bridge — now the WHOLE product in one exe: a system-tray app
+// DAX Workbench bridge — now the WHOLE product in one exe: a system-tray app
 // that serves the embedded Studio UI at http://127.0.0.1:5177 and speaks
 // TOM/ADOMD to Power BI Desktop's embedded Analysis Services. No console, no
 // separate website needed, no cloud.
@@ -38,7 +38,7 @@ if (Flag(args, "--register-external-tool"))
 
 // ---- single instance: a second launch just brings the Studio up ----
 var listenPort = int.TryParse(Arg(args, "--port"), out var p0) ? p0 : 5177;
-using var single = new Mutex(true, "Local\\bi-design-studio-bridge", out var firstInstance);
+using var single = new Mutex(true, "Local\\dax-workbench-bridge", out var firstInstance);
 if (!firstInstance)
 {
     Tray.OpenStudio(listenPort);
