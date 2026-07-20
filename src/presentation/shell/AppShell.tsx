@@ -3,8 +3,8 @@ import { TopBar } from './TopBar'
 import { LeftSidebar } from './LeftSidebar'
 import { RightPanel } from './RightPanel'
 import { BottomPanel } from './BottomPanel'
-import { CanvasStage } from './CanvasStage'
 import { DataView } from '@/presentation/data/DataView'
+import { KpiView } from '@/presentation/kpi/KpiView'
 import { ModelView } from '@/presentation/model/ModelView'
 import { DaxView } from '@/presentation/dax/DaxView'
 import './shell.css'
@@ -18,7 +18,7 @@ export function AppShell() {
       <div className="pbs-shell__body">
         <LeftSidebar />
         <div className="pbs-shell__center">
-          {mode === 'design' && <CanvasStage />}
+          {mode === 'kpi' && <KpiView />}
           {mode === 'data' && <DataView />}
           {mode === 'model' && <ModelView />}
           {mode === 'dax' && <DaxView />}

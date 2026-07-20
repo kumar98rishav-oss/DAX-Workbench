@@ -112,7 +112,7 @@ function buildArtifacts(model: SemanticModel, layoutId: string): { model: Semant
 
 export type View = 'home' | 'studio'
 export type Theme = 'light' | 'dark'
-export type StudioMode = 'design' | 'data' | 'model' | 'dax'
+export type StudioMode = 'kpi' | 'design' | 'data' | 'model' | 'dax'
 
 interface PanelState {
   left: boolean
@@ -174,6 +174,14 @@ interface AppState {
   factoryOpen: boolean
   doctorOpen: boolean
   dateTableOpen: boolean
+  /** KPI board slot overrides (index -> measure name, null = cleared). Slots
+   * without an override auto-fill newest-first. */
+  kpiOverrides: Record<number, string | null>
+  answersMatrix: { row: string | null; col: string | null; values: string[] }
+  answersTable: { dims: string[]; values: string[] }
+  setKpiSlot: (index: number, measureName: string | null) => void
+  setAnswersMatrix: (cfg: Partial<{ row: string | null; col: string | null; values: string[] }>) => void
+  setAnswersTable: (cfg: Partial<{ dims: string[]; values: string[] }>) => void
   toggleFactory: (open?: boolean) => void
   toggleDoctor: (open?: boolean) => void
   toggleDateTable: (open?: boolean) => void
@@ -294,7 +302,7 @@ function uniqueId(base: string, taken: Set<string>): string {
 export const useApp = create<AppState>((set, get) => ({
   view: 'home',
   theme: initialTheme,
-  mode: 'design',
+  mode: 'kpi',
   panels: { left: true, right: true, bottom: false },
   commandPaletteOpen: false,
   projectName: null,
@@ -332,13 +340,16 @@ export const useApp = create<AppState>((set, get) => ({
   factoryOpen: false,
   doctorOpen: false,
   dateTableOpen: false,
+  kpiOverrides: {},
+  answersMatrix: { row: null, col: null, values: [] },
+  answersTable: { dims: [], values: [] },
   _pickFiles: null,
   _pickPbip: null,
   _pickPbix: null,
 
   goHome: () => set({ view: 'home' }),
 
-  openStudio: (projectName) => set({ view: 'studio', projectName, mode: 'design' }),
+  openStudio: (projectName) => set({ view: 'studio', projectName, mode: 'kpi' }),
 
   setMode: (mode) => set({ mode }),
 
@@ -461,7 +472,7 @@ export const useApp = create<AppState>((set, get) => ({
     resetAccent()
     set({
       view: 'studio',
-      mode: load.hasDashboard ? 'design' : 'model',
+      mode: 'kpi',
       datasets: load.datasets,
       model: load.model,
       report: load.report,
@@ -493,6 +504,9 @@ export const useApp = create<AppState>((set, get) => ({
   toggleFactory: (open) => set((s) => ({ factoryOpen: open ?? !s.factoryOpen })),
   toggleDoctor: (open) => set((s) => ({ doctorOpen: open ?? !s.doctorOpen })),
   toggleDateTable: (open) => set((s) => ({ dateTableOpen: open ?? !s.dateTableOpen })),
+  setKpiSlot: (index, measureName) => set((s) => ({ kpiOverrides: { ...s.kpiOverrides, [index]: measureName } })),
+  setAnswersMatrix: (cfg) => set((s) => ({ answersMatrix: { ...s.answersMatrix, ...cfg } })),
+  setAnswersTable: (cfg) => set((s) => ({ answersTable: { ...s.answersTable, ...cfg } })),
 
   // Pull the REAL model + data from the connected Power BI Desktop into the Studio.
   syncFromDesktop: async () => {
@@ -535,7 +549,7 @@ export const useApp = create<AppState>((set, get) => ({
       const measureCount = pbi.tables.reduce((n, t) => n + t.measures.length, 0)
       set({
         view: 'studio',
-        mode: load.hasDashboard ? 'design' : 'model',
+        mode: 'kpi',
         datasets: load.datasets,
         model: load.model,
         report: load.report,
@@ -567,7 +581,7 @@ export const useApp = create<AppState>((set, get) => ({
       resetAccent()
       set({
         view: 'studio',
-        mode: load.hasDashboard ? 'design' : 'model',
+        mode: 'kpi',
         datasets: load.datasets,
         model: load.model,
         report: load.report,
@@ -639,7 +653,7 @@ export const useApp = create<AppState>((set, get) => ({
         importing: false,
         importError: error,
         view: imported ? 'studio' : s.view,
-        mode: imported ? (hasDashboard ? 'design' : 'data') : s.mode,
+        mode: imported ? 'kpi' : s.mode,
         projectName: s.projectName ?? addedData[0]?.name ?? null,
         selectedVisualId: null,
         past: [],
@@ -755,7 +769,7 @@ export const useApp = create<AppState>((set, get) => ({
             ? pending.fileNames[0]?.replace(/\.[^.]+$/, '') ?? selected[0]?.name ?? 'Imported'
             : s.projectName,
         view: 'studio',
-        mode: hasDashboard ? 'design' : 'data',
+        mode: 'kpi',
         pendingImport: null,
         selectedVisualId: null,
         selectedMeasureId: null,
@@ -790,7 +804,7 @@ export const useApp = create<AppState>((set, get) => ({
       return {
         model: artifacts.model,
         report: artifacts.report,
-        mode: 'design',
+        mode: 'kpi',
         selectedVisualId: null,
         past: [],
         future: [],
@@ -804,7 +818,7 @@ export const useApp = create<AppState>((set, get) => ({
         layoutId,
         model: artifacts.model,
         report: artifacts.report,
-        mode: 'design',
+        mode: 'kpi',
         selectedVisualId: null,
         past: [],
         future: [],

@@ -12,7 +12,6 @@ import {
   FunctionSquare,
   Sparkles,
   Puzzle,
-  LayoutTemplate,
 } from 'lucide-react'
 import type { Command } from '@/design-system/components'
 import { useApp } from './store'
@@ -47,11 +46,12 @@ export function buildCommands(): Command[] {
       run: () => s.requestImport(),
     },
     {
-      id: 'mode.design',
-      title: 'Switch to Design',
+      id: 'mode.kpi',
+      title: 'Switch to KPI Board',
       group: 'View',
       icon: <PenTool size={16} />,
-      run: () => s.setMode('design'),
+      keywords: ['kpi', 'answers', 'cards', 'matrix', 'table'],
+      run: () => s.setMode('kpi'),
     },
     {
       id: 'mode.data',
@@ -128,22 +128,6 @@ export function buildCommands(): Command[] {
       icon: <Sparkles size={16} />,
       keywords: ['ai', 'insight', 'why', 'chat', 'question'],
       run: () => s.toggleAnalyst(true),
-    },
-    {
-      id: 'ai.generate',
-      title: 'Generate Dashboard',
-      group: 'Assistant',
-      icon: <Sparkles size={16} />,
-      keywords: ['auto', 'magic', 'recommend', 'dashboard', 'kpi', 'visual'],
-      run: () => s.generateDashboard(),
-    },
-    {
-      id: 'layout.choose',
-      title: 'Choose Dashboard Layout',
-      group: 'View',
-      icon: <LayoutTemplate size={16} />,
-      keywords: ['layout', 'structure', 'arrange', 'template', 'filter panel'],
-      run: () => s.toggleLayoutChooser(true),
     },
     {
       id: 'model.rerun',
