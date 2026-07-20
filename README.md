@@ -67,11 +67,27 @@ Audits the live model for what renders badly, scales badly, or breaks quietly.
 - Division that should be `DIVIDE()`, missing display folders
 - Exports a Markdown data dictionary of the whole model
 
+### ⚡ Optimizer
+Rewrites a measure into the shape the engine handles best — and then **proves it
+on your data** instead of asserting it.
+- Deterministic rules, no LLM: whole-table `FILTER` → column predicate,
+  `COUNTROWS(FILTER(…))` → `CALCULATE`, single-column `SUMX` → `SUM`,
+  `IF(ISBLANK(x), y, x)` → `COALESCE`, bare `/` → `DIVIDE`
+- Advisory findings for what can't be rewritten safely — a measure called inside
+  `FILTER` (context transition per row), `IFERROR`, `EARLIER`, nested `CALCULATE`
+- Every suggestion is benchmarked before/after on the live engine with the caches
+  cleared, and the **values are compared**: a rewrite that returns a different
+  number is reported as a rule bug, never as a speed-up
+- Won't declare a winner it can't defend — when the run-to-run spread is wider
+  than the difference it says "too close to call" and shows both numbers
+- Already-good DAX gets **"No change required"**
+
 ## Wrapped in a full studio
 
 - 📥 **Data** — CSV / Excel / Parquet parsed in a Web Worker; schema inference, column profiling, multi-sheet + side-by-side table splitting, virtualized grid
 - 🧠 **Model** — automatic star-schema detection (keys, relationships, fact/dimension/date roles) with an interactive relationship graph
 - 📊 **KPI** — a live answers surface: a 12-card board that auto-fills as you create measures, plus matrix and table pages computed by the real engine; click any card to open its DAX, zoom/fit to your screen
+- 🔍 **All DAX** — every measure in the model in one searchable list, each copyable, one click to jump to it
 - 🧩 **Plugin SDK** — Workbench's own features register through its public extension points; structural model validation included
 - 📂 **Open PBIP/PBIX** — parse a Power BI project's TMDL, bind real data from its source files, honest fallbacks where a format can't be read in a browser
 

@@ -126,6 +126,27 @@ export const desktopEvaluateScalar = async (query: string, port?: number): Promi
   return row ? row[r.columns[0]] : null
 }
 
+export interface DaxTiming {
+  ms: number[]
+  median: number
+  min: number
+  runs: number
+  rowCount: number
+  value: unknown
+  /** False when the engine refused to drop its caches — the numbers are then
+   * warm-cache and must be labelled as such, never presented as cold. */
+  cold: boolean
+}
+
+/** Benchmark a query on the real engine. Generous timeout: clearing the cache
+ * and running several cold passes is deliberately the slow path. */
+export const desktopTimeDax = (dax: string, runs = 3, clearCache = true, port?: number) =>
+  req<DaxTiming>('/time', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ dax, runs, clearCache, port }),
+  }, 120000)
+
 export const desktopRunDax = (dax: string, port?: number) =>
   req<{ columns: string[]; rowCount: number; rows: Record<string, unknown>[] }>('/dax', {
     method: 'POST',

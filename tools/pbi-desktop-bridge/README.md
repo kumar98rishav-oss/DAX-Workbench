@@ -16,6 +16,7 @@ same libraries Tabular Editor and DAX Studio use).
 | GET | `/discover` | open Desktop models (db + port) |
 | GET | `/model` | tables, columns, measures, relationships |
 | POST | `/dax` | `{ dax }` → run `EVALUATE …` on real data |
+| POST | `/time` | `{ dax, runs?, clearCache? }` → per-run timings + median/min; powers the Optimizer's before/after proof |
 | POST | `/preview` | `{ expression }` → the real scalar value |
 | POST | `/measure` | `{ table, name, dax, formatString?, displayFolder? }` → create/update live |
 
@@ -100,6 +101,11 @@ the model and **ADOMD** to run DAX.
 - Writing measures via TOM is standard external-tool behaviour — reversible
   (undo in Desktop, or overwrite/remove).
 - `/dax` caps results at 10,000 rows.
+- `/time` clears the engine's caches before each timed run so the comparison is
+  cold-cache, and does one untimed warm-up pass first so connection setup and
+  query-plan compilation don't land in the numbers. If the engine refuses to
+  clear caches the reply says `cold: false` and the timings are warm — the UI
+  labels them as such rather than passing them off as cold.
 - By default everything stays on your machine — the bridge listens on loopback
   only, and no data is sent anywhere. The hosted Workbench is a static page that
   runs in your browser and calls this bridge directly.

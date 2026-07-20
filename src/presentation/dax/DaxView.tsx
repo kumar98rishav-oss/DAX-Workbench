@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap, CalendarDays } from 'lucide-react'
+import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap, CalendarDays, ListTree, Zap } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, EmptyState } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
@@ -13,7 +13,10 @@ import { recordPick } from '@/application/dax/intent/memory'
 import { desktopPreview, desktopCreateMeasure, desktopEvaluateScalar, modelLabel } from '@/infrastructure/desktop/desktop-client'
 import { buildDefineQuery, dependencyClosure, modelMeasures, defineHomeTable } from '@/application/dax/live-preview'
 import { DependencyGraph } from './DependencyGraph'
+import { DaxAll } from './DaxAll'
+import { DaxOptimizer } from './DaxOptimizer'
 import './dax.css'
+import './dax-panel.css'
 
 function formatByString(v: number, fmt: string): string {
   if (fmt.includes('%')) return `${(v * 100).toFixed(1)}%`
@@ -96,6 +99,7 @@ export function DaxView() {
   const [query, setQuery] = useState('')
   const [desktopMsg, setDesktopMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [panel, setPanel] = useState<'functions' | 'all' | 'optimizer'>('functions')
   const codeRef = useRef<HTMLTextAreaElement>(null)
 
   // Detect the local Power BI Desktop bridge (polls; fails soft when absent).
@@ -542,27 +546,62 @@ export function DaxView() {
         )}
       </main>
 
-      {/* reference */}
+      {/* reference · all DAX · optimizer */}
       <aside className="dax-ref">
-        <div className="dax-ref__head">
-          <input
-            className="dax-ref__search"
-            placeholder="Search DAX functions…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <div className="dax-ref__count">{DAX_CATALOG.length} functions · click to insert</div>
+        <div className="dax-ref__tabs">
+          <button className="dax-ref__tab" data-on={panel === 'functions'} onClick={() => setPanel('functions')}>
+            <FunctionSquare size={13} /> Functions
+          </button>
+          <button className="dax-ref__tab" data-on={panel === 'all'} onClick={() => setPanel('all')}>
+            <ListTree size={13} /> All DAX
+          </button>
+          <button className="dax-ref__tab" data-on={panel === 'optimizer'} onClick={() => setPanel('optimizer')}>
+            <Zap size={13} /> Optimizer
+          </button>
         </div>
-        <div className="dax-ref__list pbs-scroll">
-          {results.map((fn) => (
-            <button key={fn.name} className="dax-fn" onClick={() => insertFn(fn)} title={fn.description}>
-              <span className="dax-fn__name">{fn.name}</span>
-              <span className="dax-fn__cat">{fn.category}</span>
-              <div className="dax-fn__syntax">{fn.syntax}</div>
-              <div className="dax-fn__desc">{fn.description}</div>
-            </button>
-          ))}
-        </div>
+
+        {panel === 'functions' && (
+          <>
+            <div className="dax-ref__head">
+              <input
+                className="dax-ref__search"
+                placeholder="Search DAX functions…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <div className="dax-ref__count">{DAX_CATALOG.length} functions · click to insert</div>
+            </div>
+            <div className="dax-ref__list pbs-scroll">
+              {results.map((fn) => (
+                <button key={fn.name} className="dax-fn" onClick={() => insertFn(fn)} title={fn.description}>
+                  <span className="dax-fn__name">{fn.name}</span>
+                  <span className="dax-fn__cat">{fn.category}</span>
+                  <div className="dax-fn__syntax">{fn.syntax}</div>
+                  <div className="dax-fn__desc">{fn.description}</div>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {panel === 'all' && (
+          <DaxAll model={model} selectedId={selectedId} onSelect={(id) => selectMeasure(id)} />
+        )}
+
+        {panel === 'optimizer' && (
+          <div className="dax-ref__pane pbs-scroll">
+            {selected ? (
+              <DaxOptimizer
+                key={selected.id}
+                name={selected.name}
+                expression={selected.expression}
+                onApply={(dax) => updateMeasure(selected.id, { expression: dax })}
+              />
+            ) : (
+              <p className="dall__empty">Select a measure to analyse it.</p>
+            )}
+          </div>
+        )}
       </aside>
     </div>
   )

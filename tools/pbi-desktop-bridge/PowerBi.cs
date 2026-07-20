@@ -101,4 +101,76 @@ public static class PowerBi
         }
         return (cols, rows);
     }
+
+    /// <summary>Time a query the way DAX Studio does: clear the engine's caches
+    /// first, then run it N times and keep every timing. A warm cache serves the
+    /// second run of ANY formulation equally well, which is exactly how a slow
+    /// measure gets to look fast — so cold is the default. Rows are drained but
+    /// not kept: we are measuring the engine, not our own allocations.</summary>
+    public static (List<double> Ms, int RowCount, object? FirstValue, bool Cold) Benchmark(
+        Instance inst, string dax, int runs, bool clearCache)
+    {
+        using var conn = new AdomdConnection($"Data Source={inst.DataSource};Catalog={inst.Database}");
+        conn.Open();
+
+        var ms = new List<double>();
+        var rowCount = 0;
+        object? first = null;
+        var cold = clearCache;
+
+        // One untimed pass first. The opening execution on a fresh connection
+        // also pays ADOMD setup and query-plan compilation — costs that belong
+        // to us, not to the DAX, and that would otherwise swamp run 1 and skew
+        // the median. Every TIMED run still clears the cache, so all of them
+        // remain cold.
+        try
+        {
+            using var warm = new AdomdCommand(dax, conn);
+            using var wr = warm.ExecuteReader();
+            while (wr.Read()) { }
+        }
+        catch { /* a genuinely broken query will surface on the timed run */ }
+
+        for (var run = 0; run < Math.Max(1, runs); run++)
+        {
+            if (clearCache && !ClearCache(conn, inst.Database)) cold = false;
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            using (var cmd = new AdomdCommand(dax, conn))
+            using (var reader = cmd.ExecuteReader())
+            {
+                var n = 0;
+                while (reader.Read())
+                {
+                    if (run == 0 && n == 0 && reader.FieldCount > 0)
+                        first = reader.IsDBNull(0) ? null : reader.GetValue(0);
+                    n++;
+                    if (n >= 10_000) break;
+                }
+                rowCount = n;
+            }
+            sw.Stop();
+            ms.Add(sw.Elapsed.TotalMilliseconds);
+        }
+        return (ms, rowCount, first, cold);
+    }
+
+    /// <summary>Drop the storage- and formula-engine caches for this database.
+    /// Caches only — it touches no data and no model metadata. Returns false if
+    /// the engine refused, so the caller can report warm timings as warm instead
+    /// of passing them off as cold.</summary>
+    private static bool ClearCache(AdomdConnection conn, string databaseId)
+    {
+        var xmla =
+            "<ClearCache xmlns=\"http://schemas.microsoft.com/analysisservices/2003/engine\">" +
+            "<Object><DatabaseID>" + System.Security.SecurityElement.Escape(databaseId) + "</DatabaseID></Object>" +
+            "</ClearCache>";
+        try
+        {
+            using var cmd = new AdomdCommand(xmla, conn);
+            cmd.ExecuteNonQuery();
+            return true;
+        }
+        catch { return false; }
+    }
 }

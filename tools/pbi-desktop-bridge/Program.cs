@@ -109,7 +109,7 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = ui });
 // Auth gate — API paths only. Runs AFTER UseCors so preflights (which never
 // carry Authorization) aren't rejected before the real request can ask.
 var apiPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    { "/health", "/discover", "/model", "/dax", "/preview", "/measure", "/table" };
+    { "/health", "/discover", "/model", "/dax", "/time", "/preview", "/measure", "/table" };
 app.Use(async (ctx, next) =>
 {
     if (!apiPaths.Contains(ctx.Request.Path.Value ?? "") || HttpMethods.IsOptions(ctx.Request.Method))
@@ -190,6 +190,32 @@ app.MapGet("/model", (int? port) =>
 app.MapPost("/dax", (DaxReq req) =>
 {
     try { var inst = PowerBi.Resolve(req.Port); var (columns, rows) = PowerBi.Query(inst, req.Dax); return Results.Json(new { columns, rowCount = rows.Count, rows }); }
+    catch (Exception e) { return Fail(e); }
+});
+
+// Benchmark a query on the real engine. Used by the Optimizer to prove — rather
+// than assert — that a rewrite is faster. Timings are cold-cache by default;
+// `cold:false` in the reply means the engine refused to drop its caches and the
+// numbers are warm, so the caller must not present them as cold.
+app.MapPost("/time", (TimeReq req) =>
+{
+    try
+    {
+        var inst = PowerBi.Resolve(req.Port);
+        var runs = Math.Clamp(req.Runs ?? 3, 1, 10);
+        var (ms, rowCount, first, cold) = PowerBi.Benchmark(inst, req.Dax, runs, req.ClearCache ?? true);
+        var sorted = ms.OrderBy(x => x).ToList();
+        return Results.Json(new
+        {
+            ms,
+            median = sorted[sorted.Count / 2],
+            min = sorted[0],
+            runs = sorted.Count,
+            rowCount,
+            value = first,
+            cold,
+        });
+    }
     catch (Exception e) { return Fail(e); }
 });
 
@@ -376,6 +402,7 @@ Tray.Run(new TrayOptions
 });
 
 record DaxReq(string Dax, int? Port);
+record TimeReq(string Dax, int? Runs, bool? ClearCache, int? Port);
 record PreviewReq(string Expression, int? Port);
 record MeasureReq(string Table, string Name, string Dax, string? FormatString, string? DisplayFolder, int? Port);
 record TableReq(string Name, string Dax, string? RelateTable, string? RelateColumn, int? Port);
