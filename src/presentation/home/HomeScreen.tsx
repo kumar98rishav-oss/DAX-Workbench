@@ -5,7 +5,6 @@ import {
   MonitorCheck,
   ChevronDown,
   Upload,
-  LayoutDashboard,
   FolderOpen,
   FileInput,
   Check,
@@ -23,6 +22,9 @@ import {
   Sigma,
   Factory,
   Stethoscope,
+  Zap,
+  Gauge,
+  CalendarDays,
   Heart,
   Linkedin,
   Mail,
@@ -36,7 +38,7 @@ import './home.css'
 
 // Served from the site itself, so this works on localhost and in production alike.
 const BRIDGE_DOWNLOAD = '/download/DAX-Workbench-Bridge.exe'
-const BRIDGE_SIZE = '52 MB'
+const BRIDGE_SIZE = '83 MB'
 const LINKEDIN = 'https://www.linkedin.com/in/rishav98kumar'
 const EMAIL = 'Kumar98rishav@gmail.com'
 
@@ -52,7 +54,6 @@ const OTHER_WAYS: StartOption[] = [
   { id: 'import', title: 'Import data', desc: 'Excel, CSV or Parquet', icon: <Upload size={16} /> },
   { id: 'pbip', title: 'Open PBIP', desc: 'Power BI project folder', icon: <FolderOpen size={16} /> },
   { id: 'pbix', title: 'Open PBIX', desc: 'Best-effort — no data', icon: <FileInput size={16} /> },
-  { id: 'new', title: 'New dashboard', desc: 'Start from a blank canvas', icon: <LayoutDashboard size={16} /> },
 ]
 
 // Every line here is a claim about the code, so keep it to what the code does.
@@ -96,12 +97,12 @@ const PILLARS = [
     id: 'dax',
     icon: <Sigma size={20} />,
     name: 'DAX Architect',
-    blurb: 'Describe the measure in plain English. the Workbench ranks the ways to build it and you pick.',
+    blurb: 'Describe the measure in plain English. The Workbench ranks the ways to build it and you pick.',
     points: [
       'Ranked suggestions, not one guess — you choose',
-      'Branched plans: base measures built for you',
-      'Time intelligence, iterators, USERELATIONSHIP',
-      'Verify on the real engine, then push to Desktop',
+      'Deterministic: no LLM writes your DAX',
+      'Branched plans build the base measures too',
+      'Every preview computed on the real engine',
     ],
   },
   {
@@ -117,6 +118,18 @@ const PILLARS = [
     ],
   },
   {
+    id: 'optimizer',
+    icon: <Zap size={20} />,
+    name: 'DAX Optimizer',
+    blurb: 'Rewrites a measure into the shape the engine handles best — then proves it on your data.',
+    points: [
+      'Whole-table FILTER → a pushed-down predicate',
+      'COUNTROWS(FILTER) → CALCULATE, SUMX → SUM',
+      'Timed before/after with the caches cleared',
+      'Values compared — and "no change required" when clean',
+    ],
+  },
+  {
     id: 'doctor',
     icon: <Stethoscope size={20} />,
     name: 'Model Doctor',
@@ -126,6 +139,30 @@ const PILLARS = [
       'FILTER over a whole fact table, with a rewrite',
       'Division that should be DIVIDE()',
       'Exports a Markdown data dictionary',
+    ],
+  },
+  {
+    id: 'kpi',
+    icon: <Gauge size={20} />,
+    name: 'KPI Answers',
+    blurb: 'The measures you create become live answers — no chart building, no field wells.',
+    points: [
+      'A 12-card board that fills itself as you create',
+      'Matrix and table: pick rows, columns, measures',
+      'Every value computed by Power BI’s own engine',
+      'Click a card to open its DAX underneath',
+    ],
+  },
+  {
+    id: 'dates',
+    icon: <CalendarDays size={20} />,
+    name: 'Date table builder',
+    blurb: 'A proper date table over your fact table’s real range, deployed as a calculated table.',
+    points: [
+      'Pick exactly the columns you want',
+      'Fiscal year start, sortable month/weekday keys',
+      'Ranges over a real fact column’s MIN/MAX',
+      'Relationship wired up automatically',
     ],
   },
 ]
@@ -212,12 +249,19 @@ export function HomeScreen() {
     {
       label: 'Open your report in Power BI Desktop',
       done: desktop.connected,
-      body: <>Open any <code>.pbix</code>. the Workbench finds the model on its own — nothing to configure.</>,
+      body: <>Open any <code>.pbix</code>. The Workbench finds the model on its own — nothing to configure.</>,
     },
     {
       label: 'Connect',
       done: false,
-      body: <>This page notices the bridge on its own. the Workbench then reads your tables, rows and measures — and writes DAX back into Desktop.</>,
+      body: (
+        <>
+          This page notices the bridge on its own and reads your tables, rows and measures. Prefer to
+          start from Desktop? The bridge can add <strong>DAX Workbench</strong> to Power BI's{' '}
+          <strong>External Tools</strong> ribbon — one click there opens the Workbench already
+          attached to the report you're in.
+        </>
+      ),
     },
   ]
 
@@ -264,11 +308,12 @@ export function HomeScreen() {
             {status.text}
           </span>
           <h1 className="pbs-home__title">
-            Work on your <em>real</em> Power BI model
+            Write DAX against your <em>real</em> model
           </h1>
           <p className="pbs-home__lede">
-            The Workbench reads the model open in Power BI Desktop — real rows, real measures, real values —
-            builds the DAX, and writes it straight back. Nothing is estimated.
+            A measure workbench that launches from Power BI Desktop's own ribbon. It reads the model
+            you have open — real tables, real rows, real measures — writes the DAX, checks it on
+            Microsoft's engine, optimizes it, and deploys it straight back. Nothing is estimated.
           </p>
 
           {/* The glass panel — their prompt box, our connect box. */}
@@ -313,9 +358,10 @@ export function HomeScreen() {
             </div>
           </div>
           <div className="pbs-glass__chips">
-            <span className="pbs-gchip"><b>DAX Architect</b> · plain English in, ranked DAX out</span>
-            <span className="pbs-gchip"><b>Measure Factory</b> · a whole suite per field</span>
-            <span className="pbs-gchip"><b>Model Doctor</b> · one-click fixes</span>
+            <span className="pbs-gchip"><b>Architect</b> · plain English in, ranked DAX out</span>
+            <span className="pbs-gchip"><b>Optimizer</b> · rewrites, then times the proof</span>
+            <span className="pbs-gchip"><b>Factory</b> · a whole suite per field</span>
+            <span className="pbs-gchip"><b>KPI</b> · live answers, not charts to build</span>
             <span className="pbs-gchip">Data stays on your machine</span>
           </div>
           </div>
@@ -402,9 +448,11 @@ export function HomeScreen() {
         </section>
 
         <p className="pbs-alsoline">
-          Wrapped in a full studio — <strong>Data</strong> preview with column profiling,{' '}
-          <strong>Model</strong> with auto star-schema detection and a relationship graph, and a
-          drag-and-drop <strong>Design</strong> canvas with 17 visual types.
+          Around them — <strong>All DAX</strong>, every measure in the model in one searchable,
+          copyable list; a <strong>Data</strong> preview with column profiling; and{' '}
+          <strong>Model</strong>, with star-schema detection and a relationship graph. Working on
+          someone else's report? The <strong>remote connector</strong> reaches a model open on
+          another machine.
         </p>
 
         {/* Privacy — the reason a stranger can afford to run this. */}
