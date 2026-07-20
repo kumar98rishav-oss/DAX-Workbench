@@ -118,7 +118,7 @@ doing so. Keep that list narrow:
 
 - `localhost` / `127.0.0.1` (any port) — the Workbench in dev or preview
 - `tauri://` / `file://` — a desktop shell
-- `https://pbi-design-studio.onrender.com` — the hosted Workbench
+- `https://dax-workbench.onrender.com` — the hosted Workbench
 
 Over the **network** (`--remote`) CORS protects nothing — it's a browser rule,
 and `curl` ignores it — so a **pairing token** is required instead, and is the

@@ -9,8 +9,8 @@ It reads the model you have open — real tables, real rows, real measures — w
 verifies it on Microsoft's own engine, **optimizes it and times the proof**, and deploys it
 straight back. Nothing is estimated, and no AI sits anywhere in that path.
 
-[**Live Workbench**](https://pbi-design-studio.onrender.com) ·
-[**Download the bridge**](https://pbi-design-studio.onrender.com/download/DAX-Workbench-Bridge.exe) ·
+[**Live Workbench**](https://dax-workbench.onrender.com) ·
+[**Download the bridge**](https://dax-workbench.onrender.com/download/DAX-Workbench-Bridge.exe) ·
 [Architecture](./docs/ARCHITECTURE.md) ·
 [Bridge internals](./tools/pbi-desktop-bridge/README.md)
 
@@ -188,7 +188,7 @@ instead — encrypted, no token, no mixed-content restrictions.
 
 **As a user** — one download, nothing else to install:
 
-1. Download the bridge: [DAX-Workbench-Bridge.exe](https://pbi-design-studio.onrender.com/download/DAX-Workbench-Bridge.exe)
+1. Download the bridge: [DAX-Workbench-Bridge.exe](https://dax-workbench.onrender.com/download/DAX-Workbench-Bridge.exe)
    (unsigned binary — Windows will say *unknown publisher*; choose **More info → Run anyway**)
 2. Double-click it. It lands in your system tray and serves the whole Workbench at
    `http://127.0.0.1:5177` — the UI is inside the exe, so you don't need the website at all.
@@ -198,7 +198,7 @@ Optional, and the nicest way to work: from the tray icon choose **Add to Power B
 (it asks for admin once). Restart Desktop and **DAX Workbench** appears under **External
 Tools** — one click opens it already attached to the report you're in.
 
-Prefer the hosted page? The [live Workbench](https://pbi-design-studio.onrender.com) drives
+Prefer the hosted page? The [live Workbench](https://dax-workbench.onrender.com) drives
 your local bridge just the same; the bridge only answers an exact list of origins.
 
 **As a developer:**

@@ -68,7 +68,11 @@ var builder = WebApplication.CreateBuilder();
 // network the token is the real gate, which is why one is mandatory there.
 var allowedOrigins = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 {
-    "https://pbi-design-studio.onrender.com", // the hosted Studio
+    "https://dax-workbench.onrender.com", // the hosted Workbench
+    // The old pbi-design-studio.onrender.com origin is deliberately NOT kept.
+    // Once a Render subdomain is released anyone can claim it, and an entry here
+    // is permission to read this model and write measures into it — so a name we
+    // no longer control must not stay on the allowlist.
 };
 foreach (var o in (Environment.GetEnvironmentVariable("PBI_BRIDGE_ORIGINS") ?? "")
              .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
