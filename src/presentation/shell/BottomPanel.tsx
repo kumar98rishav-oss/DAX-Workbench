@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Lightbulb, FunctionSquare, TableProperties } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { DataGrid } from '@/presentation/data/DataGrid'
@@ -16,7 +15,8 @@ export function BottomPanel() {
   const collapsed = !useApp((s) => s.panels.bottom)
   const datasets = useApp((s) => s.datasets)
   const activeId = useApp((s) => s.activeDatasetId)
-  const [tab, setTab] = useState<Tab>('insights')
+  const tab = useApp((s) => s.bottomTab)
+  const setTab = useApp((s) => s.setBottomTab)
   const active = datasets.find((d) => d.id === activeId) ?? datasets[0]
 
   return (

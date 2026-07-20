@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Gauge, Grid3X3, Table2, MonitorX, Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Gauge, Grid3X3, Table2, MonitorX, Loader2, ZoomIn, ZoomOut, Scan } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { makeCtx } from '@/application/query/query-engine'
 import { evaluateDax } from '@/application/dax/evaluator'
@@ -22,6 +22,7 @@ const MATRIX_CAP = 2000
 type Page = 'board' | 'matrix' | 'table'
 
 interface MeasureInfo {
+  id: string
   name: string
   dax: string
   formatString?: string
@@ -41,13 +42,31 @@ export function KpiView() {
   const setMatrix = useApp((s) => s.setAnswersMatrix)
   const tableCfg = useApp((s) => s.answersTable)
   const setTable = useApp((s) => s.setAnswersTable)
+  const inspectMeasure = useApp((s) => s.inspectMeasure)
+  const selectedMeasureId = useApp((s) => s.selectedMeasureId)
+  const zoom = useApp((s) => s.kpiZoom)
+  const setZoom = useApp((s) => s.setKpiZoom)
 
   const [page, setPage] = useState<Page>('board')
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const zoomRef = useRef<HTMLDivElement>(null)
+
+  /** Pick the zoom that makes the current page's content just fit the pane. */
+  const fitToScreen = () => {
+    const c = scrollRef.current
+    const w = zoomRef.current
+    if (!c || !w) return
+    c.scrollTop = 0
+    const natural = w.getBoundingClientRect().height / zoom
+    const avail = c.getBoundingClientRect().bottom - w.getBoundingClientRect().top - 36
+    if (natural > 0 && avail > 100) setZoom(avail / natural)
+  }
 
   const all: MeasureInfo[] = useMemo(
     () =>
       model.tables.flatMap((t) =>
         t.measures.map((m) => ({
+          id: m.id,
           name: m.name,
           dax: m.expression,
           formatString: m.formatString,
@@ -160,7 +179,7 @@ export function KpiView() {
 
   // ---------------------------------------------------------------- render
   return (
-    <div className="kpiview pbs-scroll">
+    <div className="kpiview pbs-scroll" ref={scrollRef}>
       <div className="kpiview__head">
         <div className="kpiview__tabs">
           <button className="kpiview__tab" data-on={page === 'board'} onClick={() => setPage('board')}>
@@ -179,18 +198,43 @@ export function KpiView() {
           <span className="dax-badge dax-badge--sample">sample — connect Desktop for live</span>
         )}
         {(boardBusy || answerBusy) && <Loader2 size={14} className="pbs-spin kpiview__busy" />}
+
+        <div className="kpiview__zoomctl">
+          <button className="kpiview__zoombtn" title="Zoom out" onClick={() => setZoom(zoom - 0.1)}>
+            <ZoomOut size={14} />
+          </button>
+          <button className="kpiview__zoompct" title="Reset to 100%" onClick={() => setZoom(1)}>
+            {Math.round(zoom * 100)}%
+          </button>
+          <button className="kpiview__zoombtn" title="Zoom in" onClick={() => setZoom(zoom + 0.1)}>
+            <ZoomIn size={14} />
+          </button>
+          <button className="kpiview__zoombtn kpiview__zoomfit" title="Fit to screen" onClick={fitToScreen}>
+            <Scan size={14} /> Fit
+          </button>
+        </div>
       </div>
 
+      <div className="kpiview__zoom" ref={zoomRef} style={{ zoom }}>
       {page === 'board' && (
         <div className="kpi-grid">
           {slots.map((name, i) => {
             const m = name ? byName.get(name) : undefined
             const live = m && liveVals[m.name] !== undefined
             return (
-              <div key={i} className="kpi-card" data-empty={!m}>
+              <div
+                key={i}
+                className="kpi-card"
+                data-empty={!m}
+                data-clickable={!!m}
+                data-sel={!!m && selectedMeasureId === m.id}
+                title={m ? 'Click to open this measure in the DAX tab below' : undefined}
+                onClick={() => m && inspectMeasure(m.id)}
+              >
                 <select
                   className="kpi-card__pick"
                   value={m?.name ?? ''}
+                  onClick={(e) => e.stopPropagation()}
                   onChange={(e) => setKpiSlot(i, e.target.value || null)}
                 >
                   <option value="">— empty —</option>
@@ -351,6 +395,7 @@ export function KpiView() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

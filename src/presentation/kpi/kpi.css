@@ -41,6 +41,42 @@
 }
 .kpiview__busy { color: var(--text-subtle); }
 
+/* ---- zoom controls ---- */
+.kpiview__zoomctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding: 3px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+.kpiview__zoombtn,
+.kpiview__zoompct {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+}
+.kpiview__zoombtn:hover,
+.kpiview__zoompct:hover {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.kpiview__zoompct {
+  min-width: 44px;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The zoomed content — CSS zoom keeps layout + hit-testing consistent. */
+.kpiview__zoom { min-width: 0; }
+
 /* ---- the board ---- */
 .kpi-grid {
   display: grid;
@@ -60,6 +96,12 @@
 }
 .kpi-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
 .kpi-card[data-empty='true'] { border-style: dashed; }
+.kpi-card[data-clickable='true'] { cursor: pointer; }
+.kpi-card[data-clickable='true']:hover { border-color: var(--accent); }
+.kpi-card[data-sel='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow-sm);
+}
 .kpi-card__pick {
   width: 100%;
   padding: 4px 6px;

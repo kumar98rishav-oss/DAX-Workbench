@@ -125,6 +125,9 @@ interface AppState {
   theme: Theme
   mode: StudioMode
   panels: PanelState
+  /** Which tab the bottom panel shows — lifted here so a KPI card click can
+   * jump straight to the DAX tab. */
+  bottomTab: 'insights' | 'dax' | 'data'
   commandPaletteOpen: boolean
   projectName: string | null
   layoutId: string
@@ -179,7 +182,10 @@ interface AppState {
   kpiOverrides: Record<number, string | null>
   answersMatrix: { row: string | null; col: string | null; values: string[] }
   answersTable: { dims: string[]; values: string[] }
+  /** Zoom factor for the KPI surface (1 = 100%). */
+  kpiZoom: number
   setKpiSlot: (index: number, measureName: string | null) => void
+  setKpiZoom: (zoom: number) => void
   setAnswersMatrix: (cfg: Partial<{ row: string | null; col: string | null; values: string[] }>) => void
   setAnswersTable: (cfg: Partial<{ dims: string[]; values: string[] }>) => void
   toggleFactory: (open?: boolean) => void
@@ -196,6 +202,7 @@ interface AppState {
   toggleTheme: () => void
   setTheme: (t: Theme) => void
   togglePanel: (panel: keyof PanelState) => void
+  setBottomTab: (tab: 'insights' | 'dax' | 'data') => void
   setCommandPalette: (open: boolean) => void
 
   registerFilePicker: (fn: () => void) => void
@@ -239,6 +246,9 @@ interface AppState {
 
   // DAX actions
   selectMeasure: (id: string | null) => void
+  /** Focus a measure in the bottom DAX inspector: selects it, switches the
+   * bottom panel to the DAX tab, and opens the panel if it's collapsed. */
+  inspectMeasure: (id: string) => void
   addMeasure: () => void
   updateMeasure: (id: string, patch: Partial<Measure>) => void
   deleteMeasure: (id: string) => void
@@ -304,6 +314,7 @@ export const useApp = create<AppState>((set, get) => ({
   theme: initialTheme,
   mode: 'kpi',
   panels: { left: true, right: true, bottom: false },
+  bottomTab: 'insights',
   commandPaletteOpen: false,
   projectName: null,
   layoutId: DEFAULT_LAYOUT,
@@ -343,6 +354,7 @@ export const useApp = create<AppState>((set, get) => ({
   kpiOverrides: {},
   answersMatrix: { row: null, col: null, values: [] },
   answersTable: { dims: [], values: [] },
+  kpiZoom: 1,
   _pickFiles: null,
   _pickPbip: null,
   _pickPbix: null,
@@ -366,6 +378,8 @@ export const useApp = create<AppState>((set, get) => ({
 
   togglePanel: (panel) =>
     set((s) => ({ panels: { ...s.panels, [panel]: !s.panels[panel] } })),
+
+  setBottomTab: (tab) => set({ bottomTab: tab }),
 
   setCommandPalette: (open) => set({ commandPaletteOpen: open }),
 
@@ -505,6 +519,7 @@ export const useApp = create<AppState>((set, get) => ({
   toggleDoctor: (open) => set((s) => ({ doctorOpen: open ?? !s.doctorOpen })),
   toggleDateTable: (open) => set((s) => ({ dateTableOpen: open ?? !s.dateTableOpen })),
   setKpiSlot: (index, measureName) => set((s) => ({ kpiOverrides: { ...s.kpiOverrides, [index]: measureName } })),
+  setKpiZoom: (zoom) => set({ kpiZoom: Math.min(1.5, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   setAnswersMatrix: (cfg) => set((s) => ({ answersMatrix: { ...s.answersMatrix, ...cfg } })),
   setAnswersTable: (cfg) => set((s) => ({ answersTable: { ...s.answersTable, ...cfg } })),
 
@@ -927,6 +942,14 @@ export const useApp = create<AppState>((set, get) => ({
 
   // ---- DAX ----
   selectMeasure: (id) => set({ selectedMeasureId: id }),
+
+  inspectMeasure: (id) =>
+    set((s) => ({
+      selectedMeasureId: id,
+      selectedVisualId: null,
+      bottomTab: 'dax',
+      panels: { ...s.panels, bottom: true },
+    })),
 
   addMeasure: () =>
     set((s) => {
