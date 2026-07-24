@@ -17,6 +17,7 @@ const MODE_OPTIONS: { value: StudioMode; label: string }[] = [
   { value: 'kpi', label: 'KPI' },
   { value: 'data', label: 'Data' },
   { value: 'model', label: 'Model' },
+  { value: 'cleanup', label: 'Cleanup' },
   { value: 'dax', label: 'DAX' },
 ]
 

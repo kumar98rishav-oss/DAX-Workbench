@@ -112,7 +112,7 @@ function buildArtifacts(model: SemanticModel, layoutId: string): { model: Semant
 
 export type View = 'home' | 'studio'
 export type Theme = 'light' | 'dark'
-export type StudioMode = 'kpi' | 'design' | 'data' | 'model' | 'dax'
+export type StudioMode = 'kpi' | 'design' | 'data' | 'model' | 'cleanup' | 'dax'
 
 interface PanelState {
   left: boolean
@@ -188,6 +188,17 @@ interface AppState {
   toggleFactory: (open?: boolean) => void
   toggleDoctor: (open?: boolean) => void
   toggleDateTable: (open?: boolean) => void
+  /** Cleanup surface — object keys staged for deletion. This is a STAGING
+   * area only: nothing reaches the real model until an explicit Deploy, so
+   * undo/redo here is free and unlimited. */
+  cleanupStaged: string[]
+  cleanupUndo: string[][]
+  cleanupRedo: string[][]
+  toggleCleanupStage: (key: string) => void
+  stageCleanup: (keys: string[]) => void
+  clearCleanupStage: () => void
+  undoCleanup: () => void
+  redoCleanup: () => void
   _pickFiles: (() => void) | null
   _pickPbip: (() => void) | null
   _pickPbix: (() => void) | null
@@ -511,6 +522,45 @@ export const useApp = create<AppState>((set, get) => ({
   toggleFactory: (open) => set((s) => ({ factoryOpen: open ?? !s.factoryOpen })),
   toggleDoctor: (open) => set((s) => ({ doctorOpen: open ?? !s.doctorOpen })),
   toggleDateTable: (open) => set((s) => ({ dateTableOpen: open ?? !s.dateTableOpen })),
+  cleanupStaged: [],
+  cleanupUndo: [],
+  cleanupRedo: [],
+  toggleCleanupStage: (key) =>
+    set((s) => ({
+      cleanupStaged: s.cleanupStaged.includes(key)
+        ? s.cleanupStaged.filter((k) => k !== key)
+        : [...s.cleanupStaged, key],
+      cleanupUndo: [...s.cleanupUndo, s.cleanupStaged],
+      cleanupRedo: [],
+    })),
+  stageCleanup: (keys) =>
+    set((s) => ({
+      cleanupStaged: [...new Set([...s.cleanupStaged, ...keys])],
+      cleanupUndo: [...s.cleanupUndo, s.cleanupStaged],
+      cleanupRedo: [],
+    })),
+  clearCleanupStage: () =>
+    set((s) => ({ cleanupStaged: [], cleanupUndo: [...s.cleanupUndo, s.cleanupStaged], cleanupRedo: [] })),
+  undoCleanup: () =>
+    set((s) => {
+      if (s.cleanupUndo.length === 0) return {}
+      const prev = s.cleanupUndo[s.cleanupUndo.length - 1]
+      return {
+        cleanupStaged: prev,
+        cleanupUndo: s.cleanupUndo.slice(0, -1),
+        cleanupRedo: [...s.cleanupRedo, s.cleanupStaged],
+      }
+    }),
+  redoCleanup: () =>
+    set((s) => {
+      if (s.cleanupRedo.length === 0) return {}
+      const next = s.cleanupRedo[s.cleanupRedo.length - 1]
+      return {
+        cleanupStaged: next,
+        cleanupUndo: [...s.cleanupUndo, s.cleanupStaged],
+        cleanupRedo: s.cleanupRedo.slice(0, -1),
+      }
+    }),
   setKpiSlot: (index, measureName) => set((s) => ({ kpiOverrides: { ...s.kpiOverrides, [index]: measureName } })),
   setKpiZoom: (zoom) => set({ kpiZoom: Math.min(1.5, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   setAnswersMatrix: (cfg) => set((s) => ({ answersMatrix: { ...s.answersMatrix, ...cfg } })),

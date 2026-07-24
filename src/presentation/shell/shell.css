@@ -78,7 +78,10 @@
   align-items: center;
   gap: var(--space-2);
   height: 30px;
-  min-width: 240px;
+  /* Shrinkable: with five mode tabs the bar overflows narrow windows if the
+     command trigger holds a hard 240px floor. */
+  flex: 0 1 240px;
+  min-width: 132px;
   padding: 0 var(--space-2) 0 var(--space-3);
   color: var(--text-subtle);
   background: var(--surface-2);
@@ -88,12 +91,23 @@
   transition: border-color var(--dur-fast) var(--ease),
     background var(--dur-fast) var(--ease);
 }
+/* Narrow windows: the mode tabs take priority over the command trigger,
+   which Ctrl+K still opens. */
+@media (max-width: 940px) {
+  .pbs-topbar__cmd {
+    display: none;
+  }
+}
 .pbs-topbar__cmd:hover {
   border-color: var(--border-strong);
   background: var(--surface);
 }
 .pbs-topbar__cmd-label {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-align: left;
 }
 

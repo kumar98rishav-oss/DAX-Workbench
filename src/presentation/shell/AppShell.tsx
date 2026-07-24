@@ -6,6 +6,7 @@ import { BottomPanel } from './BottomPanel'
 import { DataView } from '@/presentation/data/DataView'
 import { KpiView } from '@/presentation/kpi/KpiView'
 import { ModelView } from '@/presentation/model/ModelView'
+import { CleanupView } from '@/presentation/cleanup/CleanupView'
 import { DaxView } from '@/presentation/dax/DaxView'
 import './shell.css'
 
@@ -21,6 +22,7 @@ export function AppShell() {
           {mode === 'kpi' && <KpiView />}
           {mode === 'data' && <DataView />}
           {mode === 'model' && <ModelView />}
+          {mode === 'cleanup' && <CleanupView />}
           {mode === 'dax' && <DaxView />}
           <BottomPanel />
         </div>
