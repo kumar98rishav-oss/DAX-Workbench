@@ -40,6 +40,9 @@
 .cleanup__stat--warn strong {
   color: var(--warning);
 }
+.cleanup__stat--unused strong {
+  color: var(--accent);
+}
 .cleanup__spacer {
   flex: 1;
 }
@@ -66,6 +69,9 @@
 /* ---- honesty notice ---- */
 .cleanup__notice {
   display: flex;
+  /* With both side panels open the centre column gets narrow; let the action
+     drop below the text instead of squeezing it to one word per line. */
+  flex-wrap: wrap;
   gap: var(--space-3);
   align-items: flex-start;
   padding: var(--space-3) var(--space-4);
@@ -79,6 +85,21 @@
   flex-shrink: 0;
   margin-top: 2px;
   color: var(--warning);
+}
+.cleanup__notice > span {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.cleanup__notice button {
+  flex-shrink: 0;
+  align-self: center;
+}
+/* Scanned: "unused" is now a provable claim, so the banner stops warning. */
+.cleanup__notice--ok {
+  background: var(--accent-soft);
+}
+.cleanup__notice--ok svg {
+  color: var(--accent);
 }
 
 /* ---- layout ---- */

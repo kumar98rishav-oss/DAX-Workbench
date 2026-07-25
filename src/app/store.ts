@@ -9,6 +9,8 @@ import { generateLayout, DEFAULT_LAYOUT } from '@/application/insights/dashboard
 import type { VisualSpec } from '@/application/insights/dashboard-generator'
 import { generateDaxFromNL } from '@/application/dax/nl-templates'
 import { architectSolution } from '@/application/dax/architect/architect'
+import { NO_REPORT, type ReportUsage } from '@/application/dax/usage'
+import { scanReportFiles } from '@/application/dax/report-usage'
 import { parsePbipFolder, parsePbixFile, pbipSummary } from '@/application/import/pbi/open-project'
 import { assemblePbiProject } from '@/application/import/pbi/assemble'
 import type { ParsedDataset } from '@/application/import/types'
@@ -199,6 +201,16 @@ interface AppState {
   clearCleanupStage: () => void
   undoCleanup: () => void
   redoCleanup: () => void
+  /** Visual bindings read from a .pbix or PBIP report. Until this is scanned,
+   * nothing can be called "unused" — the engine cannot see the report layer. */
+  reportUsage: ReportUsage
+  reportScanNote: string | null
+  reportScanning: boolean
+  scanReport: (files: File[]) => Promise<void>
+  clearReportUsage: () => void
+  registerReportPicker: (fn: () => void) => void
+  requestReportScan: () => void
+  _pickReport: (() => void) | null
   _pickFiles: (() => void) | null
   _pickPbip: (() => void) | null
   _pickPbix: (() => void) | null
@@ -561,6 +573,29 @@ export const useApp = create<AppState>((set, get) => ({
         cleanupRedo: s.cleanupRedo.slice(0, -1),
       }
     }),
+
+  reportUsage: NO_REPORT,
+  reportScanNote: null,
+  reportScanning: false,
+  _pickReport: null,
+  registerReportPicker: (fn) => set({ _pickReport: fn }),
+  requestReportScan: () => {
+    const pick = get()._pickReport
+    if (pick) pick()
+  },
+  scanReport: async (files) => {
+    set({ reportScanning: true, importError: null })
+    try {
+      const { usage, note } = await scanReportFiles(files)
+      set({ reportUsage: usage, reportScanNote: note, reportScanning: false })
+    } catch (e) {
+      set({
+        reportScanning: false,
+        importError: e instanceof Error ? e.message : 'Could not read that report.',
+      })
+    }
+  },
+  clearReportUsage: () => set({ reportUsage: NO_REPORT, reportScanNote: null }),
   setKpiSlot: (index, measureName) => set((s) => ({ kpiOverrides: { ...s.kpiOverrides, [index]: measureName } })),
   setKpiZoom: (zoom) => set({ kpiZoom: Math.min(1.5, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   setAnswersMatrix: (cfg) => set((s) => ({ answersMatrix: { ...s.answersMatrix, ...cfg } })),

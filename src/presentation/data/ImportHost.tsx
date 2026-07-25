@@ -9,6 +9,8 @@ export function ImportHost() {
   const registerFilePicker = useApp((s) => s.registerFilePicker)
   const registerPbipPicker = useApp((s) => s.registerPbipPicker)
   const registerPbixPicker = useApp((s) => s.registerPbixPicker)
+  const registerReportPicker = useApp((s) => s.registerReportPicker)
+  const scanReport = useApp((s) => s.scanReport)
   const stageImport = useApp((s) => s.stageImport)
   const openPbipFiles = useApp((s) => s.openPbipFiles)
   const openPbixFile = useApp((s) => s.openPbixFile)
@@ -21,17 +23,19 @@ export function ImportHost() {
   const dataRef = useRef<HTMLInputElement>(null)
   const pbipRef = useRef<HTMLInputElement>(null)
   const pbixRef = useRef<HTMLInputElement>(null)
+  const reportRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     registerFilePicker(() => dataRef.current?.click())
     registerPbipPicker(() => pbipRef.current?.click())
     registerPbixPicker(() => pbixRef.current?.click())
+    registerReportPicker(() => reportRef.current?.click())
     // Folder selection is a non-standard attribute; set it imperatively.
     if (pbipRef.current) {
       pbipRef.current.setAttribute('webkitdirectory', '')
       pbipRef.current.setAttribute('directory', '')
     }
-  }, [registerFilePicker, registerPbipPicker, registerPbixPicker])
+  }, [registerFilePicker, registerPbipPicker, registerPbixPicker, registerReportPicker])
 
   return (
     <>
@@ -69,6 +73,20 @@ export function ImportHost() {
           const file = e.target.files?.[0]
           e.target.value = ''
           if (file) void openPbixFile(file)
+        }}
+      />
+
+      {/* Cleanup's report scan: a .pbix, or the report JSON files of a PBIP folder. */}
+      <input
+        ref={reportRef}
+        type="file"
+        accept=".pbix,.json"
+        multiple
+        className="pbs-visually-hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? [])
+          e.target.value = ''
+          if (files.length) void scanReport(files)
         }}
       />
 

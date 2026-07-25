@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Eraser, Undo2, Redo2, Trash2, TriangleAlert, ShieldCheck, CircleHelp, Search } from 'lucide-react'
+import { Eraser, Undo2, Redo2, Trash2, TriangleAlert, ShieldCheck, CircleHelp, FileSearch, Search } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Badge, Button, EmptyState, Segmented } from '@/design-system/components'
 import {
   buildUsageGraph,
   cascadeImpact,
-  NO_REPORT,
   type ObjectKind,
   type UsageNode,
   type UsageState,
@@ -38,8 +37,14 @@ export function CleanupView() {
   const [kind, setKind] = useState<ObjectKind>('measure')
   const [selected, setSelected] = useState<string | null>(null)
 
-  // Report layer is not wired yet, so nothing can be proven unused.
-  const graph = useMemo(() => buildUsageGraph(model, NO_REPORT), [model])
+  const reportUsage = useApp((s) => s.reportUsage)
+  const reportScanNote = useApp((s) => s.reportScanNote)
+  const reportScanning = useApp((s) => s.reportScanning)
+  const requestReportScan = useApp((s) => s.requestReportScan)
+  const clearReportUsage = useApp((s) => s.clearReportUsage)
+
+  // "Unused" is only reachable once the report layer has actually been read.
+  const graph = useMemo(() => buildUsageGraph(model, reportUsage), [model, reportUsage])
 
   /** Everything of the selected kind — drives both the rows and the counts. */
   const kindNodes = useMemo(() => graph.nodes.filter((n) => n.kind === kind), [graph, kind])
@@ -89,9 +94,15 @@ export function CleanupView() {
           <span className="cleanup__stat">
             <strong>{counts.referenced}</strong> referenced
           </span>
-          <span className="cleanup__stat cleanup__stat--warn">
-            <strong>{counts['no-model-refs']}</strong> no model refs
-          </span>
+          {graph.scanned ? (
+            <span className="cleanup__stat cleanup__stat--unused">
+              <strong>{counts.unused}</strong> unused
+            </span>
+          ) : (
+            <span className="cleanup__stat cleanup__stat--warn">
+              <strong>{counts['no-model-refs']}</strong> no model refs
+            </span>
+          )}
         </div>
         <div className="cleanup__spacer" />
         <div className="cleanup__search">
@@ -106,7 +117,7 @@ export function CleanupView() {
         </Button>
       </div>
 
-      {!graph.scanned && (
+      {!graph.scanned ? (
         <div className="cleanup__notice">
           <CircleHelp size={15} />
           <span>
@@ -114,6 +125,20 @@ export function CleanupView() {
             see which visuals bind a measure. Objects below are marked <em>no model refs</em>, never <em>unused</em>:
             nothing in the model references them, but a report page still might.
           </span>
+          <Button size="sm" icon={<FileSearch size={15} />} onClick={requestReportScan} disabled={reportScanning}>
+            {reportScanning ? 'Scanning…' : 'Scan report'}
+          </Button>
+        </div>
+      ) : (
+        <div className="cleanup__notice cleanup__notice--ok">
+          <ShieldCheck size={15} />
+          <span>
+            <strong>Report layer scanned.</strong> {reportScanNote} A measure bound to any visual counts as used, so
+            objects marked <em>unused</em> below are unreferenced by both the model and the report.
+          </span>
+          <Button size="sm" onClick={clearReportUsage}>
+            Clear
+          </Button>
         </div>
       )}
 

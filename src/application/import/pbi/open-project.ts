@@ -87,10 +87,29 @@ export async function parsePbipFolder(files: File[]): Promise<PbiParseResult> {
 
 // ---- PBIX (zip) -----------------------------------------------------------
 
-function decodeText(bytes: Uint8Array): string {
-  // TMSL in a PBIX is UTF-16LE with a BOM; JSON elsewhere is UTF-8.
-  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes)
-  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return new TextDecoder('utf-8').decode(bytes.subarray(3))
+/**
+ * Decode a PBIX part, sniffing the encoding.
+ *
+ * TMSL carries a UTF-16LE BOM, but **`Report/Layout` is UTF-16LE with NO BOM**
+ * (it starts straight at `7b 00` — `{`). Falling through to UTF-8 there yields
+ * NUL-interleaved text that fails JSON.parse, and since every caller wraps this
+ * in a try/catch, the failure looks exactly like "the report is empty".
+ */
+export function decodeText(bytes: Uint8Array): string {
+  if (bytes.length >= 2) {
+    if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes)
+    if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes)
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder('utf-8').decode(bytes.subarray(3))
+  }
+  // No BOM: ASCII-range JSON encoded as UTF-16LE has a zero as every second
+  // byte. Sample a few before committing to that reading.
+  if (bytes.length >= 8) {
+    let zeros = 0
+    for (let i = 1; i < Math.min(bytes.length, 32); i += 2) if (bytes[i] === 0) zeros++
+    if (zeros >= 12) return new TextDecoder('utf-16le').decode(bytes)
+  }
   return new TextDecoder('utf-8').decode(bytes)
 }
 
@@ -133,7 +152,7 @@ export function parseTmslJson(text: string, name: string): PbiModel {
 
 // ---- best-effort schema reconstruction from the report's field references ----
 
-interface FieldRef { entity: string; property: string; isMeasure: boolean }
+export interface FieldRef { entity: string; property: string; isMeasure: boolean }
 
 function guessType(name: string): PbiTable['columns'][number]['dataType'] {
   const n = name.toLowerCase()
@@ -143,8 +162,15 @@ function guessType(name: string): PbiTable['columns'][number]['dataType'] {
   return 'string'
 }
 
-/** Recursively collect Power BI field references (`{Column|Measure:{Expression:{SourceRef:{Entity}},Property}}`). */
-function collectFieldRefs(node: unknown, out: FieldRef[], depth = 0): void {
+/**
+ * Recursively collect Power BI field references
+ * (`{Column|Measure:{Expression:{SourceRef:{Entity}},Property}}`).
+ *
+ * Shared with the Cleanup surface's report scan: a measure bound to a visual is
+ * in use even when nothing in the model references it. The string branch below
+ * matters — PBIX stores visual config as JSON *inside* a JSON string field.
+ */
+export function collectFieldRefs(node: unknown, out: FieldRef[], depth = 0): void {
   if (depth > 40 || !node || typeof node !== 'object') return
   const obj = node as Record<string, unknown>
   for (const kind of ['Column', 'Measure'] as const) {
