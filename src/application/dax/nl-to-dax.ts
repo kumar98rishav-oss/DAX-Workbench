@@ -10,7 +10,7 @@
 import type { SemanticModel } from '@/domain/model'
 import { parseDependencies } from './dependencies'
 
-export const NIM_MODEL = 'meta/llama-3.1-405b-instruct'
+export const NIM_MODEL = 'deepseek-ai/deepseek-v4-flash'
 
 export interface NlToDaxResult {
   dax: string
