@@ -237,6 +237,154 @@
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+  transition: width var(--dur) var(--ease);
+}
+/* Selecting an object turns the rail into a reading surface. It has to LEAVE
+   the centre column to do that — the shell's sidebar and right panel leave
+   barely 500px there, so an in-flow panel could never reach 70% of the page.
+   Fixed, under the top bar, so the mode tabs stay reachable. */
+.cleanup__aside.is-wide {
+  position: fixed;
+  top: var(--topbar-h);
+  right: 0;
+  bottom: 0;
+  width: min(70vw, 1150px);
+  z-index: var(--z-overlay);
+  box-shadow: var(--shadow-lg);
+  border-left: 1px solid var(--border-strong);
+}
+@media (max-width: 900px) {
+  .cleanup__aside.is-wide {
+    width: 100vw;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cleanup__aside {
+    transition: none;
+  }
+}
+/* Click-away target behind the inspector. */
+.cleanup__scrim {
+  position: fixed;
+  inset: var(--topbar-h) 0 0 0;
+  background: var(--scrim);
+  z-index: calc(var(--z-overlay) - 1);
+  border: 0;
+  padding: 0;
+  cursor: default;
+}
+
+/* ---- detail panel ---- */
+.cleanup__detail {
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.cleanup__detailhead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.cleanup__detailhead > div {
+  flex: 1;
+  min-width: 0;
+}
+.cleanup__detailhead h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-family: var(--font-mono);
+  word-break: break-word;
+}
+.cleanup__close {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cleanup__close:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* ---- placements table ---- */
+.cleanup__tablewrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.cleanup__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.cleanup__table th {
+  text-align: left;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: var(--weight-semibold);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.cleanup__table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line-soft, var(--border));
+  color: var(--text);
+}
+.cleanup__table tr:last-child td {
+  border-bottom: 0;
+}
+.cleanup__vtype {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--text-xs);
+}
+
+/* ---- DAX ---- */
+.cleanup__dax {
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+  color: var(--text);
+}
+
+/* ---- staged bar inside the detail panel ---- */
+.cleanup__stagebar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: var(--text-sm);
+}
+.cleanup__stagebar > span {
+  flex: 1;
+  min-width: 140px;
 }
 .cleanup__pane {
   padding: var(--space-4);
@@ -340,4 +488,89 @@
   margin-top: var(--space-3);
   font-size: var(--text-xs);
   line-height: var(--leading-normal);
+}
+
+/* ============================================================================
+   DEPENDENCY FLOW — what feeds this object, and where it ends up
+   ========================================================================== */
+
+.depflow {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  padding: var(--space-3);
+}
+.depflow__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.depflow__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.depflow__legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.depflow__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.depflow__edge {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+
+.depflow__node > rect:first-child {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+.depflow__node[role='button'] {
+  cursor: pointer;
+}
+.depflow__node[role='button']:hover > rect:first-child,
+.depflow__node[role='button']:focus-visible > rect:first-child {
+  stroke: var(--accent);
+  fill: var(--accent-soft);
+}
+/* The object being inspected — heavier, so the eye lands on it first. */
+.depflow__node--self > rect:first-child {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.depflow__label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--text);
+}
+.depflow__sub {
+  font-size: 10.5px;
+  fill: var(--text-muted);
+}
+.depflow__empty {
+  font-size: 11px;
+  fill: var(--text-subtle, var(--text-muted));
+  font-style: italic;
+}
+.depflow__more {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }

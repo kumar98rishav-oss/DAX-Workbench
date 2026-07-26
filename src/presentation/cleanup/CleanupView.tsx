@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Eraser, Undo2, Redo2, Trash2, TriangleAlert, ShieldCheck, CircleHelp, FileSearch, FolderSearch, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Eraser, Undo2, Redo2, Trash2, TriangleAlert, ShieldCheck, CircleHelp, FileSearch, FolderSearch, Search, X } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Badge, Button, EmptyState, Segmented } from '@/design-system/components'
 import {
@@ -9,6 +9,7 @@ import {
   type UsageNode,
   type UsageState,
 } from '@/application/dax/usage'
+import { DependencyFlow, visualLabel } from './DependencyFlow'
 import './cleanup.css'
 
 const STATE_LABEL: Record<UsageState, string> = {
@@ -62,6 +63,16 @@ export function CleanupView() {
   }, [kindNodes, filter, query])
 
   const impact = useMemo(() => cascadeImpact(graph, staged), [graph, staged])
+
+  // Escape closes the inspector — it covers most of the page when open.
+  useEffect(() => {
+    if (!selected) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelected(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selected])
   const active = selected ? graph.byKey[selected] : null
 
   if (model.tables.length === 0) {
@@ -205,75 +216,93 @@ export function CleanupView() {
           </div>
         </div>
 
-        <aside className="cleanup__aside">
-          <div className="cleanup__pane">
-            <h3>{active ? active.label : 'Select an object'}</h3>
-            {active ? (
-              <>
-                <div className="cleanup__meta">
-                  <Badge variant={STATE_VARIANT[active.state]}>{STATE_LABEL[active.state]}</Badge>
-                  <span className="cleanup__muted">{active.kind}</span>
-                </div>
-                {active.reasons.length > 0 && (
-                  <ul className="cleanup__reasons">
-                    {active.reasons.map((r) => (
-                      <li key={r}>
-                        <ShieldCheck size={13} /> {r}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <h4>Depends on ({active.dependsOn.length})</h4>
-                <ul className="cleanup__links">
-                  {active.dependsOn.map((k) => (
-                    <li key={k} onClick={() => setSelected(k)}>
-                      {graph.byKey[k]?.label ?? k}
-                    </li>
-                  ))}
-                  {active.dependsOn.length === 0 && <li className="cleanup__muted">nothing</li>}
-                </ul>
-                <h4>Used by ({active.dependents.length})</h4>
-                <ul className="cleanup__links">
-                  {active.dependents.map((k) => (
-                    <li key={k} onClick={() => setSelected(k)}>
-                      {graph.byKey[k]?.label ?? k}
-                    </li>
-                  ))}
-                  {active.dependents.length === 0 && <li className="cleanup__muted">nothing</li>}
-                </ul>
-              </>
-            ) : (
-              <p className="cleanup__muted">
-                Pick an object to see what it depends on, what depends on it, and why it counts as used.
-              </p>
-            )}
-          </div>
-
-          <div className="cleanup__pane cleanup__pane--stage">
-            <h3>
-              <Trash2 size={15} /> Staged ({staged.length})
-            </h3>
-            {staged.length === 0 ? (
-              <p className="cleanup__muted">Nothing staged. Tick an object to queue it for deletion.</p>
-            ) : (
-              <>
-                <ul className="cleanup__links">
-                  {staged.map((k) => (
-                    <li key={k} onClick={() => setSelected(k)}>
-                      {graph.byKey[k]?.label ?? k}
-                    </li>
-                  ))}
-                </ul>
-                {impact.length > 0 && (
-                  <div className="cleanup__warn">
-                    <TriangleAlert size={15} />
-                    <span>
-                      <strong>{impact.length} object{impact.length === 1 ? '' : 's'} would break.</strong> Deleting the
-                      staged set removes something they still reference.
-                    </span>
+        {active && (
+          <button className="cleanup__scrim" aria-label="Close details" onClick={() => setSelected(null)} />
+        )}
+        <aside className={`cleanup__aside ${active ? 'is-wide' : ''}`}>
+          {active ? (
+            <div className="cleanup__detail">
+              <header className="cleanup__detailhead">
+                <div>
+                  <h3>{active.label}</h3>
+                  <div className="cleanup__meta">
+                    <Badge variant={STATE_VARIANT[active.state]}>{STATE_LABEL[active.state]}</Badge>
+                    <span className="cleanup__muted">{active.kind}</span>
+                    {active.reportRefs > 0 && (
+                      <span className="cleanup__muted">
+                        · {active.reportRefs} binding{active.reportRefs === 1 ? '' : 's'}
+                      </span>
+                    )}
                   </div>
-                )}
-                <div className="cleanup__actions">
+                </div>
+                <button className="cleanup__close" aria-label="Close details" onClick={() => setSelected(null)}>
+                  <X size={16} />
+                </button>
+              </header>
+
+              {active.reasons.length > 0 && (
+                <ul className="cleanup__reasons">
+                  {active.reasons.map((r) => (
+                    <li key={r}>
+                      <ShieldCheck size={13} /> {r}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <h4>Dependency flow</h4>
+              <DependencyFlow graph={graph} node={active} onPick={setSelected} />
+
+              <h4>Where it appears in the report</h4>
+              {!graph.scanned ? (
+                <p className="cleanup__muted">
+                  Scan a report above and this will list every page and visual that binds it.
+                </p>
+              ) : active.placements.length === 0 ? (
+                <p className="cleanup__muted">No visual on any scanned page binds it.</p>
+              ) : (
+                <div className="cleanup__tablewrap">
+                  <table className="cleanup__table">
+                    <thead>
+                      <tr>
+                        <th>Page</th>
+                        <th>Visual</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {active.placements.map((p) => (
+                        <tr key={`${p.page}-${p.visualType}`}>
+                          <td>{p.page}</td>
+                          <td>
+                            <span className="cleanup__vtype">{visualLabel(p.visualType)}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {active.kind === 'measure' && (
+                <>
+                  <h4>DAX</h4>
+                  {active.dax?.trim() ? (
+                    <pre className="cleanup__dax">
+                      <code>{active.dax.trim()}</code>
+                    </pre>
+                  ) : (
+                    <p className="cleanup__muted">No expression available for this measure.</p>
+                  )}
+                </>
+              )}
+
+              {staged.length > 0 && (
+                <div className="cleanup__stagebar">
+                  <Trash2 size={15} />
+                  <span>
+                    <strong>{staged.length}</strong> staged
+                    {impact.length > 0 && ` · ${impact.length} would break`}
+                  </span>
                   <Button size="sm" onClick={clearStage}>
                     Discard
                   </Button>
@@ -281,13 +310,51 @@ export function CleanupView() {
                     Deploy to Power BI
                   </Button>
                 </div>
-                <p className="cleanup__muted cleanup__fineprint">
-                  Staging is local and reversible. Deploy is deliberately disabled until deletion is wired through the
-                  bridge with snapshot rollback.
+              )}
+            </div>
+          ) : (
+            <div className="cleanup__pane cleanup__pane--stage">
+              <h3>
+                <Trash2 size={15} /> Staged ({staged.length})
+              </h3>
+              {staged.length === 0 ? (
+                <p className="cleanup__muted">
+                  Pick an object to see what it depends on, where it appears in the report, and its DAX.
                 </p>
-              </>
-            )}
-          </div>
+              ) : (
+                <>
+                  <ul className="cleanup__links">
+                    {staged.map((k) => (
+                      <li key={k} onClick={() => setSelected(k)}>
+                        {graph.byKey[k]?.label ?? k}
+                      </li>
+                    ))}
+                  </ul>
+                  {impact.length > 0 && (
+                    <div className="cleanup__warn">
+                      <TriangleAlert size={15} />
+                      <span>
+                        <strong>{impact.length} object{impact.length === 1 ? '' : 's'} would break.</strong> Deleting
+                        the staged set removes something they still reference.
+                      </span>
+                    </div>
+                  )}
+                  <div className="cleanup__actions">
+                    <Button size="sm" onClick={clearStage}>
+                      Discard
+                    </Button>
+                    <Button size="sm" variant="primary" disabled title="Deploy is not wired yet — staging only">
+                      Deploy to Power BI
+                    </Button>
+                  </div>
+                  <p className="cleanup__muted cleanup__fineprint">
+                    Staging is local and reversible. Deploy is deliberately disabled until deletion is wired through
+                    the bridge with snapshot rollback.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </aside>
       </div>
     </div>

@@ -25,6 +25,13 @@ export type ObjectKind = 'measure' | 'column' | 'table'
  */
 export type UsageState = 'referenced' | 'no-model-refs' | 'unused'
 
+/** Where in the report an object is bound — one row per page + visual pair. */
+export interface VisualPlacement {
+  page: string
+  /** Power BI's own visual type id, e.g. "clusteredBarChart", "card". */
+  visualType: string
+}
+
 /** Visual/report bindings, when a PBIP or PBIX was available to parse. */
 export interface ReportUsage {
   /** False means "we never looked" — the difference between unknown and zero. */
@@ -33,6 +40,10 @@ export interface ReportUsage {
   measures: Record<string, number>
   /** columnUsageKey() -> number of visual bindings */
   columns: Record<string, number>
+  /** lowercase measure name -> the pages/visuals it appears on */
+  measurePlacements?: Record<string, VisualPlacement[]>
+  /** columnUsageKey() -> the pages/visuals it appears on */
+  columnPlacements?: Record<string, VisualPlacement[]>
 }
 
 export const NO_REPORT: ReportUsage = { scanned: false, measures: {}, columns: {} }
@@ -61,6 +72,10 @@ export interface UsageNode {
   reasons: string[]
   /** Visual bindings found in the report layer (0 when not scanned). */
   reportRefs: number
+  /** Which pages and visual types bind it. Empty unless a report was scanned. */
+  placements: VisualPlacement[]
+  /** The measure's DAX, so the detail panel need not re-query the model. */
+  dax?: string
   /** True when it sits on a relationship — deleting it breaks the model. */
   inRelationship: boolean
   /**
@@ -90,7 +105,7 @@ export function buildUsageGraph(model: SemanticModel, report: ReportUsage = NO_R
       key, kind, table, name, label,
       state: 'no-model-refs',
       dependsOn: [], dependents: [], reasons: [],
-      reportRefs: 0, inRelationship: false, directRefs: 0,
+      reportRefs: 0, placements: [], inRelationship: false, directRefs: 0,
     }
     byKey[key] = node
     nodes.push(node)
@@ -109,7 +124,10 @@ export function buildUsageGraph(model: SemanticModel, report: ReportUsage = NO_R
   for (const t of scoped.tables) {
     add('table', t.name, t.name, t.name)
     for (const c of t.columns) add('column', t.name, c.name, `${t.name}[${c.name}]`)
-    for (const mm of t.measures) add('measure', t.name, mm.name, `[${mm.name}]`)
+    for (const mm of t.measures) {
+      const n = add('measure', t.name, mm.name, `[${mm.name}]`)
+      n.dax = mm.expression ?? ''
+    }
   }
 
   const link = (fromKey: string, toKey: string) => {
@@ -199,13 +217,20 @@ export function buildUsageGraph(model: SemanticModel, report: ReportUsage = NO_R
   // ---- 5. report-layer bindings
   if (report.scanned) {
     for (const n of nodes) {
+      const key = n.kind === 'measure' ? n.name.toLowerCase() : columnUsageKey(n.table, n.name)
       const hits =
         n.kind === 'measure'
-          ? (report.measures[n.name.toLowerCase()] ?? 0)
+          ? (report.measures[key] ?? 0)
           : n.kind === 'column'
-            ? (report.columns[columnUsageKey(n.table, n.name)] ?? 0)
+            ? (report.columns[key] ?? 0)
             : 0
       n.reportRefs = hits
+      n.placements =
+        n.kind === 'measure'
+          ? (report.measurePlacements?.[key] ?? [])
+          : n.kind === 'column'
+            ? (report.columnPlacements?.[key] ?? [])
+            : []
       if (hits > 0) n.reasons.push(`Bound to ${hits} visual${hits === 1 ? '' : 's'}`)
     }
   }
