@@ -10,6 +10,7 @@ export function ImportHost() {
   const registerPbipPicker = useApp((s) => s.registerPbipPicker)
   const registerPbixPicker = useApp((s) => s.registerPbixPicker)
   const registerReportPicker = useApp((s) => s.registerReportPicker)
+  const registerReportFolderPicker = useApp((s) => s.registerReportFolderPicker)
   const scanReport = useApp((s) => s.scanReport)
   const stageImport = useApp((s) => s.stageImport)
   const openPbipFiles = useApp((s) => s.openPbipFiles)
@@ -24,18 +25,21 @@ export function ImportHost() {
   const pbipRef = useRef<HTMLInputElement>(null)
   const pbixRef = useRef<HTMLInputElement>(null)
   const reportRef = useRef<HTMLInputElement>(null)
+  const reportDirRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     registerFilePicker(() => dataRef.current?.click())
     registerPbipPicker(() => pbipRef.current?.click())
     registerPbixPicker(() => pbixRef.current?.click())
     registerReportPicker(() => reportRef.current?.click())
+    registerReportFolderPicker(() => reportDirRef.current?.click())
     // Folder selection is a non-standard attribute; set it imperatively.
-    if (pbipRef.current) {
-      pbipRef.current.setAttribute('webkitdirectory', '')
-      pbipRef.current.setAttribute('directory', '')
+    for (const el of [pbipRef.current, reportDirRef.current]) {
+      if (!el) continue
+      el.setAttribute('webkitdirectory', '')
+      el.setAttribute('directory', '')
     }
-  }, [registerFilePicker, registerPbipPicker, registerPbixPicker, registerReportPicker])
+  }, [registerFilePicker, registerPbipPicker, registerPbixPicker, registerReportPicker, registerReportFolderPicker])
 
   return (
     <>
@@ -76,11 +80,23 @@ export function ImportHost() {
         }}
       />
 
-      {/* Cleanup's report scan: a .pbix, or the report JSON files of a PBIP folder. */}
+      {/* Cleanup's report scan — a single .pbix archive. */}
       <input
         ref={reportRef}
         type="file"
-        accept=".pbix,.json"
+        accept=".pbix"
+        className="pbs-visually-hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? [])
+          e.target.value = ''
+          if (files.length) void scanReport(files)
+        }}
+      />
+
+      {/* …or a PBIP project folder, which must be picked as a directory. */}
+      <input
+        ref={reportDirRef}
+        type="file"
         multiple
         className="pbs-visually-hidden"
         onChange={(e) => {

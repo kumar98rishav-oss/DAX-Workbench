@@ -211,6 +211,11 @@ interface AppState {
   registerReportPicker: (fn: () => void) => void
   requestReportScan: () => void
   _pickReport: (() => void) | null
+  /** PBIP keeps its report as a folder tree, so it needs a directory picker —
+   * a file input cannot select a folder, it just navigates into it. */
+  registerReportFolderPicker: (fn: () => void) => void
+  requestReportFolderScan: () => void
+  _pickReportFolder: (() => void) | null
   _pickFiles: (() => void) | null
   _pickPbip: (() => void) | null
   _pickPbix: (() => void) | null
@@ -581,6 +586,12 @@ export const useApp = create<AppState>((set, get) => ({
   registerReportPicker: (fn) => set({ _pickReport: fn }),
   requestReportScan: () => {
     const pick = get()._pickReport
+    if (pick) pick()
+  },
+  _pickReportFolder: null,
+  registerReportFolderPicker: (fn) => set({ _pickReportFolder: fn }),
+  requestReportFolderScan: () => {
+    const pick = get()._pickReportFolder
     if (pick) pick()
   },
   scanReport: async (files) => {

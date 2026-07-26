@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Eraser, Undo2, Redo2, Trash2, TriangleAlert, ShieldCheck, CircleHelp, FileSearch, Search } from 'lucide-react'
+import { Eraser, Undo2, Redo2, Trash2, TriangleAlert, ShieldCheck, CircleHelp, FileSearch, FolderSearch, Search } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Badge, Button, EmptyState, Segmented } from '@/design-system/components'
 import {
@@ -41,6 +41,7 @@ export function CleanupView() {
   const reportScanNote = useApp((s) => s.reportScanNote)
   const reportScanning = useApp((s) => s.reportScanning)
   const requestReportScan = useApp((s) => s.requestReportScan)
+  const requestReportFolderScan = useApp((s) => s.requestReportFolderScan)
   const clearReportUsage = useApp((s) => s.clearReportUsage)
 
   // "Unused" is only reachable once the report layer has actually been read.
@@ -125,9 +126,14 @@ export function CleanupView() {
             see which visuals bind a measure. Objects below are marked <em>no model refs</em>, never <em>unused</em>:
             nothing in the model references them, but a report page still might.
           </span>
-          <Button size="sm" icon={<FileSearch size={15} />} onClick={requestReportScan} disabled={reportScanning}>
-            {reportScanning ? 'Scanning…' : 'Scan report'}
-          </Button>
+          <span className="cleanup__notice-actions">
+            <Button size="sm" icon={<FileSearch size={15} />} onClick={requestReportScan} disabled={reportScanning}>
+              {reportScanning ? 'Scanning…' : 'Scan .pbix'}
+            </Button>
+            <Button size="sm" icon={<FolderSearch size={15} />} onClick={requestReportFolderScan} disabled={reportScanning}>
+              {reportScanning ? 'Scanning…' : 'Scan PBIP folder'}
+            </Button>
+          </span>
         </div>
       ) : (
         <div className="cleanup__notice cleanup__notice--ok">
