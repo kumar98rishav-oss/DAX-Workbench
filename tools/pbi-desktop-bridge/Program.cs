@@ -466,7 +466,7 @@ app.MapPost("/nim", async (NimProxyReq req) =>
     var payload = System.Text.Json.JsonSerializer.Serialize(new
     {
         model       = req.Model,
-        messages    = req.Messages,
+        messages    = req.Messages.Select(m => new { role = m.Role, content = m.Content }).ToArray(),
         temperature = req.Temperature,
         max_tokens  = req.MaxTokens,
     });
