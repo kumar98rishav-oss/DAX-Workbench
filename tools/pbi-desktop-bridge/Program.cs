@@ -459,7 +459,7 @@ app.MapPost("/nim", async (NimProxyReq req) =>
     if (string.IsNullOrWhiteSpace(req.ApiKey))
         return Results.Json(new { error = "API key is required." }, statusCode: 400);
 
-    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
     client.DefaultRequestHeaders.Authorization =
         new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", req.ApiKey);
 

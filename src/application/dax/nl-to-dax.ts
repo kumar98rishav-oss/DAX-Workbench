@@ -35,9 +35,11 @@ export function modelToSchemaPrompt(model: SemanticModel): string {
   for (const table of model.tables) {
     if (table.isHidden) continue
     lines.push(`CREATE TABLE ${sqlName(table.name)} (`)
-    const cols = table.columns
-      .filter((c) => !c.isHidden)
+    const visible = table.columns.filter((c) => !c.isHidden)
+    const cols = visible
+      .slice(0, 30)
       .map((c) => `  ${sqlName(c.name)}  ${normaliseType(c.dataType)}`)
+    if (visible.length > 30) cols.push(`  -- … ${visible.length - 30} more columns`)
     lines.push(cols.length ? cols.join(',\n') : '  -- (no visible columns)')
     lines.push(');')
     lines.push('')
@@ -120,7 +122,7 @@ export async function generateDaxFromNL(
       temperature: 0.1,
       maxTokens: 512,
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(90000),
   })
 
   if (!resp.ok) {
