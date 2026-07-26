@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap, CalendarDays, ListTree, Zap } from 'lucide-react'
+import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap, CalendarDays, ListTree, Zap, BrainCircuit, TriangleAlert, Copy, ChevronDown, ChevronUp } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, EmptyState } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
@@ -90,6 +90,17 @@ export function DaxView() {
   const toggleFactory = useApp((s) => s.toggleFactory)
   const toggleDoctor = useApp((s) => s.toggleDoctor)
   const toggleDateTable = useApp((s) => s.toggleDateTable)
+
+  const nimApiKey = useApp((s) => s.nimApiKey)
+  const setNimApiKey = useApp((s) => s.setNimApiKey)
+  const nlToDaxBusy = useApp((s) => s.nlToDaxBusy)
+  const nlToDaxResult = useApp((s) => s.nlToDaxResult)
+  const nlToDaxError = useApp((s) => s.nlToDaxError)
+  const runNlToDax = useApp((s) => s.runNlToDax)
+  const dismissNlToDax = useApp((s) => s.dismissNlToDax)
+
+  const [aiExpanded, setAiExpanded] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
 
   const [prompt, setPrompt] = useState('')
   const [explanation, setExplanation] = useState<string | null>(null)
@@ -363,6 +374,122 @@ export function DaxView() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* ---- AI Generate (DeepSeek via NVIDIA NIM) ---- */}
+            <div className="dax-ai">
+              <button
+                className="dax-ai__toggle"
+                onClick={() => { setAiExpanded((v) => !v); dismissNlToDax() }}
+              >
+                <BrainCircuit size={14} />
+                <span>AI Generate <em>(DeepSeek · NVIDIA NIM)</em></span>
+                {aiExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              </button>
+
+              {aiExpanded && (
+                <div className="dax-ai__body">
+                  {!nimApiKey && (
+                    <div className="dax-ai__keyrow">
+                      <input
+                        className="dax-input dax-ai__keyinput"
+                        type="password"
+                        placeholder="Paste your NVIDIA NIM API key…"
+                        onBlur={(e) => setNimApiKey(e.target.value.trim())}
+                        defaultValue={nimApiKey}
+                      />
+                      <a
+                        className="dax-ai__keylink"
+                        href="https://build.nvidia.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Get key ↗
+                      </a>
+                    </div>
+                  )}
+
+                  <div className="dax-nl" style={{ marginTop: 0 }}>
+                    <input
+                      className="dax-nl__input"
+                      placeholder="Describe the DAX measure in plain English…"
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !nlToDaxBusy) {
+                          void runNlToDax(aiPrompt, selected?.tableName)
+                        }
+                      }}
+                      disabled={nlToDaxBusy}
+                    />
+                    <Button
+                      variant="primary"
+                      icon={<BrainCircuit size={15} />}
+                      onClick={() => void runNlToDax(aiPrompt, selected?.tableName)}
+                      disabled={nlToDaxBusy || !aiPrompt.trim()}
+                    >
+                      {nlToDaxBusy ? 'Generating…' : 'AI Generate'}
+                    </Button>
+                  </div>
+
+                  {nimApiKey && (
+                    <div className="dax-ai__keyrow">
+                      <span className="dax-ai__keystat">API key saved</span>
+                      <button className="dax-ai__keyclear" onClick={() => setNimApiKey('')}>Clear key</button>
+                    </div>
+                  )}
+
+                  {nlToDaxError && (
+                    <div className="dax-ai__error">
+                      <TriangleAlert size={14} /> {nlToDaxError}
+                    </div>
+                  )}
+
+                  {nlToDaxResult && (
+                    <div className="dax-ai__result">
+                      <div className="dax-ai__result-head">
+                        <span className="dax-ai__result-name">{nlToDaxResult.measureName}</span>
+                        {nlToDaxResult.hallucinated.length > 0 && (
+                          <span className="dax-ai__warn">
+                            <TriangleAlert size={13} />
+                            {nlToDaxResult.hallucinated.length} name{nlToDaxResult.hallucinated.length > 1 ? 's' : ''} not in model: {nlToDaxResult.hallucinated.join(', ')}
+                          </span>
+                        )}
+                      </div>
+                      <pre className="dax-ai__dax"><code>{nlToDaxResult.dax}</code></pre>
+                      <div className="dax-ai__result-actions">
+                        <Button
+                          size="sm"
+                          icon={<Copy size={13} />}
+                          onClick={() => {
+                            void navigator.clipboard.writeText(nlToDaxResult.dax)
+                          }}
+                        >
+                          Copy DAX
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          icon={<Check size={13} />}
+                          onClick={() => {
+                            if (selected) {
+                              updateMeasure(selected.id, {
+                                expression: nlToDaxResult.dax,
+                                name: selected.name === 'New measure' ? nlToDaxResult.measureName : selected.name,
+                              })
+                            }
+                            dismissNlToDax()
+                          }}
+                          disabled={!selected}
+                        >
+                          Use this DAX
+                        </Button>
+                        <button className="dax-ai__dismiss" onClick={dismissNlToDax}>Dismiss</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {suggestions.length > 0 && (

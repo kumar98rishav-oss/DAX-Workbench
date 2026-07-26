@@ -7,7 +7,8 @@ import type { DatasetData } from '@/application/import/types'
 import { buildModel } from '@/application/model/auto-model'
 import { generateLayout, DEFAULT_LAYOUT } from '@/application/insights/dashboard-generator'
 import type { VisualSpec } from '@/application/insights/dashboard-generator'
-import { generateDaxFromNL } from '@/application/dax/nl-templates'
+import { generateDaxFromNL as generateDaxFromNLTemplate } from '@/application/dax/nl-templates'
+import { generateDaxFromNL as generateDaxFromNim } from '@/application/dax/nl-to-dax'
 import { architectSolution } from '@/application/dax/architect/architect'
 import { NO_REPORT, type ReportUsage } from '@/application/dax/usage'
 import { scanReportFiles } from '@/application/dax/report-usage'
@@ -151,6 +152,15 @@ interface AppState {
 
   // ---- DAX ----
   selectedMeasureId: string | null
+
+  // ---- NL-to-DAX (AI) ----
+  nimApiKey: string
+  nlToDaxBusy: boolean
+  nlToDaxResult: { dax: string; measureName: string; hallucinated: string[] } | null
+  nlToDaxError: string | null
+  setNimApiKey: (key: string) => void
+  runNlToDax: (prompt: string, targetTable?: string) => Promise<void>
+  dismissNlToDax: () => void
 
   // ---- analyst ----
   analystOpen: boolean
@@ -362,6 +372,31 @@ export const useApp = create<AppState>((set, get) => ({
   future: [],
 
   selectedMeasureId: null,
+
+  nimApiKey: (() => { try { return localStorage.getItem('pbistudio.nimApiKey') ?? '' } catch { return '' } })(),
+  nlToDaxBusy: false,
+  nlToDaxResult: null,
+  nlToDaxError: null,
+  setNimApiKey: (key) => {
+    try { localStorage.setItem('pbistudio.nimApiKey', key) } catch { /* private mode */ }
+    set({ nimApiKey: key })
+  },
+  runNlToDax: async (prompt, targetTable) => {
+    const s = get()
+    if (!prompt.trim()) return
+    set({ nlToDaxBusy: true, nlToDaxResult: null, nlToDaxError: null })
+    try {
+      const result = await generateDaxFromNim(prompt, s.model, s.nimApiKey, targetTable)
+      if (!result.ok) {
+        set({ nlToDaxBusy: false, nlToDaxError: result.note ?? 'Could not generate DAX for that request.' })
+      } else {
+        set({ nlToDaxBusy: false, nlToDaxResult: result })
+      }
+    } catch (e) {
+      set({ nlToDaxBusy: false, nlToDaxError: e instanceof Error ? e.message : 'AI generation failed.' })
+    }
+  },
+  dismissNlToDax: () => set({ nlToDaxResult: null, nlToDaxError: null }),
 
   analystOpen: false,
   analystThinking: false,
@@ -1235,7 +1270,7 @@ export const useApp = create<AppState>((set, get) => ({
     }
 
     // ---- fallback: single-measure heuristic ----
-    const g = generateDaxFromNL(prompt, s.model, s.datasets)
+    const g = generateDaxFromNLTemplate(prompt, s.model, s.datasets)
     if (!g) return null
     const target = s.model.tables.find((t) => t.role === 'fact') ?? s.model.tables[0]
     if (!target) return null

@@ -722,3 +722,153 @@
   color: var(--text-subtle);
   background: var(--surface-2);
 }
+
+/* ============================================================================
+   AI GENERATE PANEL (NL-to-DAX via DeepSeek / NVIDIA NIM)
+   ========================================================================== */
+
+.dax-ai {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.dax-ai__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  border: none;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.dax-ai__toggle:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.dax-ai__toggle em {
+  font-style: normal;
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+.dax-ai__toggle svg:last-child {
+  margin-left: auto;
+}
+
+.dax-ai__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.dax-ai__keyrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.dax-ai__keyinput {
+  flex: 1;
+}
+.dax-ai__keylink {
+  font-size: var(--text-sm);
+  color: var(--accent);
+  white-space: nowrap;
+  text-decoration: none;
+}
+.dax-ai__keylink:hover { text-decoration: underline; }
+
+.dax-ai__keystat {
+  font-size: var(--text-xs);
+  color: var(--success);
+}
+.dax-ai__keyclear {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+.dax-ai__keyclear:hover { color: var(--danger); }
+
+.dax-ai__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--danger, #dc2626) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 25%, transparent);
+  color: var(--danger, #dc2626);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.dax-ai__result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg));
+}
+
+.dax-ai__result-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.dax-ai__result-name {
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.dax-ai__warn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--warning, #d97706);
+}
+
+.dax-ai__dax {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--accent);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+.dax-ai__result-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.dax-ai__dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  cursor: pointer;
+  padding: 0;
+}
+.dax-ai__dismiss:hover { color: var(--text); }
