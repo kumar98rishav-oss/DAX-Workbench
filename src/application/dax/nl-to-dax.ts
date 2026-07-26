@@ -124,8 +124,17 @@ export async function generateDaxFromNL(
   })
 
   if (!resp.ok) {
-    const err = (await resp.json().catch(() => ({}))) as { error?: string; message?: string }
-    throw new Error(err.error ?? err.message ?? `NIM error (HTTP ${resp.status})`)
+    const err = (await resp.json().catch(() => ({}))) as {
+      error?: string | { message?: string }
+      message?: string
+      detail?: string
+    }
+    const errMsg =
+      (typeof err.error === 'string' ? err.error : err.error?.message) ??
+      err.message ??
+      err.detail ??
+      `NIM error (HTTP ${resp.status})`
+    throw new Error(errMsg)
   }
 
   const data = (await resp.json()) as {
