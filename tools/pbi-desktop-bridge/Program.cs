@@ -450,6 +450,36 @@ app.MapFallback(async ctx =>
     await s.CopyToAsync(ctx.Response.Body);
 });
 
+// ---- NVIDIA NIM proxy ----
+// Browser fetch() to integrate.api.nvidia.com is blocked by CORS in every
+// browser. Proxying through here keeps the same loopback-only security model:
+// the key travels only over localhost, the actual LLM call goes server-side.
+app.MapPost("/nim", async (NimProxyReq req) =>
+{
+    if (string.IsNullOrWhiteSpace(req.ApiKey))
+        return Results.Json(new { error = "API key is required." }, statusCode: 400);
+
+    using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+    client.DefaultRequestHeaders.Authorization =
+        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", req.ApiKey);
+
+    var payload = System.Text.Json.JsonSerializer.Serialize(new
+    {
+        model       = req.Model,
+        messages    = req.Messages,
+        temperature = req.Temperature,
+        max_tokens  = req.MaxTokens,
+    });
+
+    using var content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+    HttpResponseMessage resp;
+    try { resp = await client.PostAsync("https://integrate.api.nvidia.com/v1/chat/completions", content); }
+    catch (Exception ex) { return Results.Json(new { error = ex.Message }, statusCode: 502); }
+
+    var body = await resp.Content.ReadAsStringAsync();
+    return Results.Text(body, "application/json", statusCode: (int)resp.StatusCode);
+});
+
 // ---- run: server in the background, tray in the foreground ----
 _ = app.RunAsync($"http://{listenIp}:{listenPort}");
 
@@ -487,6 +517,8 @@ Tray.Run(new TrayOptions
     ReleaseSingleInstance = () => { try { single.ReleaseMutex(); single.Dispose(); } catch { /* already gone */ } },
 });
 
+record NimMessage(string Role, string Content);
+record NimProxyReq(string ApiKey, string Model, NimMessage[] Messages, double Temperature, int MaxTokens);
 record DaxReq(string Dax, int? Port);
 record TimeReq(string Dax, int? Runs, bool? ClearCache, int? Port);
 record PreviewReq(string Expression, int? Port);

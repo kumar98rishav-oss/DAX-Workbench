@@ -10,7 +10,6 @@
 import type { SemanticModel } from '@/domain/model'
 import { parseDependencies } from './dependencies'
 
-export const NIM_BASE = 'https://integrate.api.nvidia.com/v1'
 export const NIM_MODEL = 'deepseek-ai/deepseek-r1'
 
 export interface NlToDaxResult {
@@ -101,27 +100,32 @@ export async function generateDaxFromNL(
 
   const schema = modelToSchemaPrompt(model)
 
-  const resp = await fetch(`${NIM_BASE}/chat/completions`, {
+  // Call goes through the local bridge so the browser never touches an external
+  // host directly — avoids CORS and keeps the API key off browser network logs.
+  const bridgeBase =
+    typeof location !== 'undefined' && location.port === '5177'
+      ? location.origin
+      : 'http://127.0.0.1:5177'
+
+  const resp = await fetch(`${bridgeBase}/nim`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      apiKey,
       model: NIM_MODEL,
       messages: [
         { role: 'system', content: SYSTEM(schema, targetTable) },
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.1,
-      max_tokens: 512,
+      maxTokens: 512,
     }),
     signal: AbortSignal.timeout(30000),
   })
 
   if (!resp.ok) {
-    const err = (await resp.json().catch(() => ({}))) as { message?: string }
-    throw new Error(err.message ?? `NVIDIA NIM error (HTTP ${resp.status})`)
+    const err = (await resp.json().catch(() => ({}))) as { error?: string; message?: string }
+    throw new Error(err.error ?? err.message ?? `NIM error (HTTP ${resp.status})`)
   }
 
   const data = (await resp.json()) as {
