@@ -15,7 +15,10 @@ import { parsePbipFolder, parsePbixFile, pbipSummary } from '@/application/impor
 import { assemblePbiProject } from '@/application/import/pbi/assemble'
 import type { ParsedDataset } from '@/application/import/types'
 import type { PbiModel } from '@/application/import/pbi/tmdl'
-import { probeDesktop, getDesktopModel, desktopRunDax, modelLabel, configureBridge, LOCAL_BRIDGE } from '@/infrastructure/desktop/desktop-client'
+import {
+  probeDesktop, getDesktopModel, desktopRunDax, modelLabel, configureBridge, LOCAL_BRIDGE,
+  desktopDeleteMeasures, desktopCreateMeasure, type DeletedMeasureSnapshot,
+} from '@/infrastructure/desktop/desktop-client'
 import type { DesktopStatus } from '@/infrastructure/desktop/desktop-client'
 import { mapTmdlType } from '@/application/import/pbi/tmdl'
 import { inferDataset } from '@/application/import/infer-schema'
@@ -216,6 +219,13 @@ interface AppState {
   registerReportFolderPicker: (fn: () => void) => void
   requestReportFolderScan: () => void
   _pickReportFolder: (() => void) | null
+  /** Deploy staged deletions to the live model. Destructive and not undoable
+   * in the engine, so the returned snapshot is kept for a restore. */
+  cleanupDeploying: boolean
+  cleanupResult: { deleted: number; snapshot: DeletedMeasureSnapshot[] } | null
+  deployCleanup: () => Promise<void>
+  restoreDeleted: () => Promise<void>
+  dismissCleanupResult: () => void
   _pickFiles: (() => void) | null
   _pickPbip: (() => void) | null
   _pickPbix: (() => void) | null
@@ -607,6 +617,83 @@ export const useApp = create<AppState>((set, get) => ({
     }
   },
   clearReportUsage: () => set({ reportUsage: NO_REPORT, reportScanNote: null }),
+
+  cleanupDeploying: false,
+  cleanupResult: null,
+  dismissCleanupResult: () => set({ cleanupResult: null }),
+  deployCleanup: async () => {
+    const s = get()
+    if (s.cleanupStaged.length === 0) return
+    if (!s.desktop.connected) {
+      set({ importError: 'Connect to Power BI Desktop before deploying.' })
+      return
+    }
+
+    // Object keys are lower-cased, so recover the model's real casing before
+    // asking the engine to find them.
+    const items = s.cleanupStaged.map((k) => {
+      const [kind, table, name] = JSON.parse(k) as [string, string, string]
+      const t = s.model.tables.find((x) => x.name.toLowerCase() === table)
+      const m = t?.measures.find((x) => x.name.toLowerCase() === name)
+      return { kind, table: t?.name ?? table, name: m?.name ?? name }
+    })
+
+    set({ cleanupDeploying: true, importError: null })
+    try {
+      const res = await desktopDeleteMeasures(items, s.desktop.port)
+      const gone = new Set(res.snapshot.map((d) => `${d.table.toLowerCase()}|${d.name.toLowerCase()}`))
+      set((st) => ({
+        cleanupDeploying: false,
+        cleanupResult: { deleted: res.count, snapshot: res.snapshot },
+        cleanupStaged: [],
+        cleanupUndo: [],
+        cleanupRedo: [],
+        model: {
+          ...st.model,
+          tables: st.model.tables.map((t) => ({
+            ...t,
+            measures: t.measures.filter((m) => !gone.has(`${t.name.toLowerCase()}|${m.name.toLowerCase()}`)),
+          })),
+        },
+        importNote: `Deleted ${res.count} measure${res.count === 1 ? '' : 's'} from the live model.`,
+      }))
+    } catch (e) {
+      set({
+        cleanupDeploying: false,
+        importError: e instanceof Error ? e.message : 'Deploy failed. Nothing was deleted.',
+      })
+    }
+  },
+  /** Put the last deleted batch back, using the snapshot the bridge returned. */
+  restoreDeleted: async () => {
+    const s = get()
+    const snap = s.cleanupResult?.snapshot ?? []
+    if (snap.length === 0) return
+    set({ cleanupDeploying: true, importError: null })
+    const failed: string[] = []
+    for (const d of snap) {
+      try {
+        await desktopCreateMeasure(
+          d.table,
+          d.name,
+          d.dax,
+          d.formatString ?? undefined,
+          d.displayFolder ?? undefined,
+          s.desktop.port,
+        )
+      } catch {
+        failed.push(d.name)
+      }
+    }
+    set({
+      cleanupDeploying: false,
+      cleanupResult: null,
+      importError: failed.length ? `Could not restore: ${failed.join(', ')}.` : null,
+      importNote: failed.length
+        ? null
+        : `Restored ${snap.length} measure${snap.length === 1 ? '' : 's'}. Re-sync to refresh the model.`,
+    })
+  },
   setKpiSlot: (index, measureName) => set((s) => ({ kpiOverrides: { ...s.kpiOverrides, [index]: measureName } })),
   setKpiZoom: (zoom) => set({ kpiZoom: Math.min(1.5, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
   setAnswersMatrix: (cfg) => set((s) => ({ answersMatrix: { ...s.answersMatrix, ...cfg } })),

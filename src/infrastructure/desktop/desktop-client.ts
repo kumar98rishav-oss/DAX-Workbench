@@ -170,6 +170,36 @@ export const desktopCreateTable = (
     body: JSON.stringify({ name, dax, relateTable, relateColumn, port }),
   }, 20000) // the engine materialises the whole table on commit — give it room
 
+/** A measure exactly as it was before deletion — enough to re-create it. */
+export interface DeletedMeasureSnapshot {
+  table: string
+  name: string
+  dax: string
+  formatString?: string | null
+  displayFolder?: string | null
+  description?: string | null
+}
+
+/**
+ * Delete measures from the live model. All or nothing: the bridge locates and
+ * snapshots every target before removing any, and rolls back if the single
+ * commit fails. The snapshot comes back either way — the engine has no undo,
+ * so holding the DAX is the only thing that makes this recoverable.
+ */
+export const desktopDeleteMeasures = (
+  items: { kind: string; table: string; name: string }[],
+  port?: number,
+) =>
+  req<{ status: string; count: number; snapshot: DeletedMeasureSnapshot[] }>(
+    '/delete',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ items, port }),
+    },
+    30000,
+  )
+
 export const desktopCreateMeasure = (
   table: string,
   name: string,

@@ -262,6 +262,88 @@ app.MapPost("/measure", (MeasureReq req) =>
     catch (Exception e) { return Fail(e); }
 });
 
+// DELETE measures. The only destructive endpoint, so it is deliberately strict:
+//
+//   * measures only — removing a column or table can break relationships,
+//     hierarchies and sort-by orders that TOM will not warn about, and cannot
+//     be put back from a JSON snapshot the way a measure can.
+//   * two passes — everything is located and snapshotted BEFORE anything is
+//     removed, so a bad name aborts the whole batch instead of half-deleting.
+//   * one commit — a single SaveChanges, and UndoLocalChanges if it throws, so
+//     the outcome is all or nothing.
+//   * the snapshot comes back in the response. SaveChanges cannot be undone in
+//     the engine, so returning the DAX is what makes this recoverable at all.
+app.MapPost("/delete", (DeleteReq req) =>
+{
+    if (req.Items is null || req.Items.Length == 0)
+        return Results.Json(new { error = "Nothing to delete." }, statusCode: 400);
+
+    var unsupported = req.Items
+        .Where(i => !string.Equals(i.Kind, "measure", StringComparison.OrdinalIgnoreCase))
+        .Select(i => $"{i.Kind} '{i.Name}'")
+        .ToArray();
+    if (unsupported.Length > 0)
+        return Results.Json(new
+        {
+            error = "Only measures can be deleted from here. Refusing: " + string.Join(", ", unsupported)
+                  + ". Columns and tables carry relationships and hierarchies that cannot be restored from a snapshot."
+        }, statusCode: 400);
+
+    try
+    {
+        var inst = PowerBi.Resolve(req.Port);
+        var db = PowerBi.ConnectDatabase(inst, out var server);
+        using var _ = server;
+
+        // Pass 1 — locate and snapshot. Nothing is modified in this loop.
+        var targets = new List<(Tom.Table Table, Tom.Measure Measure)>();
+        var snapshot = new List<object>();
+        foreach (var it in req.Items)
+        {
+            var t = db.Model.Tables.Find(it.Table);
+            if (t is null)
+                return Results.Json(new { error = $"Table '{it.Table}' not found. Nothing was deleted." }, statusCode: 400);
+            var m = t.Measures.Find(it.Name);
+            if (m is null)
+                return Results.Json(new { error = $"Measure '{it.Name}' not found in '{it.Table}'. Nothing was deleted." }, statusCode: 400);
+
+            snapshot.Add(new
+            {
+                table = it.Table,
+                name = m.Name,
+                dax = m.Expression,
+                formatString = m.FormatString,
+                displayFolder = m.DisplayFolder,
+                description = m.Description,
+            });
+            targets.Add((t, m));
+        }
+
+        // Pass 2 — remove, then commit once.
+        foreach (var (t, m) in targets) t.Measures.Remove(m);
+
+        try
+        {
+            db.Model.SaveChanges();
+        }
+        catch (Exception commit)
+        {
+            // The commit failed, so nothing reached the model. Drop the pending
+            // removals so the session is clean and the caller can retry.
+            try { db.Model.UndoLocalChanges(); } catch { /* best effort */ }
+            return Results.Json(new
+            {
+                error = "Delete was rolled back: " + commit.Message,
+                rolledBack = true,
+                snapshot,
+            }, statusCode: 500);
+        }
+
+        return Results.Json(new { status = "deleted", count = targets.Count, snapshot });
+    }
+    catch (Exception e) { return Fail(e); }
+});
+
 // Create or update a CALCULATED TABLE (e.g. a generated date table). The DAX
 // expression is the table; the engine materialises its columns on commit.
 app.MapPost("/table", (TableReq req) =>
@@ -409,4 +491,6 @@ record DaxReq(string Dax, int? Port);
 record TimeReq(string Dax, int? Runs, bool? ClearCache, int? Port);
 record PreviewReq(string Expression, int? Port);
 record MeasureReq(string Table, string Name, string Dax, string? FormatString, string? DisplayFolder, int? Port);
+record DeleteItem(string Kind, string Table, string Name);
+record DeleteReq(DeleteItem[] Items, int? Port);
 record TableReq(string Name, string Dax, string? RelateTable, string? RelateColumn, int? Port);

@@ -10,6 +10,7 @@ import {
   type UsageState,
 } from '@/application/dax/usage'
 import { DependencyFlow, visualLabel } from './DependencyFlow'
+import { DeployDialog } from './DeployDialog'
 import './cleanup.css'
 
 const STATE_LABEL: Record<UsageState, string> = {
@@ -44,6 +45,13 @@ export function CleanupView() {
   const requestReportScan = useApp((s) => s.requestReportScan)
   const requestReportFolderScan = useApp((s) => s.requestReportFolderScan)
   const clearReportUsage = useApp((s) => s.clearReportUsage)
+  const deployCleanup = useApp((s) => s.deployCleanup)
+  const restoreDeleted = useApp((s) => s.restoreDeleted)
+  const dismissCleanupResult = useApp((s) => s.dismissCleanupResult)
+  const cleanupDeploying = useApp((s) => s.cleanupDeploying)
+  const cleanupResult = useApp((s) => s.cleanupResult)
+  const desktopConnected = useApp((s) => s.desktop.connected)
+  const [confirmDeploy, setConfirmDeploy] = useState(false)
 
   // "Unused" is only reachable once the report layer has actually been read.
   const graph = useMemo(() => buildUsageGraph(model, reportUsage), [model, reportUsage])
@@ -306,7 +314,13 @@ export function CleanupView() {
                   <Button size="sm" onClick={clearStage}>
                     Discard
                   </Button>
-                  <Button size="sm" variant="primary" disabled title="Deploy is not wired yet — staging only">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setConfirmDeploy(true)}
+                    disabled={!desktopConnected || cleanupDeploying}
+                    title={desktopConnected ? 'Delete the staged measures from the live model' : 'Connect to Power BI Desktop first'}
+                  >
                     Deploy to Power BI
                   </Button>
                 </div>
@@ -343,13 +357,19 @@ export function CleanupView() {
                     <Button size="sm" onClick={clearStage}>
                       Discard
                     </Button>
-                    <Button size="sm" variant="primary" disabled title="Deploy is not wired yet — staging only">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => setConfirmDeploy(true)}
+                      disabled={!desktopConnected || cleanupDeploying}
+                      title={desktopConnected ? 'Delete the staged measures from the live model' : 'Connect to Power BI Desktop first'}
+                    >
                       Deploy to Power BI
                     </Button>
                   </div>
                   <p className="cleanup__muted cleanup__fineprint">
-                    Staging is local and reversible. Deploy is deliberately disabled until deletion is wired through
-                    the bridge with snapshot rollback.
+                    Staging is local and reversible. Deploy deletes measures from the live model — all or nothing,
+                    with a snapshot kept so they can be restored.
                   </p>
                 </>
               )}
@@ -357,6 +377,35 @@ export function CleanupView() {
           )}
         </aside>
       </div>
+
+      {confirmDeploy && (
+        <DeployDialog
+          graph={graph}
+          staged={staged}
+          impact={impact}
+          busy={cleanupDeploying}
+          onCancel={() => setConfirmDeploy(false)}
+          onConfirm={() => {
+            void deployCleanup().then(() => setConfirmDeploy(false))
+          }}
+        />
+      )}
+
+      {cleanupResult && (
+        <div className="cleanup__result" role="status">
+          <ShieldCheck size={16} />
+          <span>
+            Deleted <strong>{cleanupResult.deleted}</strong> measure{cleanupResult.deleted === 1 ? '' : 's'}. A
+            snapshot of their DAX is held for this session only.
+          </span>
+          <Button size="sm" onClick={() => void restoreDeleted()} disabled={cleanupDeploying}>
+            {cleanupDeploying ? 'Restoring…' : 'Restore them'}
+          </Button>
+          <button className="cleanup__close" aria-label="Dismiss" onClick={dismissCleanupResult}>
+            <X size={15} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
