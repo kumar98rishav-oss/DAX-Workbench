@@ -1,0 +1,1872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DAX Workbench — The Complete Inside Story</title>
+<style>
+/* =====================================================================
+   TOKENS
+   ===================================================================== */
+:root {
+  --bg:          #0E1117;
+  --bg-2:        #161B27;
+  --bg-3:        #1C2333;
+  --surface:     #1E2535;
+  --border:      #2A3655;
+  --border-hi:   #3D506E;
+  --text:        #E2DDD5;
+  --text-sub:    #8E99B0;
+  --text-mute:   #556075;
+
+  --amber:       #FFBB33;
+  --amber-soft:  rgba(255,187,51,.10);
+  --amber-mid:   rgba(255,187,51,.20);
+  --sky:         #38C2F5;
+  --sky-soft:    rgba(56,194,245,.10);
+  --violet:      #9B72FF;
+  --violet-soft: rgba(155,114,255,.10);
+  --sage:        #4ADE80;
+  --sage-soft:   rgba(74,222,128,.10);
+  --rose:        #F87171;
+  --rose-soft:   rgba(248,113,113,.10);
+  --gold:        #F4B942;
+
+  --ff-serif:  Georgia, 'Times New Roman', serif;
+  --ff-body:   'Segoe UI', system-ui, -apple-system, sans-serif;
+  --ff-mono:   'Consolas', 'Cascadia Code', 'Courier New', monospace;
+
+  --radius:    6px;
+  --radius-lg: 12px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:       #F7F4EE;
+    --bg-2:     #EEEAE1;
+    --bg-3:     #E5E0D5;
+    --surface:  #FFFFFF;
+    --border:   #D0C8B8;
+    --border-hi:#B8AEAA;
+    --text:     #1A1714;
+    --text-sub: #5A5046;
+    --text-mute:#9A8F82;
+  }
+}
+:root[data-theme="light"] {
+  --bg:       #F7F4EE;
+  --bg-2:     #EEEAE1;
+  --bg-3:     #E5E0D5;
+  --surface:  #FFFFFF;
+  --border:   #D0C8B8;
+  --border-hi:#B8AEAA;
+  --text:     #1A1714;
+  --text-sub: #5A5046;
+  --text-mute:#9A8F82;
+}
+:root[data-theme="dark"] {
+  --bg:          #0E1117;
+  --bg-2:        #161B27;
+  --bg-3:        #1C2333;
+  --surface:     #1E2535;
+  --border:      #2A3655;
+  --border-hi:   #3D506E;
+  --text:        #E2DDD5;
+  --text-sub:    #8E99B0;
+  --text-mute:   #556075;
+}
+
+/* =====================================================================
+   RESET + BASE
+   ===================================================================== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ff-body);
+  font-size: 15px;
+  line-height: 1.7;
+  display: flex;
+  min-height: 100vh;
+}
+a { color: var(--amber); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  font-family: var(--ff-mono);
+  font-size: .85em;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+pre {
+  font-family: var(--ff-mono);
+  font-size: .82em;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  overflow-x: auto;
+  line-height: 1.55;
+  tab-size: 2;
+}
+pre code { background: none; border: none; padding: 0; font-size: 1em; }
+
+/* =====================================================================
+   LAYOUT
+   ===================================================================== */
+.toc-wrap {
+  width: 240px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 28px 0 28px 20px;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+}
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 40px 60px 120px;
+  max-width: 900px;
+}
+@media (max-width: 800px) {
+  .toc-wrap { display: none; }
+  .main { padding: 24px 20px 80px; }
+}
+
+/* =====================================================================
+   TABLE OF CONTENTS
+   ===================================================================== */
+.toc-brand {
+  font-family: var(--ff-serif);
+  font-size: 12px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.toc-brand svg { flex-shrink: 0; }
+.toc-theme {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+.toc-theme button {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-sub);
+  cursor: pointer;
+}
+.toc-theme button.active { background: var(--amber); color: #000; border-color: var(--amber); }
+.toc-label {
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  padding: 6px 0 4px;
+  margin-top: 12px;
+}
+.toc-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color .15s;
+  text-decoration: none;
+}
+.toc-item:hover { color: var(--text); text-decoration: none; }
+.toc-item.active { color: var(--amber); font-weight: 600; }
+.toc-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--border-hi);
+  flex-shrink: 0;
+  margin-top: 3px;
+  transition: background .15s;
+}
+.toc-item.active .toc-dot { background: var(--amber); }
+.toc-item-sub {
+  padding-left: 14px;
+  font-size: 11.5px;
+}
+
+/* =====================================================================
+   SECTION ANATOMY
+   ===================================================================== */
+.sec {
+  padding: 52px 0 0;
+  scroll-margin-top: 40px;
+}
+.sec-eyebrow {
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  font-family: var(--ff-mono);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sec-num {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sec-title {
+  font-family: var(--ff-serif);
+  font-size: 26px;
+  font-weight: normal;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin-bottom: 6px;
+}
+.sec-rule {
+  height: 2px;
+  border-radius: 1px;
+  margin: 10px 0 22px;
+}
+.sec-lede {
+  font-size: 16px;
+  color: var(--text-sub);
+  max-width: 620px;
+  margin-bottom: 28px;
+  line-height: 1.65;
+}
+
+/* color variants */
+.c-amber .sec-eyebrow { color: var(--amber); }
+.c-amber .sec-num { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber); }
+.c-amber .sec-rule { background: linear-gradient(90deg, var(--amber) 0%, transparent 100%); }
+
+.c-sky .sec-eyebrow { color: var(--sky); }
+.c-sky .sec-num { background: var(--sky-soft); color: var(--sky); border: 1px solid var(--sky); }
+.c-sky .sec-rule { background: linear-gradient(90deg, var(--sky) 0%, transparent 100%); }
+
+.c-violet .sec-eyebrow { color: var(--violet); }
+.c-violet .sec-num { background: var(--violet-soft); color: var(--violet); border: 1px solid var(--violet); }
+.c-violet .sec-rule { background: linear-gradient(90deg, var(--violet) 0%, transparent 100%); }
+
+.c-sage .sec-eyebrow { color: var(--sage); }
+.c-sage .sec-num { background: var(--sage-soft); color: var(--sage); border: 1px solid var(--sage); }
+.c-sage .sec-rule { background: linear-gradient(90deg, var(--sage) 0%, transparent 100%); }
+
+.c-rose .sec-eyebrow { color: var(--rose); }
+.c-rose .sec-num { background: var(--rose-soft); color: var(--rose); border: 1px solid var(--rose); }
+.c-rose .sec-rule { background: linear-gradient(90deg, var(--rose) 0%, transparent 100%); }
+
+/* =====================================================================
+   CARD PRIMITIVES
+   ===================================================================== */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+.card-title {
+  font-size: 12px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  font-family: var(--ff-mono);
+  margin-bottom: 10px;
+}
+.callout {
+  border-left: 3px solid var(--amber);
+  background: var(--amber-soft);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 12px 16px;
+  margin: 16px 0;
+  font-size: 14px;
+}
+.callout.sky  { border-color: var(--sky);    background: var(--sky-soft);    }
+.callout.violet{ border-color: var(--violet);background: var(--violet-soft); }
+.callout.sage { border-color: var(--sage);   background: var(--sage-soft);   }
+.callout.rose { border-color: var(--rose);   background: var(--rose-soft);   }
+
+/* =====================================================================
+   HANDWRITTEN ANNOTATION
+   ===================================================================== */
+.annotation {
+  position: relative;
+  font-style: italic;
+  font-size: 13px;
+  color: var(--amber);
+  padding: 2px 0 2px 14px;
+  border-left: 2px dashed var(--amber-mid);
+  margin: 10px 0;
+}
+.annotation::before {
+  content: '← ';
+  font-style: normal;
+  opacity: .7;
+}
+
+/* =====================================================================
+   FLOW DIAGRAMS
+   ===================================================================== */
+.flow {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  margin: 24px 0;
+  position: relative;
+  overflow: hidden;
+}
+/* graph-paper grid */
+.flow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: .18;
+  pointer-events: none;
+}
+.flow-title {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 20px;
+}
+.flow-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+}
+.flow-node {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 90px;
+}
+.flow-box {
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-family: var(--ff-mono);
+  font-weight: 600;
+  text-align: center;
+  border: 1.5px solid;
+  white-space: nowrap;
+}
+.flow-label {
+  font-size: 10px;
+  color: var(--text-mute);
+  font-family: var(--ff-body);
+  text-align: center;
+  max-width: 90px;
+  line-height: 1.3;
+}
+.flow-arrow {
+  flex: 1;
+  min-width: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+}
+.flow-arrow-line {
+  width: 100%;
+  height: 2px;
+  position: relative;
+}
+.flow-arrow-line::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: -4px;
+  border-left: 8px solid;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+.flow-arrow-tag {
+  font-size: 9.5px;
+  color: var(--text-mute);
+  font-family: var(--ff-mono);
+  white-space: nowrap;
+}
+.a-amber { color: var(--amber); border-color: var(--amber); }
+.a-amber-bg { background: var(--amber-soft); }
+.a-sky  { color: var(--sky); border-color: var(--sky); }
+.a-sky-bg { background: var(--sky-soft); }
+.a-violet { color: var(--violet); border-color: var(--violet); }
+.a-violet-bg { background: var(--violet-soft); }
+.a-sage { color: var(--sage); border-color: var(--sage); }
+.a-sage-bg { background: var(--sage-soft); }
+.a-rose { color: var(--rose); border-color: var(--rose); }
+.a-flow-amber .flow-arrow-line { background: var(--amber); }
+.a-flow-amber .flow-arrow-line::after { border-left-color: var(--amber); }
+.a-flow-sky .flow-arrow-line { background: var(--sky); }
+.a-flow-sky .flow-arrow-line::after { border-left-color: var(--sky); }
+.a-flow-violet .flow-arrow-line { background: var(--violet); }
+.a-flow-violet .flow-arrow-line::after { border-left-color: var(--violet); }
+.a-flow-sage .flow-arrow-line { background: var(--sage); }
+.a-flow-sage .flow-arrow-line::after { border-left-color: var(--sage); }
+
+/* =====================================================================
+   API ENDPOINT TABLE
+   ===================================================================== */
+.ep-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+.ep-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  border-bottom: 1px solid var(--border);
+  font-weight: 500;
+}
+.ep-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.ep-table tr:last-child td { border-bottom: none; }
+.ep-table tr:hover td { background: var(--bg-2); }
+.ep-method {
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.method-get { background: var(--sky-soft); color: var(--sky); }
+.method-post { background: var(--sage-soft); color: var(--sage); }
+.ep-path { font-family: var(--ff-mono); font-weight: 600; color: var(--text); font-size: 13px; }
+.ep-desc { color: var(--text-sub); }
+.ep-to { font-family: var(--ff-mono); font-size: 11px; color: var(--text-mute); }
+
+/* =====================================================================
+   PROPERTY GRID
+   ===================================================================== */
+.prop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+.prop-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.prop-name {
+  font-family: var(--ff-mono);
+  font-size: 11.5px;
+  color: var(--sky);
+  margin-bottom: 4px;
+}
+.prop-type {
+  font-size: 10px;
+  color: var(--text-mute);
+  font-family: var(--ff-mono);
+  margin-bottom: 4px;
+}
+.prop-desc { font-size: 12.5px; color: var(--text-sub); line-height: 1.5; }
+@media (max-width: 600px) { .prop-grid { grid-template-columns: 1fr; } }
+
+/* =====================================================================
+   STEPS / PROCESS
+   ===================================================================== */
+.steps { display: flex; flex-direction: column; gap: 0; margin: 16px 0; }
+.step {
+  display: flex;
+  gap: 16px;
+  padding-bottom: 24px;
+  position: relative;
+}
+.step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 30px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+.step-num {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--ff-mono);
+  flex-shrink: 0;
+}
+.step-body h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+.step-body p { font-size: 13.5px; color: var(--text-sub); }
+
+/* =====================================================================
+   STORAGE PILL TABLE
+   ===================================================================== */
+.store-row {
+  display: grid;
+  grid-template-columns: 1fr 140px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.store-row:last-child { border-bottom: none; }
+.store-key { font-family: var(--ff-mono); color: var(--text); font-size: 12px; }
+.store-loc {
+  font-size: 10.5px;
+  font-family: var(--ff-mono);
+  padding: 3px 8px;
+  border-radius: 20px;
+  text-align: center;
+  font-weight: 600;
+  display: inline-block;
+}
+.loc-ls  { background: var(--amber-soft); color: var(--amber); }
+.loc-mem { background: var(--sky-soft);   color: var(--sky);   }
+.loc-disk{ background: var(--sage-soft);  color: var(--sage);  }
+.store-note { color: var(--text-sub); font-size: 12.5px; }
+
+/* =====================================================================
+   COLLAPSIBLE
+   ===================================================================== */
+details {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 12px 0;
+  overflow: hidden;
+}
+details[open] { background: var(--surface); }
+summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: '▶';
+  font-size: 9px;
+  transition: transform .2s;
+  color: var(--text-mute);
+  flex-shrink: 0;
+}
+details[open] summary::before { transform: rotate(90deg); }
+.details-body { padding: 4px 16px 16px; }
+
+/* =====================================================================
+   HIGHLIGHT MARKS
+   ===================================================================== */
+.hl-amber { background: rgba(255,187,51,.18); border-radius: 3px; padding: 1px 3px; }
+.hl-sky   { background: rgba(56,194,245,.15); border-radius: 3px; padding: 1px 3px; }
+.hl-violet{ background: rgba(155,114,255,.18);border-radius: 3px; padding: 1px 3px; }
+
+/* =====================================================================
+   HERO / TOP
+   ===================================================================== */
+.hero {
+  padding: 60px 0 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.hero-label {
+  font-family: var(--ff-mono);
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 14px;
+}
+.hero-title {
+  font-family: var(--ff-serif);
+  font-size: clamp(30px, 5vw, 46px);
+  font-weight: normal;
+  line-height: 1.15;
+  text-wrap: balance;
+  margin-bottom: 16px;
+  max-width: 580px;
+}
+.hero-title em { color: var(--amber); font-style: italic; }
+.hero-sub {
+  color: var(--text-sub);
+  font-size: 16px;
+  max-width: 520px;
+  line-height: 1.65;
+  margin-bottom: 28px;
+}
+.hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  font-size: 11.5px;
+  font-family: var(--ff-mono);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+}
+.chip.amber { border-color: var(--amber); color: var(--amber); background: var(--amber-soft); }
+.chip.sky   { border-color: var(--sky); color: var(--sky); background: var(--sky-soft); }
+.chip.violet{ border-color: var(--violet); color: var(--violet); background: var(--violet-soft); }
+.chip.sage  { border-color: var(--sage); color: var(--sage); background: var(--sage-soft); }
+
+/* =====================================================================
+   ARCH MAP (bird's-eye)
+   ===================================================================== */
+.arch-map {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin: 20px 0;
+}
+.arch-cell {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  position: relative;
+}
+.arch-cell-label {
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-family: var(--ff-mono);
+  margin-bottom: 8px;
+}
+.arch-item {
+  font-size: 12px;
+  color: var(--text-sub);
+  padding: 3px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.arch-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+@media (max-width: 600px) { .arch-map { grid-template-columns: 1fr; } }
+
+/* =====================================================================
+   AI PIPELINE VISUAL
+   ===================================================================== */
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 20px 0;
+}
+.pipe-step {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+.pipe-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 32px;
+  flex-shrink: 0;
+}
+.pipe-icon {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.pipe-line {
+  width: 2px;
+  flex: 1;
+  min-height: 12px;
+}
+.pipe-content {
+  flex: 1;
+  padding-bottom: 18px;
+}
+.pipe-content h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; margin-top: 6px; }
+.pipe-content p { font-size: 13px; color: var(--text-sub); line-height: 1.55; }
+
+/* =====================================================================
+   SCROLLBAR
+   ===================================================================== */
+.toc-wrap::-webkit-scrollbar { width: 4px; }
+.toc-wrap::-webkit-scrollbar-track { background: transparent; }
+.toc-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* =====================================================================
+   GITHUB DEPLOY STEPS
+   ===================================================================== */
+.gh-step {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin: 10px 0;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.gh-step-n {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--sage-soft);
+  border: 1.5px solid var(--sage);
+  color: var(--sage);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.gh-step h4 { font-size: 13.5px; font-weight: 600; margin-bottom: 4px; }
+.gh-step p, .gh-step pre { font-size: 12.5px; color: var(--text-sub); }
+.gh-step pre { margin-top: 8px; }
+
+</style>
+</head>
+<body>
+
+<!-- =====================================================================
+     TABLE OF CONTENTS
+     ===================================================================== -->
+<nav class="toc-wrap" aria-label="Table of contents">
+  <div class="toc-brand">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <circle cx="7" cy="7" r="6.5" stroke="currentColor"/>
+      <path d="M4 7h6M7 4l3 3-3 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    DAX Workbench
+  </div>
+
+  <div class="toc-theme">
+    <button onclick="setTheme('dark')" id="btn-dark">Dark</button>
+    <button onclick="setTheme('light')" id="btn-light">Light</button>
+  </div>
+
+  <div class="toc-label">Contents</div>
+
+  <a class="toc-item" href="#overview"><span class="toc-dot"></span>Overview</a>
+  <a class="toc-item" href="#data-in"><span class="toc-dot"></span>How Data Enters</a>
+  <a class="toc-item toc-item-sub" href="#data-in-import"><span class="toc-dot"></span>File Import</a>
+  <a class="toc-item toc-item-sub" href="#data-in-pbix"><span class="toc-dot"></span>PBIX / PBIP</a>
+  <a class="toc-item toc-item-sub" href="#data-in-live"><span class="toc-dot"></span>Live Desktop Sync</a>
+  <a class="toc-item" href="#bridge"><span class="toc-dot"></span>The Bridge</a>
+  <a class="toc-item toc-item-sub" href="#bridge-exe"><span class="toc-dot"></span>What It Is</a>
+  <a class="toc-item toc-item-sub" href="#bridge-api"><span class="toc-dot"></span>HTTP API Endpoints</a>
+  <a class="toc-item toc-item-sub" href="#bridge-security"><span class="toc-dot"></span>Security Layer</a>
+  <a class="toc-item" href="#frontend"><span class="toc-dot"></span>Frontend Architecture</a>
+  <a class="toc-item toc-item-sub" href="#frontend-store"><span class="toc-dot"></span>State (Zustand)</a>
+  <a class="toc-item toc-item-sub" href="#frontend-modes"><span class="toc-dot"></span>Modes / Tabs</a>
+  <a class="toc-item" href="#domain-model"><span class="toc-dot"></span>The Domain Model</a>
+  <a class="toc-item" href="#ai-pipeline"><span class="toc-dot"></span>AI / DAX Pipeline</a>
+  <a class="toc-item toc-item-sub" href="#ai-schema"><span class="toc-dot"></span>Schema Serialiser</a>
+  <a class="toc-item toc-item-sub" href="#ai-nim"><span class="toc-dot"></span>NIM / DeepSeek</a>
+  <a class="toc-item toc-item-sub" href="#ai-validate"><span class="toc-dot"></span>Hallucination Guard</a>
+  <a class="toc-item toc-item-sub" href="#ai-architect"><span class="toc-dot"></span>DAX Architect</a>
+  <a class="toc-item" href="#features"><span class="toc-dot"></span>Feature Internals</a>
+  <a class="toc-item toc-item-sub" href="#feat-kpi"><span class="toc-dot"></span>KPI Board</a>
+  <a class="toc-item toc-item-sub" href="#feat-factory"><span class="toc-dot"></span>Measure Factory</a>
+  <a class="toc-item toc-item-sub" href="#feat-cleanup"><span class="toc-dot"></span>Cleanup</a>
+  <a class="toc-item" href="#persistence"><span class="toc-dot"></span>What Gets Saved</a>
+  <a class="toc-item" href="#build"><span class="toc-dot"></span>Build & Deploy</a>
+  <a class="toc-item" href="#github-pages"><span class="toc-dot"></span>Publish on GitHub</a>
+</nav>
+
+<!-- =====================================================================
+     MAIN CONTENT
+     ===================================================================== -->
+<main class="main">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-label">Technical Architecture Guide · DAX Workbench</div>
+    <h1 class="hero-title">Everything that happens<br>when you press <em>Connect</em></h1>
+    <p class="hero-sub">
+      A complete inside look at how DAX Workbench reads your Power BI model,
+      talks to the AI, stores state, and writes measures back — written so you
+      can hold every layer in your head at once.
+    </p>
+    <div class="hero-chips">
+      <span class="chip amber">C# .NET 8 bridge</span>
+      <span class="chip sky">React + Vite frontend</span>
+      <span class="chip violet">NVIDIA NIM / DeepSeek</span>
+      <span class="chip sage">Zustand state</span>
+      <span class="chip">TOM / ADOMD</span>
+      <span class="chip">TypeScript</span>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       § 0  OVERVIEW
+       =================================================================== -->
+  <section class="sec c-amber" id="overview">
+    <div class="sec-eyebrow">
+      <span class="sec-num">0</span>
+      Architecture
+    </div>
+    <h2 class="sec-title">The thirty-second picture</h2>
+    <div class="sec-rule"></div>
+    <p class="sec-lede">
+      DAX Workbench is two things glued together: a React web app and a
+      small C# bridge executable. The bridge is the secret — it does what no
+      hosted tool can do alone.
+    </p>
+
+    <div class="flow">
+      <div class="flow-title">Bird's-eye data flow</div>
+      <div class="flow-row" style="gap:0">
+        <div class="flow-node">
+          <div class="flow-box a-amber a-amber-bg">Power BI<br>Desktop</div>
+          <div class="flow-label">SSAS engine + open .pbix</div>
+        </div>
+        <div class="flow-arrow a-flow-amber">
+          <div class="flow-arrow-line"></div>
+          <div class="flow-arrow-tag">TOM/ADOMD TCP</div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-box a-amber a-amber-bg">Bridge .exe</div>
+          <div class="flow-label">C# ASP.NET · port 5177</div>
+        </div>
+        <div class="flow-arrow a-flow-sky">
+          <div class="flow-arrow-line"></div>
+          <div class="flow-arrow-tag">HTTP REST + CORS</div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-box a-sky a-sky-bg">React App</div>
+          <div class="flow-label">served BY the bridge or Render</div>
+        </div>
+        <div class="flow-arrow a-flow-violet">
+          <div class="flow-arrow-line"></div>
+          <div class="flow-arrow-tag">bridge /nim proxy</div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-box a-violet a-violet-bg">NVIDIA NIM</div>
+          <div class="flow-label">DeepSeek V4 Flash</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arch-map">
+      <div class="arch-cell" style="border-color:var(--amber)">
+        <div class="arch-cell-label" style="color:var(--amber)">Bridge (C#)</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--amber)"></span>Embeds the React UI</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--amber)"></span>Speaks TOM/ADOMD to Desktop</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--amber)"></span>Proxies NVIDIA NIM calls</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--amber)"></span>System-tray app, single-file</div>
+      </div>
+      <div class="arch-cell" style="border-color:var(--sky)">
+        <div class="arch-cell-label" style="color:var(--sky)">Frontend (React)</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--sky)"></span>Vite + TypeScript</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--sky)"></span>Zustand global store</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--sky)"></span>5 studio modes / tabs</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--sky)"></span>All rendering in browser</div>
+      </div>
+      <div class="arch-cell" style="border-color:var(--violet)">
+        <div class="arch-cell-label" style="color:var(--violet)">AI Layer</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--violet)"></span>Schema → pseudo-SQL DDL</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--violet)"></span>DeepSeek V4 Flash (NIM)</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--violet)"></span>Hallucination validator</div>
+        <div class="arch-item"><span class="arch-dot" style="background:var(--violet)"></span>Fallback template engine</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Key insight:</strong> The bridge serves the React app from inside itself — the
+      entire frontend is compiled into the exe as embedded resources. This is why
+      there is no separate install step, and why the External Tool version always
+      needs a rebuild when you change the frontend.
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       § 1  HOW DATA ENTERS
+       =================================================================== -->
+  <section class="sec c-sky" id="data-in">
+    <div class="sec-eyebrow">
+      <span class="sec-num">1</span>
+      Data ingestion
+    </div>
+    <h2 class="sec-title">How data enters the tool</h2>
+    <div class="sec-rule"></div>
+    <p class="sec-lede">
+      There are four paths. The right one depends on whether Power BI Desktop
+      is open, and whether you have a real report file. Each path ends up in the
+      same in-memory <code>SemanticModel</code> object.
+    </p>
+
+    <div id="data-in-import"></div>
+    <details open>
+      <summary>Path 1 — File import (Excel / CSV / Parquet)</summary>
+      <div class="details-body">
+        <p>You drag or pick a file. The browser's <strong>File API</strong> reads it locally — no upload, no server. The file goes through a chain of parsers:</p>
+        <div class="flow" style="padding:20px">
+          <div class="flow-row" style="flex-wrap:nowrap; gap:0">
+            <div class="flow-node" style="min-width:80px">
+              <div class="flow-box a-sky a-sky-bg" style="font-size:11px">File pick</div>
+              <div class="flow-label">browser File API</div>
+            </div>
+            <div class="flow-arrow a-flow-sky" style="flex:0 0 30px"><div class="flow-arrow-line"></div></div>
+            <div class="flow-node" style="min-width:80px">
+              <div class="flow-box a-sky a-sky-bg" style="font-size:11px">Parser</div>
+              <div class="flow-label">xlsx / csv / parquet</div>
+            </div>
+            <div class="flow-arrow a-flow-sky" style="flex:0 0 30px"><div class="flow-arrow-line"></div></div>
+            <div class="flow-node" style="min-width:80px">
+              <div class="flow-box a-sky a-sky-bg" style="font-size:11px">inferSchema</div>
+              <div class="flow-label">detect types, roles</div>
+            </div>
+            <div class="flow-arrow a-flow-sky" style="flex:0 0 30px"><div class="flow-arrow-line"></div></div>
+            <div class="flow-node" style="min-width:80px">
+              <div class="flow-box a-sky a-sky-bg" style="font-size:11px">buildModel</div>
+              <div class="flow-label">detect relationships</div>
+            </div>
+            <div class="flow-arrow a-flow-sky" style="flex:0 0 30px"><div class="flow-arrow-line"></div></div>
+            <div class="flow-node" style="min-width:80px">
+              <div class="flow-box a-sky a-sky-bg" style="font-size:11px">store</div>
+              <div class="flow-label">datasets + model</div>
+            </div>
+          </div>
+        </div>
+        <ul style="font-size:13.5px;color:var(--text-sub);padding-left:20px;display:flex;flex-direction:column;gap:6px">
+          <li><code>inferSchema()</code> scans up to 10,000 rows to detect data types (int, decimal, date, string, boolean), cardinality, and column <em>roles</em> (key, dimension, measure candidate, date).</li>
+          <li><code>buildModel()</code> runs a fuzzy name-matching + cardinality heuristic across all imported tables to detect one-to-many relationships. A column named <code>ProductID</code> in a fact table matching a primary key <code>ProductID</code> in a dimension table becomes a relationship automatically.</li>
+          <li>A <strong>Preview dialog</strong> shows the user what will be imported before it commits to the store.</li>
+        </ul>
+      </div>
+    </details>
+
+    <div id="data-in-pbix"></div>
+    <details>
+      <summary>Path 2 — Open PBIX / PBIP project</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub);margin-bottom:12px">
+          PBIX and PBIP are Power BI's own file formats. The tool opens them <em>without Power BI Desktop</em> — purely in the browser.
+        </p>
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-title">PBIX (binary zip)</div>
+          <p style="font-size:13px;color:var(--text-sub)">A <code>.pbix</code> is a zip file containing a <code>DataModel</code> binary (proprietary). The parser reads the <strong>TMDL</strong> portion (Tabular Model Definition Language) to extract table names, column names, data types, measures, and relationships. Actual row data is not included — the tool works with schema only, showing placeholder values. The user sees a warning: <em>"Best-effort — no data."</em></p>
+        </div>
+        <div class="card">
+          <div class="card-title">PBIP (folder tree)</div>
+          <p style="font-size:13px;color:var(--text-sub);margin-bottom:8px">A <code>.pbip</code> folder is the modern Power BI project format (plain text, git-friendly). It contains a <code>definition/</code> folder with <code>.tmdl</code> files — one per table. The parser walks the folder tree, reads each TMDL file, and builds the full model.</p>
+          <p style="font-size:13px;color:var(--text-sub)">PBIP also has a separate <strong>report</strong> layer (visual bindings). A special "Scan Report" flow reads the report files to find which measures are actually used in visuals — this powers the Cleanup tab's "unused measures" detection.</p>
+        </div>
+      </div>
+    </details>
+
+    <div id="data-in-live"></div>
+    <details>
+      <summary>Path 3 — Live Desktop sync (the flagship path)</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub);margin-bottom:14px">This is the path that makes everything real. Power BI Desktop runs a private <strong>Analysis Services (SSAS) instance</strong> for each open report. The bridge finds it and talks to it directly.</p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num" style="background:var(--amber-soft);color:var(--amber);border:1.5px solid var(--amber)">1</div>
+            <div class="step-body">
+              <h4>Discover</h4>
+              <p><code>GET /discover</code> — the bridge scans all running processes on the machine for <code>msmdsrv.exe</code> instances (the Analysis Services process that Desktop spawns). For each one it finds, it reads the TCP port from the process's command line or a port file. Returns a list of <code>{port, database}</code> pairs.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--amber-soft);color:var(--amber);border:1.5px solid var(--amber)">2</div>
+            <div class="step-body">
+              <h4>Read the model</h4>
+              <p><code>GET /model?port=N</code> — the bridge connects to that SSAS port using <strong>TOM (Tabular Object Model)</strong> — Microsoft's official .NET library for interacting with Analysis Services. It reads every table, column (name + data type), measure (name + DAX expression + format string), and relationship. Returns this as JSON.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--amber-soft);color:var(--amber);border:1.5px solid var(--amber)">3</div>
+            <div class="step-body">
+              <h4>Map to SemanticModel</h4>
+              <p>The frontend receives the JSON and maps it into the in-memory <code>SemanticModel</code>. Column data types are normalised (Desktop uses names like <code>Int64</code>, <code>String</code> — mapped to the tool's simpler <code>'integer'</code>, <code>'string'</code> etc).</p>
+            </div>
+          </div>
+          <div class="step" style="padding-bottom:0">
+            <div class="step-num" style="background:var(--amber-soft);color:var(--amber);border:1.5px solid var(--amber)">4</div>
+            <div class="step-body">
+              <h4>Keep polling</h4>
+              <p>The home screen polls <code>/discover</code> every 4 seconds to keep the connection status badge live. There is no WebSocket — plain HTTP polling.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout sky">
+          <strong>Why ADOMD too?</strong> TOM is used for model reads and writes (measure CRUD). ADOMD (Analysis Services Data Mining Objects) is used to run DAX queries against the real data — the KPI board and the Matrix/Table views all use ADOMD via the <code>/dax</code> and <code>/time</code> endpoints.
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>Path 4 — Remote bridge (another machine)</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub)">A remote colleague can run the bridge with <code>--remote</code> and share their model over the network. The bridge then listens on <code>0.0.0.0</code> instead of loopback. A <strong>pairing token</strong> (32-character hex, randomly generated) is shown as a QR / text pair. The user enters the token + URL in the "Remote Bridge" dialog. Subsequent API calls include <code>Authorization: Bearer &lt;token&gt;</code>. The token is persisted to <code>localStorage</code> so reconnect is seamless.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ===================================================================
+       § 2  THE BRIDGE
+       =================================================================== -->
+  <section class="sec c-amber" id="bridge">
+    <div class="sec-eyebrow">
+      <span class="sec-num">2</span>
+      The bridge
+    </div>
+    <h2 class="sec-title">The bridge: a self-contained universe</h2>
+    <div class="sec-rule"></div>
+    <p class="sec-lede">
+      The bridge is a C# <strong>.NET 8</strong> self-contained Windows executable. It is the
+      product's most important file — it is the only process that can touch
+      the Analysis Services engine.
+    </p>
+
+    <div id="bridge-exe"></div>
+    <div class="card">
+      <div class="card-title">What it actually is</div>
+      <div class="prop-grid">
+        <div class="prop-card">
+          <div class="prop-name">Runtime</div>
+          <div class="prop-desc">.NET 8, self-contained — .NET does not need to be installed on the user's machine. The runtime is bundled inside the exe.</div>
+        </div>
+        <div class="prop-card">
+          <div class="prop-name">UI embedding</div>
+          <div class="prop-desc">The entire React frontend (dist/) is embedded as <code>EmbeddedResource</code> in the .csproj and served by <code>ManifestEmbeddedFileProvider</code>. The exe IS the web server.</div>
+        </div>
+        <div class="prop-card">
+          <div class="prop-name">Single-instance guard</div>
+          <div class="prop-desc">A named <code>Mutex("Local\dax-workbench-bridge")</code> ensures only one bridge runs. A second launch opens the browser instead.</div>
+        </div>
+        <div class="prop-card">
+          <div class="prop-name">System tray</div>
+          <div class="prop-desc">WinForms system tray icon. Right-click menu: Open Studio, Switch to Remote, Register External Tool, Exit.</div>
+        </div>
+        <div class="prop-card">
+          <div class="prop-name">Listen address</div>
+          <div class="prop-desc"><code>127.0.0.1:5177</code> in local mode (only this machine). <code>0.0.0.0:5177</code> in remote mode (network-reachable).</div>
+        </div>
+        <div class="prop-card">
+          <div class="prop-name">External Tool</div>
+          <div class="prop-desc">Power BI Desktop's External Tools ribbon reads <code>pbitool.json</code>. The bridge registers it: when clicked, Desktop calls the bridge with <code>--launch "server" "database"</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="bridge-api"></div>
+    <h3 style="font-family:var(--ff-serif);font-size:18px;font-weight:normal;margin:28px 0 12px">HTTP API endpoints</h3>
+    <p style="font-size:13.5px;color:var(--text-sub);margin-bottom:16px">All endpoints answer on <code>http://127.0.0.1:5177</code>. CORS allows localhost origins and the Render deployment.</p>
+
+    <div style="overflow-x:auto">
+      <table class="ep-table">
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Path</th>
+            <th>What it does</th>
+            <th>Backed by</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="ep-method method-get">GET</span></td>
+            <td><span class="ep-path">/health</span></td>
+            <td class="ep-desc">Returns <code>{status:"ok", machine:"hostname"}</code>. Used to check if the bridge is alive. No auth required.</td>
+            <td class="ep-to">Hard-coded response</td>
+          </tr>
+          <tr>
+            <td><span class="ep-method method-get">GET</span></td>
+            <td><span class="ep-path">/discover</span></td>
+            <td class="ep-desc">Finds all running Power BI Desktop instances. Returns <code>[{port, database}]</code>. Port = the SSAS TCP port.</td>
+            <td class="ep-to">Process scan + TOM</td>
+          </tr>
+          <tr>
+            <td><span class="ep-method method-get">GET</span></td>
+            <td><span class="ep-path">/model?port=N</span></td>
+            <td class="ep-desc">Reads the full TOM — all tables, columns, measures, relationships. Returns as JSON matching <code>DesktopModel</code> interface.</td>
+            <td class="ep-to">Microsoft TOM library</td>
+          </tr>
+          <tr>
+            <td><span class="ep-method method-post">POST</span></td>
+            <td><span class="ep-path">/dax</span></td>
+            <td class="ep-desc">Executes a DAX query (EVALUATE expression). Returns <code>{columns, rows, rowCount}</code>. Powers KPI board live values.</td>
+            <td class="ep-to">ADOMD query</td>
+          </tr>
+          <tr>
+            <td><span class="ep-method method-post">POST</span></td>
+            <td><span class="ep-path">/preview</span></td>
+            <td class="ep-desc">Evaluates a scalar DAX expression. Used in the DAX tab live preview pane.</td>
+            <td class="ep-to">ADOMD EVALUATE</td>
+          </tr>
+          <tr>
+            <td><span class="ep-method method-post">POST</span></td>
+            <td><span class="ep-path">/time</span></td>
+            <td class="ep-desc">Benchmarks a DAX query — runs N times (default 3), clears the engine cache before each run, returns min/median/all timings. Used by DAX Optimizer.</td>
+            <td class="ep-to">ADOMD + cache clear</td>
+          </tr>
+          <tr>
+            <td><span class="ep-method method-post">POST</span></td>
+            <td><span class="ep-path">/measure</span></td>
+            <td class="ep-desc">Creates or updates a single measure in the live model. Body: <code>{table, name, dax, formatString, displayFolder}</code>. Writes via TOM + Model.SaveChanges().</td>
+            <td class="ep-to">TOM write</td>
+          </tr>
+          <tr>
+            <td><span class="ep-method method-post">POST</span></td>
+            <td><span class="ep-path">/table</span></td>
+            <td class="ep-desc">Creates a calculated table (e.g. a generated Date table). Optionally marks it as the model's date table and relates it to a fact column.</td>
+            <td class="ep-to">TOM write</td>
+          </tr>
+          <tr>
+            <td><span class="ep-method method-post">POST</span></td>
+            <td><span class="ep-path">/delete</span></td>
+            <td class="ep-desc">Deletes measures from the live model. <em>All-or-nothing</em>: snapshots all targets first, then commits one transaction. Snapshot returned for rollback.</td>
+            <td class="ep-to">TOM write</td>
+          </tr>
+          <tr>
+            <td><span class="ep-method method-post">POST</span></td>
+            <td><span class="ep-path">/nim</span></td>
+            <td class="ep-desc">Proxies AI generation requests to NVIDIA's API. The API key travels server-side only — never appears in browser network logs. 120 second timeout.</td>
+            <td class="ep-to">HttpClient → NVIDIA</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="bridge-security"></div>
+    <h3 style="font-family:var(--ff-serif);font-size:18px;font-weight:normal;margin:28px 0 12px">Security model</h3>
+
+    <div class="flow" style="padding:20px 24px">
+      <div class="flow-title">Who is allowed to call the bridge?</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;position:relative;z-index:1">
+        <div class="callout sage" style="margin:0">
+          <strong>Loopback callers</strong> (localhost, 127.0.0.1) — always allowed, no token required. This covers the dev server, the embedded UI, and local Tauri builds.
+        </div>
+        <div class="callout sky" style="margin:0">
+          <strong>Allowlisted origins</strong> — <code>https://dax-workbench.onrender.com</code> is hardcoded. Additional origins can be added via the <code>PBI_BRIDGE_ORIGINS</code> environment variable.
+        </div>
+        <div class="callout rose" style="margin:0">
+          <strong>Remote callers</strong> — mandatory Bearer token. Generated with <code>RandomNumberGenerator.GetBytes(16)</code> (cryptographically secure). CORS is a browser guard only; the token is the real gate for non-browser clients.
+        </div>
+      </div>
+    </div>
+
+    <div class="annotation">CORS only gates browsers — curl can still reach a remote bridge without it. The token is what actually protects the model.</div>
+
+    <details>
+      <summary>Chrome's Private Network Access (PNA) preflight</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub)">
+          Chrome enforces "Private Network Access" — a page served over HTTPS cannot reach <code>127.0.0.1</code> without an explicit opt-in from the server. The bridge adds <code>Access-Control-Allow-Private-Network: true</code> to any response that has the <code>Access-Control-Request-Private-Network</code> request header. This is why the Render-hosted version can still talk to a local bridge.
+        </p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ===================================================================
+       § 3  FRONTEND
+       =================================================================== -->
+  <section class="sec c-sky" id="frontend">
+    <div class="sec-eyebrow">
+      <span class="sec-num">3</span>
+      Frontend
+    </div>
+    <h2 class="sec-title">The React application</h2>
+    <div class="sec-rule"></div>
+    <p class="sec-lede">A single-page application built with Vite + React + TypeScript. The entire app lives at one URL — routing is handled by toggling a <code>view</code> state variable, not the browser router.</p>
+
+    <div id="frontend-store"></div>
+    <h3 style="font-family:var(--ff-serif);font-size:18px;font-weight:normal;margin:24px 0 12px">State management: Zustand</h3>
+    <p style="font-size:13.5px;color:var(--text-sub);margin-bottom:16px">
+      A single <strong>Zustand store</strong> (<code>src/app/store.ts</code>) holds all application state. There is no Redux, no Context tree of providers. Any component that needs state calls <code>useApp(selector)</code>. State is never passed as props down the tree.
+    </p>
+
+    <div class="prop-grid">
+      <div class="prop-card">
+        <div class="prop-name">model</div>
+        <div class="prop-type">SemanticModel</div>
+        <div class="prop-desc">The in-memory mirror of the Power BI model. Tables, columns, measures, relationships. Rebuilt on every sync.</div>
+      </div>
+      <div class="prop-card">
+        <div class="prop-name">datasets</div>
+        <div class="prop-type">DatasetData[]</div>
+        <div class="prop-desc">Actual row data from imported files. Parallel array to model.tables — indexed by table ID. Kept in memory, never persisted.</div>
+      </div>
+      <div class="prop-card">
+        <div class="prop-name">desktop</div>
+        <div class="prop-type">DesktopStatus</div>
+        <div class="prop-desc"><code>{bridge, connected, database, port, machine}</code>. Polled every 4 seconds on the home screen.</div>
+      </div>
+      <div class="prop-card">
+        <div class="prop-name">mode</div>
+        <div class="prop-type">'kpi'|'data'|'model'|'cleanup'|'dax'</div>
+        <div class="prop-desc">Which studio tab is active. Switching mode auto-collapses the left/right panels (except KPI where they stay open).</div>
+      </div>
+      <div class="prop-card">
+        <div class="prop-name">nimApiKey</div>
+        <div class="prop-type">string</div>
+        <div class="prop-desc">The NVIDIA NIM key. Persisted to <code>localStorage['pbistudio.nimApiKey']</code> — lives across refreshes.</div>
+      </div>
+      <div class="prop-card">
+        <div class="prop-name">kpiOverrides</div>
+        <div class="prop-type">Record&lt;number, string|null&gt;</div>
+        <div class="prop-desc">User's manual slot assignments on the KPI board. Overrides the auto-fill. Persisted to localStorage.</div>
+      </div>
+    </div>
+
+    <div id="frontend-modes"></div>
+    <h3 style="font-family:var(--ff-serif);font-size:18px;font-weight:normal;margin:28px 0 12px">The five studio modes</h3>
+
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card" style="display:grid;grid-template-columns:80px 1fr;gap:16px;align-items:start;padding:14px 16px;margin:0">
+        <div style="font-family:var(--ff-mono);font-size:13px;font-weight:700;color:var(--amber)">KPI</div>
+        <div style="font-size:13px;color:var(--text-sub)">12-card live board showing real measure values, queried from the SSAS engine via <code>/dax</code>. Also includes Matrix (pivot) and Table (flat) views. All three run live DAX queries when connected.</div>
+      </div>
+      <div class="card" style="display:grid;grid-template-columns:80px 1fr;gap:16px;align-items:start;padding:14px 16px;margin:0">
+        <div style="font-family:var(--ff-mono);font-size:13px;font-weight:700;color:var(--sky)">Data</div>
+        <div style="font-size:13px;color:var(--text-sub)">Tabular browser for the imported datasets. Shows real rows from files. Not connected to the live engine — this is for exploring your imported data, not Desktop's data.</div>
+      </div>
+      <div class="card" style="display:grid;grid-template-columns:80px 1fr;gap:16px;align-items:start;padding:14px 16px;margin:0">
+        <div style="font-family:var(--ff-mono);font-size:13px;font-weight:700;color:var(--sky)">Model</div>
+        <div style="font-size:13px;color:var(--text-sub)">Two views: Diagram (relationship graph drawn with force-directed layout) and Relationships (a plain list, exactly like Power BI's "Manage Relationships" dialog). Relationship arrows show cardinality symbols (✱ = many, 1 = one) and cross-filter direction (◄ or ◄►).</div>
+      </div>
+      <div class="card" style="display:grid;grid-template-columns:80px 1fr;gap:16px;align-items:start;padding:14px 16px;margin:0">
+        <div style="font-family:var(--ff-mono);font-size:13px;font-weight:700;color:var(--rose)">Cleanup</div>
+        <div style="font-size:13px;color:var(--text-sub)">Audits the model for unused measures. Measures are compared against a report scan (visual bindings) and the known set of references (DAX dependencies). Staged deletions are queued first — nothing touches the real model until "Deploy" is clicked. Undo/redo of the staging queue is unlimited.</div>
+      </div>
+      <div class="card" style="display:grid;grid-template-columns:80px 1fr;gap:16px;align-items:start;padding:14px 16px;margin:0">
+        <div style="font-family:var(--ff-mono);font-size:13px;font-weight:700;color:var(--violet)">DAX</div>
+        <div style="font-size:13px;color:var(--text-sub)">The main workspace. Measure tree on the left, editor + live preview on the right, reference panel (Functions / All DAX / Optimizer) on the far right. AI Generate, Architect, Factory, and Optimizer all surface here.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       § 4  DOMAIN MODEL
+       =================================================================== -->
+  <section class="sec c-sky" id="domain-model">
+    <div class="sec-eyebrow">
+      <span class="sec-num">4</span>
+      Domain model
+    </div>
+    <h2 class="sec-title">The in-memory data model</h2>
+    <div class="sec-rule"></div>
+    <p class="sec-lede">
+      Everything the tool knows about your Power BI model lives in one TypeScript object called <code>SemanticModel</code>. Think of it as a lightweight TOM mirror.
+    </p>
+
+    <pre><code><span style="color:var(--sky)">interface</span> <span style="color:var(--amber)">SemanticModel</span> {
+  tables:        <span style="color:var(--amber)">Table</span>[]
+  relationships: <span style="color:var(--amber)">Relationship</span>[]
+}
+
+<span style="color:var(--sky)">interface</span> <span style="color:var(--amber)">Table</span> {
+  id:       string        <span style="color:var(--text-mute)">// stable UUID — survives renames</span>
+  name:     string
+  isHidden: boolean
+  columns:  <span style="color:var(--amber)">Column</span>[]
+  measures: <span style="color:var(--amber)">Measure</span>[]
+}
+
+<span style="color:var(--sky)">interface</span> <span style="color:var(--amber)">Column</span> {
+  id:            string
+  name:          string
+  dataType:      <span style="color:var(--sage)">'string'</span>|<span style="color:var(--sage)">'integer'</span>|<span style="color:var(--sage)">'decimal'</span>|<span style="color:var(--sage)">'boolean'</span>|<span style="color:var(--sage)">'date'</span>|<span style="color:var(--sage)">'datetime'</span>
+  role:          <span style="color:var(--sage)">'key'</span>|<span style="color:var(--sage)">'dimension'</span>|<span style="color:var(--sage)">'measure'</span>|<span style="color:var(--sage)">'measureCandidate'</span>|<span style="color:var(--sage)">'date'</span>|<span style="color:var(--sage)">'time'</span>
+  isHidden:      boolean
+  distinctCount: number | undefined
+  formatString:  string | undefined
+}
+
+<span style="color:var(--sky)">interface</span> <span style="color:var(--amber)">Measure</span> {
+  id:              string
+  name:            string
+  expression:      string        <span style="color:var(--text-mute)">// the DAX, without "Name = " prefix</span>
+  formatString:    string | undefined
+  displayFolder:   string | undefined
+  isAutoGenerated: boolean       <span style="color:var(--text-mute)">// true = created by the Measure Factory</span>
+}
+
+<span style="color:var(--sky)">interface</span> <span style="color:var(--amber)">Relationship</span> {
+  id:              string
+  fromTable:       string        <span style="color:var(--text-mute)">// table IDs, not names</span>
+  fromColumn:      string        <span style="color:var(--text-mute)">// column IDs, not names</span>
+  toTable:         string
+  toColumn:        string
+  fromCardinality: <span style="color:var(--sage)">'one'</span>|<span style="color:var(--sage)">'many'</span>
+  toCardinality:   <span style="color:var(--sage)">'one'</span>|<span style="color:var(--sage)">'many'</span>
+  crossFilter:     <span style="color:var(--sage)">'single'</span>|<span style="color:var(--sage)">'both'</span>
+  isActive:        boolean
+}</code></pre>
+
+    <div class="callout sky">
+      Relationships store <em>IDs</em>, not names. When displaying a relationship in the UI (e.g. the Relationships list in Model tab), the code builds a <code>Map&lt;id, Table&gt;</code> and resolves names at render time. This means renaming a table never breaks a relationship.
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       § 5  AI PIPELINE
+       =================================================================== -->
+  <section class="sec c-violet" id="ai-pipeline">
+    <div class="sec-eyebrow">
+      <span class="sec-num">5</span>
+      AI pipeline
+    </div>
+    <h2 class="sec-title">How AI Generate works, end to end</h2>
+    <div class="sec-rule"></div>
+    <p class="sec-lede">
+      You type "total sales last year, excluding returns". Three seconds later you
+      have working DAX. Here is every step in between.
+    </p>
+
+    <div class="pipeline">
+      <div class="pipe-step">
+        <div class="pipe-track">
+          <div class="pipe-icon" style="background:var(--violet-soft);border:1.5px solid var(--violet);color:var(--violet)">1</div>
+          <div class="pipe-line" style="background:var(--border)"></div>
+        </div>
+        <div class="pipe-content">
+          <h4>User types a prompt</h4>
+          <p>Free-form English. No syntax needed. The user can optionally set a target table (where the new measure should live).</p>
+        </div>
+      </div>
+
+      <div id="ai-schema"></div>
+      <div class="pipe-step">
+        <div class="pipe-track">
+          <div class="pipe-icon" style="background:var(--violet-soft);border:1.5px solid var(--violet);color:var(--violet)">2</div>
+          <div class="pipe-line" style="background:var(--border)"></div>
+        </div>
+        <div class="pipe-content">
+          <h4>Schema serialisation</h4>
+          <p><code>modelToSchemaPrompt(model)</code> converts the live <code>SemanticModel</code> into a compact pseudo-SQL DDL string — roughly 3–5 tokens per column. Hidden tables and hidden columns are excluded. Columns are capped at 30 per table. Existing measures are appended as <code>MEASURE</code> pseudo-statements (capped at 50) so the AI can see what already exists and build on it.</p>
+          <pre style="margin-top:10px"><code><span style="color:var(--text-mute)">-- Example output for a Sales table</span>
+CREATE TABLE Sales (
+  'Order Date'  DATE,
+  'Product ID'  INT,
+  Amount        DECIMAL,
+  Quantity      INT,
+  'Ship Status' VARCHAR
+);
+
+<span style="color:var(--text-mute)">-- Existing measures (reference only — do not redefine them)</span>
+MEASURE Sales[Total Sales] = SUM(Sales[Amount])</code></pre>
+        </div>
+      </div>
+
+      <div id="ai-nim"></div>
+      <div class="pipe-step">
+        <div class="pipe-track">
+          <div class="pipe-icon" style="background:var(--violet-soft);border:1.5px solid var(--violet);color:var(--violet)">3</div>
+          <div class="pipe-line" style="background:var(--border)"></div>
+        </div>
+        <div class="pipe-content">
+          <h4>System prompt construction</h4>
+          <p>The schema DDL is injected into a strict system prompt. The rules force the model to:</p>
+          <ul style="font-size:13px;color:var(--text-sub);padding-left:18px;margin-top:6px;display:flex;flex-direction:column;gap:4px">
+            <li>Use <em>only</em> exact table/column names from the schema — never invent or abbreviate</li>
+            <li>Return <em>only</em> the DAX expression — no markdown, no prefix</li>
+            <li>Reply with <code>CANNOT_GENERATE: &lt;reason&gt;</code> if the prompt can't be answered from the schema</li>
+            <li>Prefer <code>CALCULATE + FILTER</code> over nested <code>IF</code>s</li>
+            <li>Use time-intelligence functions for time calculations</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-track">
+          <div class="pipe-icon" style="background:var(--violet-soft);border:1.5px solid var(--violet);color:var(--violet)">4</div>
+          <div class="pipe-line" style="background:var(--border)"></div>
+        </div>
+        <div class="pipe-content">
+          <h4>Call via bridge proxy</h4>
+          <p>The React app posts to <code>http://127.0.0.1:5177/nim</code> (or the bridge origin if served from the bridge). The bridge forwards the request to <code>https://integrate.api.nvidia.com/v1/chat/completions</code> using the stored API key. This means:</p>
+          <ul style="font-size:13px;color:var(--text-sub);padding-left:18px;margin-top:6px;display:flex;flex-direction:column;gap:4px">
+            <li>The browser never calls an external host — no CORS issue</li>
+            <li>The API key never appears in browser network logs</li>
+            <li>The bridge uses a 120-second timeout (DeepSeek R1 can be slow)</li>
+          </ul>
+          <div class="callout violet" style="margin-top:12px">
+            <strong>Model:</strong> <code>deepseek-ai/deepseek-v4-flash</code> via NVIDIA NIM free tier. 40 requests/minute, 1M token context window, no daily token cap. Temperature is locked at <code>0.1</code> for consistency.
+          </div>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-track">
+          <div class="pipe-icon" style="background:var(--violet-soft);border:1.5px solid var(--violet);color:var(--violet)">5</div>
+          <div class="pipe-line" style="background:var(--border)"></div>
+        </div>
+        <div class="pipe-content">
+          <h4>Response cleaning</h4>
+          <p>DeepSeek V4 Flash (like R1) sometimes wraps its reasoning in <code>&lt;think&gt;…&lt;/think&gt;</code> blocks. These are stripped with a regex before the DAX is shown. If the response starts with <code>CANNOT_GENERATE:</code>, the error message is extracted and shown to the user instead.</p>
+        </div>
+      </div>
+
+      <div id="ai-validate"></div>
+      <div class="pipe-step">
+        <div class="pipe-track">
+          <div class="pipe-icon" style="background:var(--violet-soft);border:1.5px solid var(--violet);color:var(--violet)">6</div>
+          <div class="pipe-line" style="background:var(--border)"></div>
+        </div>
+        <div class="pipe-content">
+          <h4>Hallucination guard</h4>
+          <p><code>findHallucinatedNames(dax, model)</code> parses the returned DAX expression using the dependency parser (<code>parseDependencies</code>) to extract all table/column references. Each reference is checked against the known schema. Any reference that doesn't match an actual column is flagged as hallucinated and shown as a warning banner in the UI. The user can still accept the DAX, but they're warned.</p>
+          <pre style="margin-top:10px"><code><span style="color:var(--text-mute)">// Hallucination check — simplified</span>
+<span style="color:var(--sky)">const</span> allColKeys = <span style="color:var(--sky)">new</span> Set(
+  model.tables.flatMap(t =>
+    t.columns.map(c => <span style="color:var(--sage)">`${t.name.toLowerCase()}[${c.name.toLowerCase()}]`</span>)
+  )
+)
+<span style="color:var(--sky)">return</span> deps.columns
+  .filter(col => !allColKeys.has(<span style="color:var(--sage)">`${col.table.toLowerCase()}[${col.column.toLowerCase()}]`</span>))
+  .map(col => <span style="color:var(--sage)">`${col.table}[${col.column}]`</span>)</code></pre>
+        </div>
+      </div>
+
+      <div class="pipe-step" style="padding-bottom:0">
+        <div class="pipe-track">
+          <div class="pipe-icon" style="background:var(--sage-soft);border:1.5px solid var(--sage);color:var(--sage)">✓</div>
+        </div>
+        <div class="pipe-content">
+          <h4>Result + auto-naming</h4>
+          <p>A measure name is suggested from the prompt by stripping stop words, taking the first 4 content words, and title-casing them. The user can edit both the name and the DAX expression before accepting. Accepting it calls <code>/measure</code> on the bridge which writes it directly to the live Power BI model.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="ai-architect"></div>
+    <h3 style="font-family:var(--ff-serif);font-size:18px;font-weight:normal;margin:32px 0 12px">DAX Architect — the deterministic engine</h3>
+    <p style="font-size:13.5px;color:var(--text-sub);margin-bottom:14px">
+      The Architect is a separate, fully deterministic engine that generates DAX without any AI. It is used when you want ranked pattern suggestions — not one answer, but a scored list of approaches (SUMX vs SUM, CALCULATE with filter vs context transition, etc).
+    </p>
+    <div class="callout">
+      The Architect runs entirely in the browser — no API call needed. It reads the <code>SemanticModel</code>, parses the natural-language prompt with a filter-column injection step (it rewrites "where status = delivered" into a proper column reference), then runs a scoring engine across a library of DAX patterns to produce ranked suggestions.
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       § 6  FEATURE INTERNALS
+       =================================================================== -->
+  <section class="sec c-sky" id="features">
+    <div class="sec-eyebrow">
+      <span class="sec-num">6</span>
+      Features
+    </div>
+    <h2 class="sec-title">Feature internals</h2>
+    <div class="sec-rule"></div>
+
+    <div id="feat-kpi"></div>
+    <details open>
+      <summary style="color:var(--amber)">KPI Board — live query loop</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub);margin-bottom:12px">
+          The KPI board shows 12 cards. Each card displays the live scalar value of a measure, queried from the real SSAS engine.
+        </p>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num" style="background:var(--amber-soft);color:var(--amber);border:1.5px solid var(--amber)">1</div>
+            <div class="step-body">
+              <h4>Slot assignment</h4>
+              <p>Measures auto-fill newest-first (hand-written measures before auto-generated ones). The user can manually pin any measure to any slot via the dropdown on each card. Overrides are stored in <code>kpiOverrides</code> (localStorage-persisted).</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--amber-soft);color:var(--amber);border:1.5px solid var(--amber)">2</div>
+            <div class="step-body">
+              <h4>Batch query</h4>
+              <p><code>buildKpiBoardQuery()</code> builds a single <code>DEFINE … EVALUATE ROW(…)</code> DAX query that fetches all 12 measure values in one round-trip. A 400ms debounce prevents flooding the bridge when measures change rapidly.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:var(--amber-soft);color:var(--amber);border:1.5px solid var(--amber)">3</div>
+            <div class="step-body">
+              <h4>Local fallback</h4>
+              <p>When not connected, <code>evaluateDax()</code> runs the measure expression through an in-browser interpreter (<code>query-engine.ts</code>) against the imported dataset rows. Sample values — not accurate for complex DAX, but useful for design time.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <div id="feat-factory"></div>
+    <details>
+      <summary style="color:var(--sage)">Measure Factory — combinatorial generation</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub);margin-bottom:12px">
+          You pick a numeric column. The Factory generates the full analytical suite for it in one click.
+        </p>
+        <div class="card" style="margin-bottom:0">
+          <div class="card-title">What it generates</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+            <div style="padding:6px 8px;background:var(--bg-2);border-radius:4px">Total (SUM)</div>
+            <div style="padding:6px 8px;background:var(--bg-2);border-radius:4px">Year to Date (DATESYTD)</div>
+            <div style="padding:6px 8px;background:var(--bg-2);border-radius:4px">Quarter to Date</div>
+            <div style="padding:6px 8px;background:var(--bg-2);border-radius:4px">Same Period Last Year</div>
+            <div style="padding:6px 8px;background:var(--bg-2);border-radius:4px">Year-over-Year %</div>
+            <div style="padding:6px 8px;background:var(--bg-2);border-radius:4px">Month-over-Month %</div>
+            <div style="padding:6px 8px;background:var(--bg-2);border-radius:4px">3-month Moving Average</div>
+            <div style="padding:6px 8px;background:var(--bg-2);border-radius:4px">Running Total</div>
+            <div style="padding:6px 8px;background:var(--bg-2);border-radius:4px">Rank (all periods)</div>
+          </div>
+          <p style="font-size:13px;color:var(--text-sub);margin-top:12px">All generated measures have <code>isAutoGenerated: true</code> — the KPI board auto-fills them after user-written measures. The date intelligence functions require a proper date table in the model.</p>
+        </div>
+      </div>
+    </details>
+
+    <div id="feat-cleanup"></div>
+    <details>
+      <summary style="color:var(--rose)">Cleanup — staged, safe deletion</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub);margin-bottom:12px">
+          Cleanup detects unused measures and lets you delete them from the live model. But "delete" is an engine operation that can't be undone — so the system uses a two-phase approach.
+        </p>
+        <div class="callout rose">
+          <strong>Phase 1 — Staging:</strong> Measures are added to a <code>cleanupStaged</code> list in the store. Nothing touches Desktop. Undo/redo is unlimited and instant because it only operates on the staging list in memory.
+        </div>
+        <div class="callout" style="margin-top:8px">
+          <strong>Phase 2 — Deploy:</strong> <code>POST /delete</code> is called with all staged items. The bridge snapshots each measure (table, name, DAX, formatString, description) <em>before</em> removing any. It then commits one transaction. If the commit fails, the snapshot is still returned — you can restore. If it succeeds, the snapshot is kept in the store as a rollback option for the session.
+        </div>
+        <p style="font-size:13px;color:var(--text-sub);margin-top:12px">
+          <strong>Unused detection logic:</strong> A measure is "potentially unused" if it appears in no other measure's DAX expression <em>and</em> was not found in any visual binding in the scanned report files. Both conditions must be met — a measure used only in other measures is still counted as in-use.
+        </p>
+      </div>
+    </details>
+
+    <details>
+      <summary style="color:var(--violet)">DAX Optimizer — before vs. after timing</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub)">
+          The Optimizer suggests rewritten DAX (via templates or AI) and then actually benchmarks both versions. <code>POST /time</code> runs a DAX expression N times (default 3 runs), clearing the engine's formula engine cache before each run with a special clear-cache DAX command. It returns min, median, and all individual timings, plus a flag <code>cold: false</code> if the cache couldn't be cleared (meaning the numbers are warm-cache only).
+        </p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Date Table Builder</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub)">
+          Generates a calculated date table using Power BI's <code>CALENDARAUTO()</code> or a custom range, with optional fiscal year offset. The DAX for the table is generated client-side (no AI needed — it's a deterministic formula). <code>POST /table</code> deploys it to the live model, and the bridge optionally marks it as the model's official date table and creates a relationship to the specified fact column. After deploy, the store calls <code>syncFromDesktop()</code> to refresh the model so the new table appears immediately in the Data and Model tabs.
+        </p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ===================================================================
+       § 7  PERSISTENCE
+       =================================================================== -->
+  <section class="sec c-sage" id="persistence">
+    <div class="sec-eyebrow">
+      <span class="sec-num">7</span>
+      Persistence
+    </div>
+    <h2 class="sec-title">What gets saved — and where</h2>
+    <div class="sec-rule"></div>
+    <p class="sec-lede">
+      DAX Workbench has no backend database. State lives in three places only:
+      browser localStorage, RAM, and the filesystem.
+    </p>
+
+    <div class="card">
+      <div class="card-title">Full persistence map</div>
+      <div class="store-row" style="font-size:11px;color:var(--text-mute);padding-top:0">
+        <div>Key / what it is</div>
+        <div>Where stored</div>
+        <div>Notes</div>
+      </div>
+      <div class="store-row">
+        <div class="store-key">pbistudio.bridge.v1</div>
+        <div><span class="store-loc loc-ls">localStorage</span></div>
+        <div class="store-note">Remote bridge URL + token. Survives refresh so reconnect is automatic.</div>
+      </div>
+      <div class="store-row">
+        <div class="store-key">pbistudio.nimApiKey</div>
+        <div><span class="store-loc loc-ls">localStorage</span></div>
+        <div class="store-note">NVIDIA NIM API key. Persisted so you don't re-enter it every session.</div>
+      </div>
+      <div class="store-row">
+        <div class="store-key">pbistudio.kpiOverrides</div>
+        <div><span class="store-loc loc-ls">localStorage</span></div>
+        <div class="store-note">Your manual slot assignments on the KPI board (which measure goes in which card).</div>
+      </div>
+      <div class="store-row">
+        <div class="store-key">pbistudio.kpiZoom</div>
+        <div><span class="store-loc loc-ls">localStorage</span></div>
+        <div class="store-note">Zoom level of the KPI board (1 = 100%).</div>
+      </div>
+      <div class="store-row">
+        <div class="store-key">SemanticModel (model)</div>
+        <div><span class="store-loc loc-mem">RAM</span></div>
+        <div class="store-note">The live model. Lost on refresh unless Desktop is connected (re-sync on load).</div>
+      </div>
+      <div class="store-row">
+        <div class="store-key">DatasetData (rows)</div>
+        <div><span class="store-loc loc-mem">RAM</span></div>
+        <div class="store-note">All rows from imported files. Lost on refresh — re-import needed.</div>
+      </div>
+      <div class="store-row">
+        <div class="store-key">cleanupStaged</div>
+        <div><span class="store-loc loc-mem">RAM</span></div>
+        <div class="store-note">Staged deletions. Lost on refresh if not deployed.</div>
+      </div>
+      <div class="store-row">
+        <div class="store-key">cleanupResult (snapshot)</div>
+        <div><span class="store-loc loc-mem">RAM</span></div>
+        <div class="store-note">Deleted measure snapshots — kept for restore. Lost on refresh (engine has no undo).</div>
+      </div>
+      <div class="store-row">
+        <div class="store-key">PBIX / PBIP files</div>
+        <div><span class="store-loc loc-disk">Disk</span></div>
+        <div class="store-note">Opened via browser File API. Written back via download or bridge TOM.</div>
+      </div>
+    </div>
+
+    <div class="annotation">There is no account, no cloud sync, no telemetry. If you lose your session, re-connect to Desktop and sync again.</div>
+  </section>
+
+  <!-- ===================================================================
+       § 8  BUILD PIPELINE
+       =================================================================== -->
+  <section class="sec c-amber" id="build">
+    <div class="sec-eyebrow">
+      <span class="sec-num">8</span>
+      Build pipeline
+    </div>
+    <h2 class="sec-title">From source to shipped exe</h2>
+    <div class="sec-rule"></div>
+    <p class="sec-lede">
+      There are two build targets: the hosted web app (Render, automatic) and
+      the External Tool exe (manual, one command).
+    </p>
+
+    <h3 style="font-family:var(--ff-serif);font-size:18px;font-weight:normal;margin:20px 0 12px">Target 1 — Render (hosted site)</h3>
+    <p style="font-size:13.5px;color:var(--text-sub);margin-bottom:14px">Push to <code>main</code> on GitHub → Render detects the push → runs <code>npm run build</code> → deploys <code>dist/</code> as a static site. Zero manual steps. Takes ~2 minutes.</p>
+
+    <h3 style="font-family:var(--ff-serif);font-size:18px;font-weight:normal;margin:20px 0 12px">Target 2 — External Tool exe (build-full.cmd)</h3>
+
+    <div class="flow">
+      <div class="flow-title">build-full.cmd — step by step</div>
+      <div class="flow-row" style="gap:0;flex-wrap:wrap">
+        <div class="flow-node">
+          <div class="flow-box a-amber a-amber-bg" style="font-size:11px">npm run build</div>
+          <div class="flow-label">Vite compiles → dist/</div>
+        </div>
+        <div class="flow-arrow a-flow-amber">
+          <div class="flow-arrow-line"></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-box a-amber a-amber-bg" style="font-size:11px">robocopy /MIR</div>
+          <div class="flow-label">dist/ → bridge/wwwroot</div>
+        </div>
+        <div class="flow-arrow a-flow-amber">
+          <div class="flow-arrow-line"></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-box a-amber a-amber-bg" style="font-size:11px">dotnet publish</div>
+          <div class="flow-label">wwwroot embedded → single exe</div>
+        </div>
+        <div class="flow-arrow a-flow-sage">
+          <div class="flow-arrow-line"></div>
+        </div>
+        <div class="flow-node">
+          <div class="flow-box a-sage a-sage-bg" style="font-size:11px">publish/</div>
+          <div class="flow-label">pbi-desktop-bridge.exe ready</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>dotnet path:</strong> The system dotnet is at <code>C:\Program Files (x86)\dotnet\dotnet.exe</code> — not in PATH. Always use the full path, or run build-full.cmd which sets it correctly.
+    </div>
+
+    <pre><code><span style="color:var(--text-mute)"># Kill the running bridge first (it locks the exe file)</span>
+taskkill /F /IM pbi-desktop-bridge.exe
+
+<span style="color:var(--text-mute)"># Then rebuild everything in one command:</span>
+tools\pbi-desktop-bridge\build-full.cmd</code></pre>
+
+    <details>
+      <summary>Why does the External Tool need a rebuild but Render doesn't?</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub)">
+          Render serves the React app as a static site — it rebuilds from source on every push and serves <code>dist/</code> directly. The External Tool exe is different: the frontend is <strong>embedded inside the exe as binary resources</strong> using <code>ManifestEmbeddedFileProvider</code>. When you push to GitHub, the exe on your machine doesn't change. Only running <code>dotnet publish</code> (after copying the new dist/ into wwwroot/) bakes the new frontend into the exe.
+        </p>
+        <div class="callout" style="margin-top:12px">
+          This is why you can see a new feature on the Render site but not in the External Tool — you have an old exe with old embedded HTML/JS. Always rebuild after UI changes you want in Desktop.
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ===================================================================
+       § 9  PUBLISH ON GITHUB PAGES
+       =================================================================== -->
+  <section class="sec c-sage" id="github-pages">
+    <div class="sec-eyebrow">
+      <span class="sec-num">9</span>
+      Publish this guide
+    </div>
+    <h2 class="sec-title">How to put this on GitHub Pages</h2>
+    <div class="sec-rule"></div>
+    <p class="sec-lede">GitHub Pages serves static files directly from a repo branch or a <code>/docs</code> folder. Five steps.</p>
+
+    <div class="gh-step">
+      <div class="gh-step-n">1</div>
+      <div>
+        <h4>Save this HTML file to your repo</h4>
+        <p>Copy this HTML file into your DAX-Workbench repository. A good location:</p>
+        <pre><code>docs/index.html</code></pre>
+        <p style="margin-top:6px">Or in a dedicated folder like <code>docs/architecture/index.html</code>.</p>
+      </div>
+    </div>
+
+    <div class="gh-step">
+      <div class="gh-step-n">2</div>
+      <div>
+        <h4>Commit and push</h4>
+        <pre><code>git add docs/
+git commit -m "Add architecture guide"
+git push origin main</code></pre>
+      </div>
+    </div>
+
+    <div class="gh-step">
+      <div class="gh-step-n">3</div>
+      <div>
+        <h4>Enable GitHub Pages in repository settings</h4>
+        <p>Go to your GitHub repo → <strong>Settings → Pages</strong>. Under "Source", choose <strong>Deploy from a branch</strong>. Set branch to <code>main</code>, folder to <code>/docs</code>. Click Save.</p>
+      </div>
+    </div>
+
+    <div class="gh-step">
+      <div class="gh-step-n">4</div>
+      <div>
+        <h4>Wait ~1 minute</h4>
+        <p>GitHub Actions will run a Pages deploy. You can watch it under the <strong>Actions</strong> tab. When the deploy icon turns green, your page is live.</p>
+      </div>
+    </div>
+
+    <div class="gh-step">
+      <div class="gh-step-n">5</div>
+      <div>
+        <h4>Your URL</h4>
+        <p>The page will be live at:</p>
+        <pre><code>https://kumar98rishav-oss.github.io/DAX-Workbench/</code></pre>
+        <p style="margin-top:6px">If you put it in a subfolder, it'll be <code>/DAX-Workbench/architecture/</code>. GitHub Pages automatically serves <code>index.html</code> from any folder.</p>
+      </div>
+    </div>
+
+    <div class="callout sage" style="margin-top:20px">
+      <strong>Tip:</strong> If your repo is private, GitHub Pages requires a paid plan. For a public repo (which yours already is — it's on GitHub), Pages is free on any plan.
+    </div>
+
+    <details>
+      <summary>Alternative: deploy with a gh-pages npm package</summary>
+      <div class="details-body">
+        <p style="font-size:13.5px;color:var(--text-sub)">If you want to auto-deploy from CI rather than the /docs folder:</p>
+        <pre><code>npm install --save-dev gh-pages
+
+<span style="color:var(--text-mute)"># In package.json:</span>
+"scripts": {
+  "deploy:docs": "gh-pages -d docs"
+}
+
+<span style="color:var(--text-mute)"># Then:</span>
+npm run deploy:docs</code></pre>
+        <p style="font-size:13px;color:var(--text-sub);margin-top:8px">This pushes the <code>docs/</code> folder to a <code>gh-pages</code> branch. Set GitHub Pages source to that branch instead of <code>main /docs</code>.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- FOOTER -->
+  <div style="margin-top:80px;padding-top:32px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+    <div style="font-family:var(--ff-mono);font-size:11px;color:var(--text-mute)">DAX Workbench · Architecture Guide · July 2026</div>
+    <div style="font-size:12px;color:var(--text-mute)">Built by Rishav K. · Not affiliated with Microsoft</div>
+  </div>
+
+</main>
+
+<script>
+// =========================================================================
+//  TOC — highlight active section on scroll
+// =========================================================================
+const tocLinks = document.querySelectorAll('.toc-item')
+const sections = document.querySelectorAll('.sec, .hero')
+
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return
+    const id = e.target.id
+    tocLinks.forEach(a => {
+      const active = a.getAttribute('href') === '#' + id
+      a.classList.toggle('active', active)
+    })
+  })
+}, { rootMargin: '-10% 0px -80% 0px' })
+
+sections.forEach(s => { if (s.id) io.observe(s) })
+
+// =========================================================================
+//  Theme toggle
+// =========================================================================
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t)
+  document.getElementById('btn-dark').classList.toggle('active', t === 'dark')
+  document.getElementById('btn-light').classList.toggle('active', t === 'light')
+}
+
+// Respect OS preference on load
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+setTheme(prefersDark ? 'dark' : 'light')
+
+// =========================================================================
+//  Smooth-scroll TOC items (belt-and-suspenders for older browsers)
+// =========================================================================
+tocLinks.forEach(a => {
+  a.addEventListener('click', e => {
+    const href = a.getAttribute('href')
+    if (!href || !href.startsWith('#')) return
+    const target = document.querySelector(href)
+    if (!target) return
+    e.preventDefault()
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+})
+</script>
+</body>
+</html>
