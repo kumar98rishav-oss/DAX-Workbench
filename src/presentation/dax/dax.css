@@ -4,11 +4,22 @@
 
 .daxview {
   flex: 1;
-  display: grid;
-  grid-template-columns: 232px 1fr 300px;
+  display: flex;
+  flex-direction: row;
   min-height: 0;
   min-width: 0;
   background: var(--bg);
+}
+
+/* ---- compact top toolbar (New measure + tools) ---- */
+.dax-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
 }
 
 /* ---- measure list ---- */
@@ -75,13 +86,21 @@
 
 /* ---- editor ---- */
 .dax-editor {
+  flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
   min-width: 0;
   overflow-y: auto;
-  padding: var(--space-5) var(--space-6);
+  padding: 0;
+  gap: 0;
+}
+.dax-editor__content {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  flex: 1;
 }
 .dax-editor__empty {
   flex: 1;
@@ -367,72 +386,46 @@
   line-height: 1.4;
 }
 
-/* ---- function reference ---- */
+/* ---- right reference panel — All DAX · Optimizer ---- */
 .dax-ref {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   border-left: 1px solid var(--border);
   background: var(--surface);
   min-height: 0;
-  transition: width var(--dur-slow) var(--ease);
+  width: 300px;
+  min-width: 300px;
+  transition: width var(--dur-slow) var(--ease), min-width var(--dur-slow) var(--ease);
 }
 .dax-ref[data-collapsed='true'] {
-  width: 32px;
-  min-width: 32px;
+  width: 20px;
+  min-width: 20px;
   overflow: hidden;
 }
-.dax-ref__colstrip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: var(--space-2) 0 var(--space-1);
-  flex-shrink: 0;
-}
+/* vertical toggle tab — left edge of the right panel */
 .dax-ref__coltoggle {
+  width: 20px;
+  min-width: 20px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 4px 8px;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
-  justify-content: flex-end;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-subtle);
+  border-right: 1px solid var(--border);
+  transition: color 0.15s, background 0.15s;
 }
 .dax-ref__coltoggle:hover {
   color: var(--accent);
   background: var(--accent-soft);
 }
-.dax-ref__coltoggle-label {
-  font-size: var(--text-xs);
-  white-space: nowrap;
-  color: var(--text-subtle);
-}
-.dax-ref__head {
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.dax-ref__count {
-  font-size: var(--text-xs);
-  color: var(--text-subtle);
-  margin-top: 4px;
-}
-.dax-ref__search {
-  width: 100%;
-  height: 32px;
-  padding: 0 var(--space-3);
-  font-size: var(--text-md);
-  color: var(--text);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  outline: none;
-}
-.dax-ref__list {
+/* content area to the right of the toggle tab */
+.dax-ref__body {
   flex: 1;
-  overflow-y: auto;
-  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 .dax-fn {
   width: 100%;

@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap, CalendarDays, ListTree, Zap, BrainCircuit, TriangleAlert, Copy, ChevronDown, ChevronUp, AlignLeft } from 'lucide-react'
+import { Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap, CalendarDays, ListTree, Zap, BrainCircuit, TriangleAlert, Copy, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlignLeft } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, EmptyState } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
 import { evaluateDax } from '@/application/dax/evaluator'
 import { buildArchitectLearnUrl } from '@/application/dax/architect/learn-link'
-import { searchDax, DAX_CATALOG } from '@/application/dax/functions'
-import type { DaxFunction } from '@/application/dax/functions'
 import { suggest } from '@/application/dax/intent/suggest'
 import type { Suggestion } from '@/application/dax/intent/suggest'
 import { recordPick } from '@/application/dax/intent/memory'
@@ -109,10 +107,9 @@ export function DaxView() {
   const [plan, setPlan] = useState<{ stepNumber: number; name: string; dax: string; reason: string }[]>([])
   const [warnings, setWarnings] = useState<string[]>([])
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [query, setQuery] = useState('')
   const [desktopMsg, setDesktopMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
-  const [panel, setPanel] = useState<'functions' | 'all' | 'optimizer'>('functions')
+  const [panel, setPanel] = useState<'all' | 'optimizer'>('all')
   const codeRef = useRef<HTMLTextAreaElement>(null)
 
   // Detect the local Power BI Desktop bridge (polls; fails soft when absent).
@@ -135,7 +132,6 @@ export function DaxView() {
   }, [selectedId, measures, selectMeasure])
 
   const selected = measures.find((m) => m.id === selectedId)
-  const results = useMemo(() => searchDax(query), [query])
 
   const preview = useMemo(
     () => (selected ? evaluateDax(selected.expression, ctx) : null),
@@ -255,92 +251,34 @@ export function DaxView() {
     setPrompt('')
   }
 
-  const insertFn = (fn: DaxFunction) => {
-    if (!selected) return
-    const ta = codeRef.current
-    const insert = `${fn.name}(`
-    if (ta) {
-      const start = ta.selectionStart
-      const end = ta.selectionEnd
-      const next = selected.expression.slice(0, start) + insert + selected.expression.slice(end)
-      updateMeasure(selected.id, { expression: next })
-      requestAnimationFrame(() => {
-        ta.focus()
-        const caret = start + insert.length
-        ta.setSelectionRange(caret, caret)
-      })
-    } else {
-      updateMeasure(selected.id, { expression: selected.expression + insert })
-    }
-  }
-
   return (
     <div className="daxview">
-      {/* measures */}
-      <aside className="dax-list">
-        <div className="dax-list__head">
-          <span className="dax-list__title">Measures</span>
-          <Button size="sm" variant="ghost" icon={<Plus size={15} />} onClick={addMeasure}>
-            New
+      {/* editor */}
+      <main className="dax-editor">
+        {/* compact toolbar — New measure + quick tools */}
+        <div className="dax-topbar">
+          <Button size="sm" variant="ghost" icon={<Plus size={14} />} onClick={addMeasure}>
+            New measure
           </Button>
-        </div>
-        <div className="dax-tools">
           <button className="dax-tool" onClick={() => toggleFactory(true)} title="Build a whole measure suite for one field">
             <Factory size={13} /> Factory
           </button>
           <button className="dax-tool" onClick={() => toggleDoctor(true)} title="Audit the model: formats, DAX issues, docs">
             <Stethoscope size={13} /> Doctor
           </button>
-          <button className="dax-tool" onClick={() => toggleDateTable(true)} title="Generate a date table — pick columns and the fact table it ranges over, deploy to Desktop">
+          <button className="dax-tool" onClick={() => toggleDateTable(true)} title="Generate a date table">
             <CalendarDays size={13} /> Dates
           </button>
           <button
             className="dax-tool"
-            onClick={() => {
-              // Carries the model's tables, types and relationships (and the
-              // current prompt) into the standalone learning tool via its own
-              // share-link format — schema only, never data rows.
-              const url = buildArchitectLearnUrl(model, prompt)
-              if (url) window.open(url, '_blank', 'noopener,noreferrer')
-            }}
+            onClick={() => { const url = buildArchitectLearnUrl(model, prompt); if (url) window.open(url, '_blank', 'noopener,noreferrer') }}
             disabled={model.tables.every((t) => t.columns.length === 0)}
-            title="Practice on YOUR model in DAX Architect — the standalone learning tool this engine came from. Opens with your tables and relationships already loaded."
+            title="Practice on YOUR model in DAX Architect"
           >
             <GraduationCap size={13} /> Learn
           </button>
         </div>
-        <div className="dax-list__body pbs-scroll">
-          {model.tables
-            .filter((t) => t.measures.length > 0)
-            .map((t) => (
-              <div key={t.id}>
-                <div className="dax-group__label">{t.name}</div>
-                {t.measures.map((m) => (
-                  <button
-                    key={m.id}
-                    className="dax-measure"
-                    data-active={m.id === selectedId ? 'true' : undefined}
-                    onClick={() => {
-                      selectMeasure(m.id)
-                      setExplanation(m.description || null)
-                    }}
-                  >
-                    <Sigma size={15} className="dax-measure__icon" />
-                    {m.name}
-                  </button>
-                ))}
-              </div>
-            ))}
-          {measures.length === 0 && (
-            <p style={{ padding: 'var(--space-4)', color: 'var(--text-subtle)', fontSize: 'var(--text-sm)' }}>
-              No measures yet. Import data to auto-generate them, or add one.
-            </p>
-          )}
-        </div>
-      </aside>
-
-      {/* editor */}
-      <main className="dax-editor pbs-scroll">
+        <div className="dax-editor__content pbs-scroll">
         {!selected ? (
           <div className="dax-editor__empty">
             <EmptyState
@@ -689,80 +627,49 @@ export function DaxView() {
             </Button>
           </>
         )}
+        </div>{/* end dax-editor__content */}
       </main>
 
-      {/* reference · all DAX · optimizer */}
+      {/* right panel — All DAX · Optimizer */}
       <aside className="dax-ref" data-collapsed={!refOpen}>
-        {/* collapse strip — always visible so the user can re-open */}
-        <div className="dax-ref__colstrip">
-          <button
-            className="dax-ref__coltoggle"
-            onClick={() => setRefOpen((v) => !v)}
-            title={refOpen ? 'Collapse panel' : 'Expand panel'}
-          >
-            {refOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-            {!refOpen && <span className="dax-ref__coltoggle-label">Functions · All DAX · Optimizer</span>}
-          </button>
-        </div>
+        {/* vertical toggle tab on the left edge */}
+        <button
+          className="dax-ref__coltoggle"
+          onClick={() => setRefOpen((v) => !v)}
+          title={refOpen ? 'Collapse panel' : 'Expand panel'}
+        >
+          {refOpen ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
+        </button>
 
-        {refOpen && (
-          <>
-            <div className="dax-ref__tabs">
-              <button className="dax-ref__tab" data-on={panel === 'functions'} onClick={() => setPanel('functions')}>
-                <FunctionSquare size={13} /> Functions
-              </button>
-              <button className="dax-ref__tab" data-on={panel === 'all'} onClick={() => setPanel('all')}>
-                <ListTree size={13} /> All DAX
-              </button>
-              <button className="dax-ref__tab" data-on={panel === 'optimizer'} onClick={() => setPanel('optimizer')}>
-                <Zap size={13} /> Optimizer
-              </button>
+        <div className="dax-ref__body">
+          <div className="dax-ref__tabs">
+            <button className="dax-ref__tab" data-on={panel === 'all'} onClick={() => setPanel('all')}>
+              <ListTree size={13} /> All DAX
+            </button>
+            <button className="dax-ref__tab" data-on={panel === 'optimizer'} onClick={() => setPanel('optimizer')}>
+              <Zap size={13} /> Optimizer
+            </button>
+          </div>
+
+          {panel === 'all' && (
+            <DaxAll model={model} selectedId={selectedId} onSelect={(id) => { selectMeasure(id); setExplanation(null) }} />
+          )}
+
+          {panel === 'optimizer' && (
+            <div className="dax-ref__pane pbs-scroll">
+              {selected ? (
+                <DaxOptimizer
+                  key={selected.id}
+                  name={selected.name}
+                  expression={selected.expression}
+                  onApply={(dax) => updateMeasure(selected.id, { expression: dax })}
+                />
+              ) : (
+                <p className="dall__empty">Select a measure to analyse it.</p>
+              )}
             </div>
-
-            {panel === 'functions' && (
-              <>
-                <div className="dax-ref__head">
-                  <input
-                    className="dax-ref__search"
-                    placeholder="Search DAX functions…"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                  />
-                  <div className="dax-ref__count">{DAX_CATALOG.length} functions · click to insert</div>
-                </div>
-                <div className="dax-ref__list pbs-scroll">
-                  {results.map((fn) => (
-                    <button key={fn.name} className="dax-fn" onClick={() => insertFn(fn)} title={fn.description}>
-                      <span className="dax-fn__name">{fn.name}</span>
-                      <span className="dax-fn__cat">{fn.category}</span>
-                      <div className="dax-fn__syntax">{fn.syntax}</div>
-                      <div className="dax-fn__desc">{fn.description}</div>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {panel === 'all' && (
-              <DaxAll model={model} selectedId={selectedId} onSelect={(id) => selectMeasure(id)} />
-            )}
-
-            {panel === 'optimizer' && (
-              <div className="dax-ref__pane pbs-scroll">
-                {selected ? (
-                  <DaxOptimizer
-                    key={selected.id}
-                    name={selected.name}
-                    expression={selected.expression}
-                    onApply={(dax) => updateMeasure(selected.id, { expression: dax })}
-                  />
-                ) : (
-                  <p className="dall__empty">Select a measure to analyse it.</p>
-                )}
-              </div>
-            )}
-          </>
-        )}
+          )}
+        </div>
       </aside>
     </div>
   )
