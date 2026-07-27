@@ -59,23 +59,36 @@ function bucketKey(v: unknown, bucket?: Bucket): string {
   return `${y}-Q${q}`
 }
 
-function aggregate(values: number[], agg: Agg): number {
+function aggregate(values: (number | string)[], agg: Agg): number {
   if (agg === 'count') return values.length
   if (values.length === 0) return 0
+  // distinctCount works over any type (text regions, ids, …), not just numbers.
+  if (agg === 'distinctCount') return new Set(values.map(String)).size
+  const nums = values as number[]
   switch (agg) {
     case 'sum':
-      return values.reduce((a, b) => a + b, 0)
+      return nums.reduce((a, b) => a + b, 0)
     case 'avg':
-      return values.reduce((a, b) => a + b, 0) / values.length
+      return nums.reduce((a, b) => a + b, 0) / nums.length
     case 'min':
-      return Math.min(...values)
+      return Math.min(...nums)
     case 'max':
-      return Math.max(...values)
-    case 'distinctCount':
-      return new Set(values).size
+      return Math.max(...nums)
     default:
       return 0
   }
+}
+
+/** Collect a cell for aggregation: distinctCount keeps any non-blank value,
+ * numeric aggs keep only parseable numbers (the old behavior silently dropped
+ * every text cell, which made DISTINCTCOUNT over a text column return 0). */
+function collect(arr: (number | string)[], cell: unknown, agg: Agg): void {
+  if (agg === 'distinctCount') {
+    if (cell !== null && cell !== undefined && cell !== '') arr.push(String(cell))
+    return
+  }
+  const v = Number(cell)
+  if (!Number.isNaN(v)) arr.push(v)
 }
 
 /** Build a fact-row → group-label function, resolving a dimension join if needed. */
@@ -129,7 +142,7 @@ export function groupBy(
   const resolve = categoryResolver(ctx, measure.tableId, category)
   if (!resolve) return []
 
-  const groups = new Map<string, number[]>()
+  const groups = new Map<string, (number | string)[]>()
   for (const row of fact.rows) {
     const label = resolve(row)
     let arr = groups.get(label)
@@ -140,8 +153,7 @@ export function groupBy(
     if (measure.agg === 'count') {
       arr.push(1)
     } else {
-      const v = Number(row[mIdx])
-      if (!Number.isNaN(v)) arr.push(v)
+      collect(arr, row[mIdx], measure.agg)
     }
   }
 
@@ -196,7 +208,7 @@ export function scalarWhere(ctx: QueryCtx, measure: MeasureRef, predicates: Pred
   const data = ctx.byId[measure.tableId]
   if (!data) return 0
   const mIdx = colIndex(ctx, measure.tableId, measure.columnId)
-  const nums: number[] = []
+  const vals: (number | string)[] = []
   let count = 0
   for (const row of data.rows) {
     let ok = true
@@ -209,9 +221,8 @@ export function scalarWhere(ctx: QueryCtx, measure: MeasureRef, predicates: Pred
     if (!ok) continue
     count++
     if (measure.agg !== 'count' && mIdx >= 0) {
-      const v = Number(row[mIdx])
-      if (!Number.isNaN(v)) nums.push(v)
+      collect(vals, row[mIdx], measure.agg)
     }
   }
-  return measure.agg === 'count' ? count : aggregate(nums, measure.agg)
+  return measure.agg === 'count' ? count : aggregate(vals, measure.agg)
 }

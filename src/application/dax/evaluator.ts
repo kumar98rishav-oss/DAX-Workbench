@@ -52,9 +52,12 @@ function tokenize(src: string): Tok[] {
       continue
     }
     if (/[0-9.]/.test(c)) {
+      // Digits and dots only — DAX literals have no thousands separators, and
+      // consuming ',' here swallowed the argument separator after a number
+      // (broke every IF(x > 0, a, b)-shaped call).
       let j = i + 1
-      while (j < src.length && /[0-9.,]/.test(src[j])) j++
-      out.push({ t: 'num', v: Number(src.slice(i, j).replace(/,/g, '')) })
+      while (j < src.length && /[0-9.]/.test(src[j])) j++
+      out.push({ t: 'num', v: Number(src.slice(i, j)) })
       i = j
       continue
     }
