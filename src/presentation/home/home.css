@@ -878,3 +878,132 @@
 @media (max-width: 640px) {
   .pbs-sister__hint { display: none; }
 }
+
+/* ============================================================================
+   FEATURE GRID
+   ========================================================================== */
+
+.pbs-features {
+  margin-top: var(--space-9);
+}
+.pbs-features__label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  text-align: center;
+  margin-bottom: var(--space-5);
+}
+.pbs-features__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+}
+@media (max-width: 960px) {
+  .pbs-features__grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .pbs-features__grid { grid-template-columns: 1fr; }
+}
+
+.pbs-feat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-5);
+  background: rgba(13, 16, 26, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  backdrop-filter: blur(14px);
+  transition: border-color var(--dur-fast) var(--ease),
+              transform var(--dur-fast) var(--ease),
+              box-shadow var(--dur-fast) var(--ease);
+}
+.pbs-feat:hover {
+  transform: translateY(-3px);
+  border-color: rgba(91, 132, 255, 0.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+/* AI card gets a special purple accent */
+.pbs-feat:first-child {
+  grid-column: span 2;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-5);
+  border-color: rgba(168, 100, 255, 0.22);
+  background: rgba(110, 50, 200, 0.08);
+}
+.pbs-feat:first-child:hover {
+  border-color: rgba(168, 100, 255, 0.55);
+  box-shadow: 0 12px 40px rgba(110, 50, 200, 0.2);
+}
+.pbs-feat:first-child .pbs-feat__icon {
+  color: #b87bff;
+  background: rgba(168, 100, 255, 0.14);
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+@media (max-width: 960px) {
+  .pbs-feat:first-child {
+    grid-column: span 2;
+    flex-direction: column;
+  }
+}
+@media (max-width: 560px) {
+  .pbs-feat:first-child { grid-column: span 1; }
+}
+
+.pbs-feat__top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 2px;
+}
+.pbs-feat__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius);
+  color: var(--accent);
+  background: var(--accent-soft);
+  flex-shrink: 0;
+}
+.pbs-feat__tag {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #b87bff;
+  background: rgba(168, 100, 255, 0.15);
+  border-radius: var(--radius-full);
+}
+.pbs-feat__name {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+  letter-spacing: var(--tracking-tight);
+}
+.pbs-feat__line {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: var(--leading-normal);
+  margin: 0;
+}
+
+/* trust chips now have icons — flex them */
+.pbs-gchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.pbs-gchip svg {
+  flex-shrink: 0;
+  color: var(--success);
+  opacity: 0.8;
+}
