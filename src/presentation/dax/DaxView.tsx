@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap, CalendarDays, ListTree, Zap, BrainCircuit, TriangleAlert, Copy, ChevronDown, ChevronUp } from 'lucide-react'
+import { Sigma, Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap, CalendarDays, ListTree, Zap, BrainCircuit, TriangleAlert, Copy, ChevronDown, ChevronUp, AlignLeft } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, EmptyState } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
@@ -12,6 +12,7 @@ import type { Suggestion } from '@/application/dax/intent/suggest'
 import { recordPick } from '@/application/dax/intent/memory'
 import { desktopPreview, desktopCreateMeasure, desktopEvaluateScalar, modelLabel } from '@/infrastructure/desktop/desktop-client'
 import { buildDefineQuery, dependencyClosure, modelMeasures, defineHomeTable } from '@/application/dax/live-preview'
+import { formatDax } from '@/application/dax/formatter'
 import { DependencyGraph } from './DependencyGraph'
 import { DaxAll } from './DaxAll'
 import { DaxOptimizer } from './DaxOptimizer'
@@ -553,16 +554,32 @@ export function DaxView() {
               </label>
             </div>
 
-            <label className="dax-field">
-              <span className="dax-field__label">DAX expression</span>
+            <div className="dax-field">
+              <div className="dax-field__label-row">
+                <span className="dax-field__label">DAX expression</span>
+                <button
+                  className="dax-fmt-btn"
+                  title="Format DAX (Shift+Alt+F)"
+                  onClick={() => updateMeasure(selected.id, { expression: formatDax(selected.expression) })}
+                >
+                  <AlignLeft size={12} />
+                  Format
+                </button>
+              </div>
               <textarea
                 ref={codeRef}
                 className="dax-code"
                 spellCheck={false}
                 value={selected.expression}
                 onChange={(e) => updateMeasure(selected.id, { expression: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.shiftKey && e.altKey && e.key === 'F') {
+                    e.preventDefault()
+                    updateMeasure(selected.id, { expression: formatDax(selected.expression) })
+                  }
+                }}
               />
-            </label>
+            </div>
 
             <div className="dax-preview">
               <span className="dax-preview__label">Preview</span>
