@@ -13,7 +13,6 @@ import { ModelDoctorDialog } from '@/presentation/dax/ModelDoctorDialog'
 import { DateTableDialog } from '@/presentation/dax/DateTableDialog'
 import { AnalystPanel } from '@/presentation/analyst/AnalystPanel'
 import { PluginsDialog } from '@/presentation/plugins/PluginsDialog'
-import { LayoutChooser } from '@/presentation/design/LayoutChooser'
 import { CommandPalette } from '@/design-system/components'
 
 export function App() {
@@ -59,7 +58,6 @@ export function App() {
       <DateTableDialog />
       <AnalystPanel />
       <PluginsDialog />
-      <LayoutChooser />
       <CommandPalette
         open={paletteOpen}
         commands={commands}

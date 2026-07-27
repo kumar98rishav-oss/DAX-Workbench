@@ -118,7 +118,7 @@ function buildArtifacts(model: SemanticModel, layoutId: string): { model: Semant
 
 export type View = 'home' | 'studio'
 export type Theme = 'light' | 'dark'
-export type StudioMode = 'kpi' | 'design' | 'data' | 'model' | 'cleanup' | 'dax'
+export type StudioMode = 'kpi' | 'data' | 'model' | 'cleanup' | 'dax'
 
 interface PanelState {
   left: boolean

@@ -1,29 +1,13 @@
-import { useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Database,
   Table2,
-  Files,
-  Shapes,
-  Component,
   Plus,
   Sigma,
   Upload,
 } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { IconButton } from '@/design-system/components'
-
-interface NavItem {
-  id: string
-  label: string
-  icon: ReactNode
-  count?: number
-}
-
-const PAGE_ITEMS: NavItem[] = [
-  { id: 'overview', label: 'Executive Overview', icon: <Files size={16} /> },
-  { id: 'sales-detail', label: 'Sales Detail', icon: <Files size={16} /> },
-]
 
 export function LeftSidebar() {
   const collapsed = !useApp((s) => s.panels.left)
@@ -32,8 +16,6 @@ export function LeftSidebar() {
   const mode = useApp((s) => s.mode)
   const setActiveDataset = useApp((s) => s.setActiveDataset)
   const requestImport = useApp((s) => s.requestImport)
-  const [activePage, setActivePage] = useState('overview')
-
   const measures = datasets.flatMap((d) =>
     d.columns.filter((c) => c.role === 'measureCandidate').map((c) => ({ ds: d.name, name: c.name })),
   )
@@ -89,28 +71,6 @@ export function LeftSidebar() {
           </NavGroup>
         )}
 
-        <NavGroup label="Pages" icon={<Files size={13} />}>
-          {PAGE_ITEMS.map((it) => (
-            <button
-              key={it.id}
-              className="pbs-navitem"
-              data-active={activePage === it.id ? 'true' : undefined}
-              onClick={() => setActivePage(it.id)}
-            >
-              <span className="pbs-navitem__icon">{it.icon}</span>
-              <span className="pbs-navitem__label">{it.label}</span>
-            </button>
-          ))}
-        </NavGroup>
-
-        <NavGroup label="Visuals" icon={<Shapes size={13} />}>
-          <div className="pbs-navitem">
-            <span className="pbs-navitem__icon">
-              <Component size={16} />
-            </span>
-            <span className="pbs-navitem__label">Component Library</span>
-          </div>
-        </NavGroup>
       </div>
     </aside>
   )
