@@ -85,8 +85,8 @@ function tokenize(src: string): TK[] {
     // whitespace — discard (we rebuild spacing)
     if (c === ' ' || c === '\t' || c === '\r' || c === '\n') { i++; continue }
 
-    // line comment
-    if (c === '/' && src[i + 1] === '/') {
+    // line comment — DAX accepts both // and --
+    if ((c === '/' && src[i + 1] === '/') || (c === '-' && src[i + 1] === '-')) {
       let j = i + 2
       while (j < n && src[j] !== '\n') j++
       out.push({ k: 'comment', v: src.slice(i, j) }); i = j; continue
@@ -97,6 +97,25 @@ function tokenize(src: string): TK[] {
       let j = i + 2
       while (j < n - 1 && !(src[j] === '*' && src[j + 1] === '/')) j++
       out.push({ k: 'comment', v: src.slice(i, j + 2) }); i = j + 2; continue
+    }
+
+    // quoted table name — 'Table Name' optionally followed by [Column]
+    if (c === "'") {
+      let j = i + 1
+      while (j < n && src[j] !== "'") j++
+      // j sits on the closing quote (or n if unterminated)
+      let k = j + 1
+      while (k < n && src[k] === ' ') k++
+      if (k < n && src[k] === '[') {
+        let m = k + 1
+        while (m < n && src[m] !== ']') m++
+        out.push({ k: 'colref', v: src.slice(i, j + 1) + src.slice(k, m + 1) })
+        i = m + 1
+      } else {
+        out.push({ k: 'colref', v: src.slice(i, Math.min(j + 1, n)) })
+        i = j + 1
+      }
+      continue
     }
 
     // string literal — "" escape inside
@@ -194,7 +213,9 @@ function shouldBreak(toks: TK[], from: number): boolean {
         const prev = toks[j - 1]
         if (prev?.k === 'word') nestedFunc = true
       }
-    } else if (t.k === 'rp') {
+    } else if (t.k === 'lc') {
+      depth++ // commas inside { … } are list separators, not arguments
+    } else if (t.k === 'rp' || t.k === 'rc') {
       if (depth === 0) break
       depth--
     } else if (t.k === 'comma' && depth === 0) {
@@ -279,14 +300,16 @@ function renderTokens(toks: TK[]): string {
       continue
     }
 
-    // ── LCURLY  { ─────────────────────────────────────────────────────────
+    // ── LCURLY  { — inline list frame so its commas stay on one line ──────
     if (tok.k === 'lc') {
       sp()
+      stack.push({ ml: false, d })
       add('{ '); needSp = false; continue
     }
 
     // ── RCURLY  } ─────────────────────────────────────────────────────────
     if (tok.k === 'rc') {
+      stack.pop()
       add(' }'); needSp = true; continue
     }
 
