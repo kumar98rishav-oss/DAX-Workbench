@@ -350,6 +350,39 @@
   border-left: 1px solid var(--border);
   background: var(--surface);
   min-height: 0;
+  transition: width var(--dur-slow) var(--ease);
+}
+.dax-ref[data-collapsed='true'] {
+  width: 32px;
+  min-width: 32px;
+  overflow: hidden;
+}
+.dax-ref__colstrip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-2) 0 var(--space-1);
+  flex-shrink: 0;
+}
+.dax-ref__coltoggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  justify-content: flex-end;
+}
+.dax-ref__coltoggle:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.dax-ref__coltoggle-label {
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  color: var(--text-subtle);
 }
 .dax-ref__head {
   padding: var(--space-3) var(--space-4);

@@ -101,6 +101,7 @@ export function DaxView() {
 
   const [aiExpanded, setAiExpanded] = useState(false)
   const [aiPrompt, setAiPrompt] = useState('')
+  const [refOpen, setRefOpen] = useState(true)
 
   const [prompt, setPrompt] = useState('')
   const [explanation, setExplanation] = useState<string | null>(null)
@@ -674,60 +675,76 @@ export function DaxView() {
       </main>
 
       {/* reference · all DAX · optimizer */}
-      <aside className="dax-ref">
-        <div className="dax-ref__tabs">
-          <button className="dax-ref__tab" data-on={panel === 'functions'} onClick={() => setPanel('functions')}>
-            <FunctionSquare size={13} /> Functions
-          </button>
-          <button className="dax-ref__tab" data-on={panel === 'all'} onClick={() => setPanel('all')}>
-            <ListTree size={13} /> All DAX
-          </button>
-          <button className="dax-ref__tab" data-on={panel === 'optimizer'} onClick={() => setPanel('optimizer')}>
-            <Zap size={13} /> Optimizer
+      <aside className="dax-ref" data-collapsed={!refOpen}>
+        {/* collapse strip — always visible so the user can re-open */}
+        <div className="dax-ref__colstrip">
+          <button
+            className="dax-ref__coltoggle"
+            onClick={() => setRefOpen((v) => !v)}
+            title={refOpen ? 'Collapse panel' : 'Expand panel'}
+          >
+            {refOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            {!refOpen && <span className="dax-ref__coltoggle-label">Functions · All DAX · Optimizer</span>}
           </button>
         </div>
 
-        {panel === 'functions' && (
+        {refOpen && (
           <>
-            <div className="dax-ref__head">
-              <input
-                className="dax-ref__search"
-                placeholder="Search DAX functions…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              <div className="dax-ref__count">{DAX_CATALOG.length} functions · click to insert</div>
+            <div className="dax-ref__tabs">
+              <button className="dax-ref__tab" data-on={panel === 'functions'} onClick={() => setPanel('functions')}>
+                <FunctionSquare size={13} /> Functions
+              </button>
+              <button className="dax-ref__tab" data-on={panel === 'all'} onClick={() => setPanel('all')}>
+                <ListTree size={13} /> All DAX
+              </button>
+              <button className="dax-ref__tab" data-on={panel === 'optimizer'} onClick={() => setPanel('optimizer')}>
+                <Zap size={13} /> Optimizer
+              </button>
             </div>
-            <div className="dax-ref__list pbs-scroll">
-              {results.map((fn) => (
-                <button key={fn.name} className="dax-fn" onClick={() => insertFn(fn)} title={fn.description}>
-                  <span className="dax-fn__name">{fn.name}</span>
-                  <span className="dax-fn__cat">{fn.category}</span>
-                  <div className="dax-fn__syntax">{fn.syntax}</div>
-                  <div className="dax-fn__desc">{fn.description}</div>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
 
-        {panel === 'all' && (
-          <DaxAll model={model} selectedId={selectedId} onSelect={(id) => selectMeasure(id)} />
-        )}
-
-        {panel === 'optimizer' && (
-          <div className="dax-ref__pane pbs-scroll">
-            {selected ? (
-              <DaxOptimizer
-                key={selected.id}
-                name={selected.name}
-                expression={selected.expression}
-                onApply={(dax) => updateMeasure(selected.id, { expression: dax })}
-              />
-            ) : (
-              <p className="dall__empty">Select a measure to analyse it.</p>
+            {panel === 'functions' && (
+              <>
+                <div className="dax-ref__head">
+                  <input
+                    className="dax-ref__search"
+                    placeholder="Search DAX functions…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                  <div className="dax-ref__count">{DAX_CATALOG.length} functions · click to insert</div>
+                </div>
+                <div className="dax-ref__list pbs-scroll">
+                  {results.map((fn) => (
+                    <button key={fn.name} className="dax-fn" onClick={() => insertFn(fn)} title={fn.description}>
+                      <span className="dax-fn__name">{fn.name}</span>
+                      <span className="dax-fn__cat">{fn.category}</span>
+                      <div className="dax-fn__syntax">{fn.syntax}</div>
+                      <div className="dax-fn__desc">{fn.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
-          </div>
+
+            {panel === 'all' && (
+              <DaxAll model={model} selectedId={selectedId} onSelect={(id) => selectMeasure(id)} />
+            )}
+
+            {panel === 'optimizer' && (
+              <div className="dax-ref__pane pbs-scroll">
+                {selected ? (
+                  <DaxOptimizer
+                    key={selected.id}
+                    name={selected.name}
+                    expression={selected.expression}
+                    onApply={(dax) => updateMeasure(selected.id, { expression: dax })}
+                  />
+                ) : (
+                  <p className="dall__empty">Select a measure to analyse it.</p>
+                )}
+              </div>
+            )}
+          </>
         )}
       </aside>
     </div>

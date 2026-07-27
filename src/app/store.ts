@@ -429,7 +429,12 @@ export const useApp = create<AppState>((set, get) => ({
 
   openStudio: (projectName) => set({ view: 'studio', projectName, mode: 'kpi' }),
 
-  setMode: (mode) => set({ mode }),
+  setMode: (mode) => {
+    // KPI is the home view — both sidebars open. All other tabs are focused
+    // workspaces where the side panels are just clutter, so close them.
+    const kpi = mode === 'kpi'
+    set((s) => ({ mode, panels: { ...s.panels, left: kpi, right: kpi } }))
+  },
 
   toggleTheme: () => {
     const next: Theme = get().theme === 'light' ? 'dark' : 'light'

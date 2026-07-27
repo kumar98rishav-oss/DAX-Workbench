@@ -25,6 +25,7 @@ export function DateTableDialog() {
   const datasets = useApp((s) => s.datasets)
   const desktop = useApp((s) => s.desktop)
   const importFiles = useApp((s) => s.importFiles)
+  const syncFromDesktop = useApp((s) => s.syncFromDesktop)
 
   const candidates = useMemo(() => dateColumnCandidates(model), [model])
 
@@ -100,7 +101,9 @@ export function DateTableDialog() {
     setMsg(null)
     try {
       const r = await desktopCreateTable(opts.name, dax, srcTable, srcColumn, desktop.port)
-      setMsg({ ok: true, text: `${r.status === 'created' ? 'Created' : 'Updated'} calculated table “${r.table}” in Power BI Desktop.${r.note ? ` ${r.note}` : ''}` })
+      setMsg({ ok: true, text: `${r.status === 'created' ? 'Created' : 'Updated'} “${r.table}” in Desktop — syncing model…${r.note ? ` ${r.note}` : ''}` })
+      // Re-sync so the new table appears in Data and Model tabs immediately.
+      await syncFromDesktop()
     } catch (e) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : 'Deploy failed' })
     } finally {

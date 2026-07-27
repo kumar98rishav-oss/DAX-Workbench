@@ -9,8 +9,9 @@ import {
   ChevronRight,
   Wand2,
 } from 'lucide-react'
+
 import { useApp } from '@/app/store'
-import { IconButton, Kbd, Segmented } from '@/design-system/components'
+import { IconButton, Segmented } from '@/design-system/components'
 import type { StudioMode } from '@/app/store'
 
 const MODE_OPTIONS: { value: StudioMode; label: string }[] = [
@@ -53,22 +54,21 @@ export function TopBar() {
 
       <span className="pbs-topbar__spacer" />
 
-      <button
-        className="pbs-topbar__cmd"
-        onClick={() => setCommandPalette(true)}
-        aria-label="Open command palette"
-      >
-        <Search size={15} />
-        <span className="pbs-topbar__cmd-label">Search or run a command</span>
-        <Kbd keys={['Ctrl', 'K']} />
-      </button>
-
       <Segmented
         options={MODE_OPTIONS}
         value={mode}
         onChange={setMode}
         ariaLabel="Studio mode"
       />
+
+      <span className="pbs-topbar__spacer" />
+
+      <IconButton
+        label="Search or run a command (Ctrl K)"
+        onClick={() => setCommandPalette(true)}
+      >
+        <Search size={17} />
+      </IconButton>
 
       <span className="pbs-topbar__divider" />
 
