@@ -1,0 +1,101 @@
+# Release pipeline — one command ships a build.
+#
+#   npm version 0.4.0 && git push --follow-tags     (or: git tag v0.4.0 && git push --tags)
+#
+# ...and this does the rest: builds the UI, embeds it in the bridge, publishes a
+# single self-contained exe, and attaches it to a GitHub Release. The download
+# link on the site points at releases/latest, so shipping never touches the site
+# and the 87 MB binary never enters git history again.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # Lets you dry-run the whole build from the Actions tab without tagging.
+  workflow_dispatch:
+
+permissions:
+  contents: write # required to create the Release and upload the asset
+
+jobs:
+  build:
+    # The bridge is win-x64 and links the Analysis Services client libs, so this
+    # must build on Windows.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The tests are the release gate: a red suite must not ship.
+      - name: Typecheck and test
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Build the Workbench UI
+        run: npm run build
+
+      # The exe serves its OWN embedded copy of the UI, so dist/ must be mirrored
+      # into wwwroot BEFORE publish or the release ships a stale interface.
+      # /download is excluded so the exe can never be embedded inside itself.
+      - name: Embed the UI in the bridge
+        shell: pwsh
+        run: |
+          $src = "dist"
+          $dst = "tools/pbi-desktop-bridge/wwwroot"
+          robocopy $src $dst /MIR /XD download /XF choco.xlsx *.pbix
+          # robocopy uses exit codes 0-7 for success; 8+ is a real failure.
+          if ($LASTEXITCODE -ge 8) { exit 1 } else { exit 0 }
+
+      - name: Publish the single-file bridge
+        run: >
+          dotnet publish tools/pbi-desktop-bridge/PbiDesktopBridge.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          -o publish
+
+      - name: Name the asset
+        shell: pwsh
+        run: |
+          Copy-Item publish/pbi-desktop-bridge.exe DAX-Workbench-Bridge.exe
+          $hash = (Get-FileHash DAX-Workbench-Bridge.exe -Algorithm SHA256).Hash
+          # A published checksum is what lets a cautious user verify the download
+          # while the binary is still unsigned.
+          "$hash  DAX-Workbench-Bridge.exe" | Out-File -Encoding ascii SHA256SUMS.txt
+          Write-Host "sha256: $hash"
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            DAX-Workbench-Bridge.exe
+            SHA256SUMS.txt
+          generate_release_notes: true
+          body: |
+            **Download `DAX-Workbench-Bridge.exe` below and double-click it.** One file, nothing else to install.
+
+            Windows will warn that it is from an unknown publisher (the binary is not yet code-signed) —
+            choose **More info → Run anyway**. `SHA256SUMS.txt` lets you verify the download.
+
+            Already running an older build? Quit it from the tray first, then replace the file.
+
+      # Keeps a dry run useful: the artifact is downloadable from the run page.
+      - name: Upload build artifact (dry runs)
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: DAX-Workbench-Bridge
+          path: DAX-Workbench-Bridge.exe

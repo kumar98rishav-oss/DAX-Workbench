@@ -41,7 +41,7 @@ public static class Vertipaq
         // VertiPaq segment/dictionary sizes and column cardinalities from the
         // engine, not just metadata. sampleRows:0 = use the full model.
         var daxModel = Dax.Model.Extractor.TomExtractor.GetDaxModel(
-            connStr, "DAX Workbench", "0.3.0",
+            connStr, "DAX Workbench", Updates.Version,
             readStatisticsFromData: true,
             sampleRows: 0);
 

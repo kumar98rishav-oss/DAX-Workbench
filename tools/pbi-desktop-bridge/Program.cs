@@ -150,7 +150,7 @@ app.Use(async (ctx, next) =>
 
 static IResult Fail(Exception e) => Results.Json(new { error = e.Message }, statusCode: 500);
 
-app.MapGet("/health", () => Results.Json(new { ok = true, product = "pbi-desktop-bridge", version = "0.3.0", ui = true, remote = isRemote, machine = Environment.MachineName }));
+app.MapGet("/health", () => Results.Json(new { ok = true, product = "pbi-desktop-bridge", version = Updates.Version, ui = true, remote = isRemote, machine = Environment.MachineName }));
 
 app.MapGet("/discover", () =>
 {

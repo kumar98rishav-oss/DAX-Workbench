@@ -73,7 +73,7 @@ export function RemoteBridgeDialog() {
               <b>Send them the bridge file</b> and have them open their report in Power BI Desktop.
               Both machines must be on the <b>same Wi-Fi/network</b> — a phone hotspot counts as a
               different network.
-              <a className="rb__grab" href="/download/DAX-Workbench-Bridge.exe" download>
+              <a className="rb__grab" href="https://github.com/kumar98rishav-oss/DAX-Workbench/releases/latest/download/DAX-Workbench-Bridge.exe" target="_blank" rel="noopener noreferrer">
                 <Download size={13} /> Download the bridge to send
               </a>
             </li>

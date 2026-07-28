@@ -1,0 +1,34 @@
+# Every push and PR must typecheck, pass the suite, and still build.
+# The bridge is compiled too (on Windows) so a C# change can't merge broken —
+# the exe is the product, not an afterthought.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  bridge:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build the bridge
+        run: dotnet build tools/pbi-desktop-bridge/PbiDesktopBridge.csproj -c Release

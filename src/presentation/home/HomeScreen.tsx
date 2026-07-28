@@ -32,8 +32,11 @@ import { modelLabel, modelLabelParts, LOCAL_BRIDGE } from '@/infrastructure/desk
 import { WaveSea } from './WaveSea'
 import './home.css'
 
-const BRIDGE_DOWNLOAD = '/download/DAX-Workbench-Bridge.exe'
-const BRIDGE_SIZE = '83 MB'
+// Served from GitHub Releases, not from this site: the binary is ~85 MB and
+// committing each build to the repo added that much to git history forever.
+// `releases/latest` always resolves to the newest published build.
+const BRIDGE_DOWNLOAD = 'https://github.com/kumar98rishav-oss/DAX-Workbench/releases/latest/download/DAX-Workbench-Bridge.exe'
+const BRIDGE_SIZE = '85 MB'
 const LINKEDIN = 'https://www.linkedin.com/in/rishav98kumar'
 const EMAIL = 'Kumar98rishav@gmail.com'
 

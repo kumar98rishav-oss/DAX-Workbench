@@ -48,3 +48,6 @@ Rishav_Kumar*.pdf
 Rishav_Kumar*.docx
 _cv_backup_original/
 ~$*
+
+# The bridge exe ships via GitHub Releases, never in git (85 MB per build).
+public/download/

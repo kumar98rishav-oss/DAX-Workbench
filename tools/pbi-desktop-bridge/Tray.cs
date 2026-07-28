@@ -22,7 +22,7 @@ public sealed class TrayOptions
 
 public static class Tray
 {
-    private const string AppName = "DAX Workbench";
+    internal const string AppName = "DAX Workbench";
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValue = "DAXWorkbenchBridge";
     private const string ExternalToolsDir =
@@ -199,6 +199,41 @@ internal sealed class TrayContext : ApplicationContext
             catch (Exception ex) { MessageBox.Show(ex.Message, "Start with Windows", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         };
         menu.Items.Add(auto);
+
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(new ToolStripMenuItem($"Check for updates… (v{Updates.Version})", null, async (s, _) =>
+        {
+            // User-initiated only — nothing contacts GitHub on a timer.
+            if (s is ToolStripMenuItem mi) { mi.Enabled = false; mi.Text = "Checking…"; }
+            var r = await Updates.CheckAsync();
+            if (s is ToolStripMenuItem done)
+            {
+                done.Enabled = true;
+                done.Text = $"Check for updates… (v{Updates.Version})";
+            }
+
+            if (r.Error is not null)
+            {
+                MessageBox.Show(
+                    $"Couldn't reach GitHub to check for updates.\n\n{r.Error}",
+                    Tray.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            if (!r.Available)
+            {
+                MessageBox.Show($"You're on the latest version (v{r.Current}).",
+                    Tray.AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            var go = MessageBox.Show(
+                $"Version {r.Latest} is available — you have {r.Current}.\n\n" +
+                "The Workbench is a single file: download the new exe, quit this one from the tray, " +
+                "and replace it. Your settings and Power BI ribbon entry are unaffected.\n\n" +
+                "Open the download page?",
+                Tray.AppName, MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (go == DialogResult.Yes)
+                Process.Start(new ProcessStartInfo { FileName = r.Url, UseShellExecute = true });
+        }));
 
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Quit", null, (_, _) => ExitThread()));
