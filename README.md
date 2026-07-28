@@ -7,7 +7,7 @@
 A measure workbench that launches from Power BI Desktop's own **External Tools** ribbon.
 It reads the model you have open — real tables, real rows, real measures — writes the DAX,
 verifies it on Microsoft's own engine, **optimizes it and times the proof**, and deploys it
-straight back. Nothing is estimated, and no AI sits anywhere in that path.
+straight back. Nothing is estimated, and nothing reaches your model unverified.
 
 [**Live Workbench**](https://dax-workbench.onrender.com) ·
 [**Download the bridge**](https://github.com/kumar98rishav-oss/DAX-Workbench/releases/latest) ·
@@ -38,11 +38,23 @@ Every "AI writes your DAX" tool shares one failure mode: it produces formulas th
 right. A hallucinated filter on a column that exists, against a value that doesn't, returns
 a number — not an error — and someone makes a decision on it.
 
-Workbench inverts that. Natural language is parsed into a structured intent and resolved
-**against the live model**: the column must exist, the value must appear in that column's
-actual data, or the filter is dropped. What survives is matched against a library of
-hand-written DAX patterns, each of which emits a known-good shape. The engine can be wrong
-about what you *meant*. It cannot invent a column, and it cannot invent a value.
+Workbench inverts that, and the inversion is **verification, not abstinence**. There are two
+ways to get DAX here, and neither one is trusted on its word:
+
+- **The deterministic engine (default).** Natural language is parsed into a structured intent
+  and resolved **against the live model**: the column must exist, the value must appear in that
+  column's actual data, or the filter is dropped. What survives is matched against a library of
+  hand-written DAX patterns, each emitting a known-good shape. It can be wrong about what you
+  *meant*. It cannot invent a column, and it cannot invent a value.
+- **AI Generate (opt-in, your own key).** For intent the patterns don't cover, a model reads
+  your **real schema** and drafts the DAX. It is off until you supply an API key, the call is
+  proxied through your local bridge so the key never sits in browser network logs, and the
+  output is DAX you read before it goes anywhere.
+
+Both paths land in the same place: **previewed on the real Analysis Services engine over the
+full data before you commit**, and deployed only when you say so. The guarantee is not "an AI
+never touched this" — it is that no generated formula reaches your model without a number you
+have seen, computed by the same engine your report runs on.
 
 Because generation is deterministic, output is reviewable — Workbench proposes ranked
 candidates and **you pick**. Because the model is live, every candidate is **previewed
@@ -50,6 +62,13 @@ before you commit**, and verified numbers come from the same Analysis Services e
 report runs on.
 
 ## What it does
+
+### 🧠 AI Generate — opt-in, schema-grounded
+For intent the deterministic patterns don't cover, describe it and let a model draft the DAX.
+- **Off until you supply your own API key** — no key ships with the tool, and nothing is sent anywhere until you opt in
+- The prompt carries your **real schema** (tables, columns, types, relationships), so the model is grounded in the model you actually have
+- The call is **proxied through your local bridge**, so the key never lands in browser network logs and there is no CORS workaround
+- Output is DAX you read, preview on the real engine, and deploy deliberately — same gate as every other path
 
 ### ƒ DAX Architect
 Describe the measure in plain English; Workbench ranks the ways to build it.
