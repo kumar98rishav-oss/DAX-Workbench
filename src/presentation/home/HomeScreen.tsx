@@ -199,11 +199,15 @@ export function HomeScreen() {
 
   const label = modelLabel(desktop.database)
   const remote = bridgeUrl !== LOCAL_BRIDGE
-  const status = desktop.connected
-    ? { cls: 'live', text: remote ? `Live · ${desktop.machine ?? 'remote machine'}` : label ? `Live · ${label}` : 'Live · model connected' }
-    : desktop.bridge
-      ? { cls: 'waiting', text: remote ? 'Remote bridge up — waiting for a model' : 'Bridge running — open a .pbix in Desktop' }
-      : { cls: 'off', text: 'Bridge not running' }
+  // Several reports open and none picked yet: the bridge IS connected, but we
+  // are NOT bound to a model — saying "Live" there would be a lie.
+  const status = desktop.needsChoice
+    ? { cls: 'waiting', text: `${models.length} reports open — choose one` }
+    : desktop.connected
+      ? { cls: 'live', text: remote ? `Live · ${desktop.machine ?? 'remote machine'}` : label ? `Live · ${label}` : 'Live · model connected' }
+      : desktop.bridge
+        ? { cls: 'waiting', text: remote ? 'Remote bridge up — waiting for a model' : 'Bridge running — open a .pbix in Desktop' }
+        : { cls: 'off', text: 'Bridge not running' }
 
   return (
     <div className="pbs-home pbs-scroll">
@@ -256,14 +260,16 @@ export function HomeScreen() {
               <button
                 className="pbs-connect"
                 onClick={connect}
-                disabled={importing}
-                data-live={desktop.connected}
+                disabled={importing || desktop.needsChoice}
+                data-live={desktop.connected && !desktop.needsChoice}
               >
                 {importing
                   ? <><Loader2 size={18} className="pbs-spin" /> Syncing model…</>
-                  : desktop.connected
-                    ? <><MonitorCheck size={18} /> Sync {label ?? 'live model'}</>
-                    : <><MonitorCheck size={18} /> Connect to Power BI Desktop</>
+                  : desktop.needsChoice
+                    ? <><MonitorCheck size={18} /> Choose a report below</>
+                    : desktop.connected
+                      ? <><MonitorCheck size={18} /> Sync {label ?? 'live model'}</>
+                      : <><MonitorCheck size={18} /> Connect to Power BI Desktop</>
                 }
               </button>
 

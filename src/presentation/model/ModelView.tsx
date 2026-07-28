@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Share2, Wand2, Upload, GitMerge, Network } from 'lucide-react'
+import { Share2, Wand2, Upload, GitMerge, Network, HardDrive } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, EmptyState } from '@/design-system/components'
 import { ModelGraph } from './ModelGraph'
+import { StoragePanel } from './StoragePanel'
 import type { Relationship, Table } from '@/domain/model'
 import './model.css'
 
@@ -76,7 +77,7 @@ export function ModelView() {
   const relationships = useApp((s) => s.model.relationships)
   const runAutoModel = useApp((s) => s.runAutoModel)
   const requestImport = useApp((s) => s.requestImport)
-  const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph')
+  const [viewMode, setViewMode] = useState<'graph' | 'list' | 'storage'>('graph')
 
   if (tables.length === 0) {
     return (
@@ -133,15 +134,22 @@ export function ModelView() {
           >
             <GitMerge size={14} /> Relationships
           </button>
+          <button
+            className="modelview__toggle-btn"
+            data-active={viewMode === 'storage'}
+            onClick={() => setViewMode('storage')}
+            title="VertiPaq storage — what is consuming memory"
+          >
+            <HardDrive size={14} /> Storage
+          </button>
         </div>
         <Button size="sm" icon={<Wand2 size={15} />} onClick={runAutoModel}>
           Re-run auto-model
         </Button>
       </div>
-      {viewMode === 'graph'
-        ? <ModelGraph tables={tables} relationships={relationships} />
-        : <RelationshipList tables={tables} relationships={relationships} />
-      }
+      {viewMode === 'graph' && <ModelGraph tables={tables} relationships={relationships} />}
+      {viewMode === 'list' && <RelationshipList tables={tables} relationships={relationships} />}
+      {viewMode === 'storage' && <StoragePanel />}
     </div>
   )
 }

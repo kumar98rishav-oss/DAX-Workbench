@@ -187,6 +187,51 @@ export const desktopRunDax = (dax: string, port?: number) =>
     body: JSON.stringify({ dax, port }),
   })
 
+// ---- VertiPaq Analyzer: the model's storage footprint ----------------------
+// Shapes mirror the bridge's Vertipaq.cs DTO (camelCase over the wire).
+
+export interface VpColumn {
+  table: string
+  column: string
+  dataType: string
+  /** HASH (dictionary-encoded) or VALUE (value-encoded). */
+  encoding: string
+  cardinality: number
+  totalSize: number
+  dataSize: number
+  dictionarySize: number
+  hierarchiesSize: number
+  /** Share of the whole model, 0–1. */
+  percentDb: number
+}
+
+export interface VpTable {
+  name: string
+  rows: number
+  totalSize: number
+  columnsSize: number
+  percentDb: number
+  columns: number
+}
+
+export interface VpRelationship { name: string; usedSize: number; missingKeys: boolean }
+
+export interface VpReport {
+  database: string
+  modelSize: number
+  tableCount: number
+  columnCount: number
+  tables: VpTable[]
+  columnsList: VpColumn[]
+  relationships: VpRelationship[]
+}
+
+/** Read the model's VertiPaq storage metrics. Slow by nature — the engine has
+ * to report per-column statistics — so this gets a long timeout and is only
+ * ever run on demand, never on a poll. */
+export const desktopVertipaq = (port?: number) =>
+  req<VpReport>(`/vertipaq${port ? `?port=${port}` : ''}`, undefined, 120000)
+
 /** Create or update a CALCULATED TABLE (e.g. a generated date table) in the
  * live model. relateTable/relateColumn asks the bridge to also mark it as the
  * model's date table and relate it to the reference column (best-effort). */
