@@ -19,6 +19,12 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
     <!-- The built Studio frontend is embedded so ONE exe is the whole product. -->
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+    <!-- SQLBI's Dax.Model.Extractor (via AMO) reads Assembly.Location, which is
+         EMPTY under PublishSingleFile — it surfaces as a "path is empty" error
+         during VertiPaq extraction. Extracting all bundled content to a temp dir
+         on launch populates Location so those libraries work. Still one file to
+         ship; it just self-extracts on first run. -->
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,6 +33,14 @@
     <PackageReference Include="Microsoft.AnalysisServices.NetCore.retail.amd64" Version="19.84.1" />
     <PackageReference Include="Microsoft.AnalysisServices.AdomdClient.NetCore.retail.amd64" Version="19.84.1" />
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.11" />
+    <!-- VertiPaq Analyzer — SQLBI's OWN extraction library (MIT), the same code
+         DAX Studio and the standalone VertiPaq Analyzer use. We read the model's
+         storage metrics through it rather than re-deriving the DMV math, so the
+         numbers match DAX Studio by construction. -->
+    <PackageReference Include="Dax.Model.Extractor" Version="1.12.0" />
+    <PackageReference Include="Dax.ViewModel" Version="1.12.0" />
+    <PackageReference Include="Dax.ViewVpaExport" Version="1.12.0" />
+    <PackageReference Include="Dax.Vpax" Version="1.12.0" />
   </ItemGroup>
 
   <ItemGroup>

@@ -113,7 +113,7 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = ui });
 // Auth gate — API paths only. Runs AFTER UseCors so preflights (which never
 // carry Authorization) aren't rejected before the real request can ask.
 var apiPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    { "/health", "/discover", "/model", "/dax", "/time", "/preview", "/measure", "/table" };
+    { "/health", "/discover", "/model", "/dax", "/time", "/vertipaq", "/preview", "/measure", "/table" };
 app.Use(async (ctx, next) =>
 {
     if (!apiPaths.Contains(ctx.Request.Path.Value ?? "") || HttpMethods.IsOptions(ctx.Request.Method))
@@ -194,6 +194,16 @@ app.MapGet("/model", (int? port) =>
 app.MapPost("/dax", (DaxReq req) =>
 {
     try { var inst = PowerBi.Resolve(req.Port); var (columns, rows) = PowerBi.Query(inst, req.Dax); return Results.Json(new { columns, rowCount = rows.Count, rows }); }
+    catch (Exception e) { return Fail(e); }
+});
+
+// VertiPaq Analyzer — the model's storage footprint (what's eating memory),
+// read through SQLBI's own extractor so it matches DAX Studio. Reading the
+// column statistics off the engine is heavier than a plain query, so this can
+// take a few seconds on a big model — the client uses a long timeout.
+app.MapGet("/vertipaq", (int? port) =>
+{
+    try { return Results.Json(Vertipaq.Analyze(PowerBi.Resolve(port))); }
     catch (Exception e) { return Fail(e); }
 });
 
