@@ -28,7 +28,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Must match the toolchain that generated package-lock.json — npm 10
+          # (Node 20) rejects a lockfile written by npm 11, which is what broke
+          # the first CI runs.
+          node-version: '24'
           cache: 'npm'
 
       - uses: actions/setup-dotnet@v4
