@@ -87,6 +87,11 @@ jobs:
             DAX-Workbench-Bridge.exe
             SHA256SUMS.txt
           generate_release_notes: true
+          # Be explicit. The site's download button points at
+          # releases/latest/download/..., so if GitHub does not move the
+          # "latest" pointer, every visitor keeps getting the PREVIOUS build —
+          # which is how a security patch silently fails to reach anyone.
+          make_latest: true
           body: |
             **Download `DAX-Workbench-Bridge.exe` below and double-click it.** One file, nothing else to install.
 
