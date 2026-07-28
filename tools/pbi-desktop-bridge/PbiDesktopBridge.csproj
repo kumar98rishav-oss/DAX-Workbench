@@ -28,9 +28,9 @@
     <Copyright>© 2026 Rishav Kumar</Copyright>
     <Description>DAX Workbench — write, verify and optimize Power BI DAX against your live semantic model. Not affiliated with Microsoft.</Description>
     <AssemblyTitle>DAX Workbench Bridge</AssemblyTitle>
-    <Version>0.4.1</Version>
-    <FileVersion>0.4.1.0</FileVersion>
-    <AssemblyVersion>0.4.1.0</AssemblyVersion>
+    <Version>0.4.2</Version>
+    <FileVersion>0.4.2.0</FileVersion>
+    <AssemblyVersion>0.4.2.0</AssemblyVersion>
 
     <!-- The built Studio frontend is embedded so ONE exe is the whole product. -->
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>

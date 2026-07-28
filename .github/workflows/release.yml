@@ -96,6 +96,12 @@ jobs:
           # questions they actually have: what is it, how do I run it, why is
           # Windows warning me, what is it doing to my machine, how do I remove
           # it. generate_release_notes appends the commit changelog below this.
+          #
+          # NOTE: this body is only applied when the release is CREATED. Deleting
+          # and re-pushing a tag re-runs the build and replaces the assets, but
+          # the existing release keeps its original notes. To change the notes of
+          # a release that already exists, delete the RELEASE itself in the
+          # GitHub UI (not just the tag) — or simply ship the next version.
           body: |
             **DAX Workbench** — write, verify and optimize Power BI DAX against your live semantic model.
             It attaches to the report you already have open in Power BI Desktop, previews every measure on

@@ -19,7 +19,7 @@ public static class Updates
 {
     /// <summary>The one place the version is declared. Keep in step with
     /// package.json and the git tag when releasing.</summary>
-    public const string Version = "0.4.1";
+    public const string Version = "0.4.2";
 
     public const string ReleasesUrl = "https://github.com/kumar98rishav-oss/DAX-Workbench/releases/latest";
     private const string ApiUrl = "https://api.github.com/repos/kumar98rishav-oss/DAX-Workbench/releases/latest";
