@@ -40,9 +40,18 @@ public static class Updates
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             // GitHub's API rejects requests without a User-Agent.
             http.DefaultRequestHeaders.UserAgent.ParseAdd($"DAX-Workbench/{Version}");
-            var rel = await http.GetFromJsonAsync<ReleaseInfo>(ApiUrl, ct);
+
+            var res = await http.GetAsync(ApiUrl, ct);
+            // A repo with no published releases answers 404 — that is "nothing to
+            // update to", NOT a connection problem. Reporting it as an error
+            // would tell the user their network is broken when it isn't.
+            if (res.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return new Result(false, "", Version, ReleasesUrl, null);
+            res.EnsureSuccessStatusCode();
+
+            var rel = await res.Content.ReadFromJsonAsync<ReleaseInfo>(cancellationToken: ct);
             var tag = rel?.TagName?.TrimStart('v', 'V') ?? "";
-            if (tag.Length == 0) return new Result(false, "", Version, ReleasesUrl, "No release found.");
+            if (tag.Length == 0) return new Result(false, "", Version, ReleasesUrl, null);
             return new Result(IsNewer(tag, Version), tag, Version, rel?.HtmlUrl ?? ReleasesUrl, null);
         }
         catch (Exception e)
