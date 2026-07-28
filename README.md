@@ -144,7 +144,7 @@ same way Tabular Editor and DAX Studio do.
 └───────────────────────────────────────────────────────────────────┘
 ```
 
-- The **bridge** is one self-contained `.exe` (~93 MB) that is the *whole product*: a .NET 8
+- The **bridge** is one self-contained `.exe` (~89 MB) that is the *whole product*: a .NET 8
   minimal API, the built UI embedded inside it, and a system-tray app. No installer, no
   .NET runtime to fetch, nothing else to set up.
 - It registers itself into Power BI Desktop's **External Tools** ribbon, so the Workbench

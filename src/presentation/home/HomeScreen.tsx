@@ -36,7 +36,7 @@ import './home.css'
 // committing each build to the repo added that much to git history forever.
 // `releases/latest` always resolves to the newest published build.
 const BRIDGE_DOWNLOAD = 'https://github.com/kumar98rishav-oss/DAX-Workbench/releases/latest/download/DAX-Workbench-Bridge.exe'
-const BRIDGE_SIZE = '93 MB'
+const BRIDGE_SIZE = '89 MB'
 const LINKEDIN = 'https://www.linkedin.com/in/rishav98kumar'
 const EMAIL = 'Kumar98rishav@gmail.com'
 
