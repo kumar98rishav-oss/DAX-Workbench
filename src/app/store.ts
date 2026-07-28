@@ -18,9 +18,25 @@ import type { ParsedDataset } from '@/application/import/types'
 import type { PbiModel } from '@/application/import/pbi/tmdl'
 import {
   probeDesktop, getDesktopModel, desktopRunDax, modelLabel, configureBridge, LOCAL_BRIDGE,
-  desktopDeleteMeasures, desktopCreateMeasure, type DeletedMeasureSnapshot,
+  desktopDeleteMeasures, desktopCreateMeasure, modelSignature, type DeletedMeasureSnapshot,
 } from '@/infrastructure/desktop/desktop-client'
-import type { DesktopStatus } from '@/infrastructure/desktop/desktop-client'
+import type { DesktopStatus, DesktopModelInfo } from '@/infrastructure/desktop/desktop-client'
+
+/** The pinned model choice survives a reload so the app reconnects to the same
+ * report the user was working on. Port is NOT persisted — it's ephemeral; the
+ * shape-signature is the durable key, re-resolved to a live port each poll. */
+const PIN_KEY = 'daxwb.desktop.pin.v1'
+const loadPin = (): string | null => {
+  try { return localStorage.getItem(PIN_KEY) } catch { return null }
+}
+const savePin = (sig: string | null): void => {
+  try { sig ? localStorage.setItem(PIN_KEY, sig) : localStorage.removeItem(PIN_KEY) } catch { /* private mode */ }
+}
+/** The signature of whichever model the status resolved to, if any. */
+const activeSignature = (d: DesktopStatus): string | null => {
+  const m = d.models?.find((x) => x.port === d.port)
+  return m ? modelSignature(m) : null
+}
 import { mapTmdlType } from '@/application/import/pbi/tmdl'
 import { inferDataset } from '@/application/import/infer-schema'
 
@@ -178,11 +194,18 @@ interface AppState {
   pendingImport: PendingImport | null
   pendingPbip: PendingPbip | null
   desktop: DesktopStatus
+  /** The shape-signature of the model the user chose / we're pinned to. Survives
+   * a Desktop restart (which changes the port) and a reload (persisted). */
+  desktopPin: string | null
+  /** The signature of the model at the last successful sync — drives the "the
+   * open model changed, re-sync" nudge. */
+  syncedSignature: string | null
   /** Where the bridge lives. Remote = another machine, reached with a token. */
   bridgeUrl: string
   bridgeToken: string | null
   remoteOpen: boolean
   refreshDesktop: () => Promise<void>
+  chooseModel: (port: number) => void
   syncFromDesktop: () => Promise<void>
   setBridge: (url: string, token: string | null) => Promise<void>
   toggleRemote: (open?: boolean) => void
@@ -411,6 +434,8 @@ export const useApp = create<AppState>((set, get) => ({
   pendingImport: null,
   pendingPbip: null,
   desktop: { bridge: false, connected: false },
+  desktopPin: loadPin(),
+  syncedSignature: null,
   bridgeUrl: savedBridge.url,
   bridgeToken: savedBridge.token,
   remoteOpen: false,
@@ -576,7 +601,43 @@ export const useApp = create<AppState>((set, get) => ({
 
   cancelPbip: () => set({ pendingPbip: null }),
 
-  refreshDesktop: async () => set({ desktop: await probeDesktop() }),
+  refreshDesktop: async () => {
+    const s = get()
+    // Carry the current choice into the probe so the poll can't silently switch
+    // models on us, and so it re-binds the pinned report across a restart.
+    const next = await probeDesktop(s.desktop.port, s.desktopPin ?? undefined)
+
+    // Whatever we resolved to becomes the pin — first connect, an explicit
+    // choice, or a restart re-bind all converge here, so the pin follows the
+    // live report and outlives the port.
+    const sig = activeSignature(next)
+    let pin = s.desktopPin
+    if (sig && sig !== pin) { pin = sig; savePin(sig) }
+
+    // "The open model is not the one loaded in the Workbench" → nudge a re-sync.
+    const stale = next.connected && s.syncedSignature != null && sig != null && sig !== s.syncedSignature
+
+    set({ desktop: { ...next, stale }, desktopPin: pin })
+  },
+
+  chooseModel: (port) => {
+    const s = get()
+    const m = s.desktop.models?.find((x) => x.port === port)
+    if (!m) return
+    const sig = modelSignature(m)
+    savePin(sig)
+    set({
+      desktopPin: sig,
+      desktop: {
+        ...s.desktop,
+        port: m.port,
+        database: m.database,
+        connected: true,
+        needsChoice: false,
+        stale: s.syncedSignature != null && s.syncedSignature !== sig,
+      },
+    })
+  },
 
   setBridge: async (url, token) => {
     const clean = (url || LOCAL_BRIDGE).replace(/\/+$/, '')
@@ -778,6 +839,9 @@ export const useApp = create<AppState>((set, get) => ({
       const load = assemblePbiProject(pbi, s.layoutId, realByName)
       resetAccent()
       const measureCount = pbi.tables.reduce((n, t) => n + t.measures.length, 0)
+      // Record which model we just loaded so a later restart/switch to a
+      // DIFFERENT report shows the "re-sync" nudge (and this one clears it).
+      const syncedSignature = activeSignature(s.desktop)
       set({
         view: 'studio',
         mode: 'kpi',
@@ -791,6 +855,8 @@ export const useApp = create<AppState>((set, get) => ({
         importNote: `Synced from Power BI Desktop — ${dm.tables.length} tables (real data), ${measureCount} live measures. Previews now run on your real model.`,
         selectedVisualId: null,
         selectedMeasureId: null,
+        syncedSignature,
+        desktop: { ...s.desktop, stale: false },
         past: [],
         future: [],
       })

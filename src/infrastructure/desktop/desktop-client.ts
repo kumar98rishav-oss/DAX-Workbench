@@ -6,6 +6,10 @@
  * Every call fails soft — if the bridge is absent, the Studio stays in its
  * in-browser (sample-data) mode.
  */
+import { resolveActiveModel } from './model-select'
+import type { DesktopModelInfo } from './model-select'
+export { modelSignature, modelLabelParts } from './model-select'
+export type { DesktopModelInfo } from './model-select'
 /** When the app is SERVED BY the bridge itself (the embedded local build on
  * port 5177), talk to our own origin — that also makes it work under any
  * hostname the user reached us by. Otherwise (dev server, hosted site) target
@@ -33,6 +37,17 @@ export interface DesktopStatus {
   port?: number
   /** The machine actually serving it — worth showing when it isn't this one. */
   machine?: string
+  /** Every open model the bridge can see — drives the picker when there's more
+   * than one, and lets a poll re-bind across a restart. */
+  models?: DesktopModelInfo[]
+  /** Several models are open and none could be picked automatically. */
+  needsChoice?: boolean
+  /** The pinned report reappeared on a new port — Desktop restarted and we
+   * reconnected without the user doing anything. */
+  rebound?: boolean
+  /** The open model differs from the one currently loaded in the Workbench —
+   * set by the store, surfaced as a "Sync" nudge. */
+  stale?: boolean
 }
 
 export interface DesktopColumn { name: string; dataType: string }
@@ -81,20 +96,38 @@ export async function testBridge(url: string, pairingToken?: string | null): Pro
   }
 }
 
-/** Is the bridge up, and is a model open? Never throws. */
-export async function probeDesktop(): Promise<DesktopStatus> {
+/** Every open Power BI Desktop model the bridge can see. Never throws — returns
+ * null when the bridge itself is unreachable (so callers can tell "no bridge"
+ * from "bridge up, nothing open"). */
+export async function discoverModels(): Promise<DesktopModelInfo[] | null> {
   try {
-    // The bridge serialises camelCase — reading Port/Database here left the port
-    // undefined, so every later call silently fell back to the bridge picking a
-    // model for us. That's only correct while exactly one .pbix is open.
-    const list = await req<{ port: number; database: string }[]>('/discover', undefined, 2500)
-    if (list.length === 0) return { bridge: true, connected: false }
-    let machine: string | undefined
-    try { machine = (await req<{ machine?: string }>('/health', undefined, 2000)).machine } catch { /* optional */ }
-    return { bridge: true, connected: true, database: list[0].database, port: list[0].port, machine }
+    return await req<DesktopModelInfo[]>('/discover', undefined, 2500)
   } catch {
-    return { bridge: false, connected: false }
+    return null
   }
+}
+
+/**
+ * Is the bridge up, and which model should we talk to? Never throws.
+ * `preferredPort`/`preferredSignature` carry the user's earlier choice so a
+ * poll doesn't fight it and can re-bind the report across a Desktop restart
+ * (the restart changes the port, not the report's shape). When several models
+ * are open and none can be picked, `needsChoice` is set and no port is pinned.
+ */
+export async function probeDesktop(
+  preferredPort?: number,
+  preferredSignature?: string,
+): Promise<DesktopStatus> {
+  const models = await discoverModels()
+  if (models === null) return { bridge: false, connected: false }
+  if (models.length === 0) return { bridge: true, connected: false, models: [] }
+
+  const { model, needsChoice, rebound } = resolveActiveModel(models, preferredPort, preferredSignature)
+  let machine: string | undefined
+  try { machine = (await req<{ machine?: string }>('/health', undefined, 2000)).machine } catch { /* optional */ }
+
+  if (!model) return { bridge: true, connected: true, models, needsChoice, machine }
+  return { bridge: true, connected: true, database: model.database, port: model.port, models, machine, rebound }
 }
 
 const GUID = /^[{(]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[)}]?$/i

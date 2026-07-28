@@ -9,6 +9,13 @@ namespace PbiDesktopBridge;
 public record Instance(int Port, string Database, string Workspace)
 {
     public string DataSource => $"localhost:{Port}";
+
+    // Cheap shape metadata, read once during discovery — lets the client tell
+    // several open models apart, and pin a report across a restart (which
+    // changes both the port and the database GUID, but not the shape).
+    public int TableCount { get; init; }
+    public int MeasureCount { get; init; }
+    public IReadOnlyList<string> Tables { get; init; } = System.Array.Empty<string>();
 }
 
 /// <summary>Discovery + connection helpers for the local Power BI Desktop engine.</summary>
@@ -47,15 +54,45 @@ public static class PowerBi
                 if (!m.Success) continue;
                 var port = int.Parse(m.Value);
                 string db;
+                var tableCount = 0;
+                var measureCount = 0;
+                var tableNames = new List<string>();
                 try
                 {
                     using var server = new Tom.Server();
                     server.Connect($"localhost:{port}");
-                    db = server.Databases.Count > 0 ? server.Databases[0].Name : "";
+                    if (server.Databases.Count == 0) { server.Disconnect(); continue; }
+                    var database = server.Databases[0];
+                    db = database.Name;
+                    // Metadata only — no data scanned. Wrapped separately so a model
+                    // whose shape can't be read still appears in the list (with zero
+                    // counts) rather than vanishing.
+                    try
+                    {
+                        var model = database.Model;
+                        foreach (var t in model.Tables)
+                        {
+                            measureCount += t.Measures.Count;
+                            // User-facing tables only: skip hidden ones and pure
+                            // measure/parameter holders (they have no real columns).
+                            var hasRealColumn = t.Columns.Any(c => c.Type != Tom.ColumnType.RowNumber);
+                            if (!t.IsHidden && hasRealColumn)
+                            {
+                                tableCount++;
+                                if (tableNames.Count < 12) tableNames.Add(t.Name);
+                            }
+                        }
+                    }
+                    catch { /* keep the model in the list with zero shape metadata */ }
                     server.Disconnect();
                 }
                 catch { continue; } // port stale (Desktop closed) — skip
-                found.Add(new Instance(port, db, Path.GetFileName(ws)));
+                found.Add(new Instance(port, db, Path.GetFileName(ws))
+                {
+                    TableCount = tableCount,
+                    MeasureCount = measureCount,
+                    Tables = tableNames,
+                });
             }
         }
         return found;

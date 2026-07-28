@@ -9,6 +9,7 @@ import {
   FileInput,
   Check,
   Loader2,
+  RefreshCw,
   Cable,
   Download,
   ShieldCheck,
@@ -27,7 +28,7 @@ import {
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useApp } from '@/app/store'
-import { modelLabel, LOCAL_BRIDGE } from '@/infrastructure/desktop/desktop-client'
+import { modelLabel, modelLabelParts, LOCAL_BRIDGE } from '@/infrastructure/desktop/desktop-client'
 import { WaveSea } from './WaveSea'
 import './home.css'
 
@@ -126,6 +127,10 @@ export function HomeScreen() {
   const toggleRemote = useApp((s) => s.toggleRemote)
   const bridgeUrl = useApp((s) => s.bridgeUrl)
   const syncFromDesktop = useApp((s) => s.syncFromDesktop)
+  const chooseModel = useApp((s) => s.chooseModel)
+
+  const models = desktop.models ?? []
+  const showPicker = desktop.needsChoice || (desktop.connected && models.length > 1)
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [dropUp, setDropUp] = useState(false)
@@ -291,6 +296,50 @@ export function HomeScreen() {
                 )}
               </div>
             </div>
+
+            {/* Model changed under us (a restart into a different report, or the
+                user switched .pbix) — the loaded model is now out of date. */}
+            {desktop.stale && !importing && (
+              <button className="pbs-remsg pbs-remsg--warn" onClick={() => void syncFromDesktop()}>
+                <RefreshCw size={14} /> The open report changed — sync to refresh
+              </button>
+            )}
+
+            {/* Multi-report picker: several .pbix open, or a chance to switch. */}
+            {showPicker && (
+              <div className="pbs-picker">
+                <div className="pbs-picker__hd">
+                  {desktop.needsChoice
+                    ? `${models.length} reports open — choose one`
+                    : 'Open reports'}
+                </div>
+                {models.map((m) => {
+                  const active = desktop.port === m.port
+                  const name = modelLabel(m.database)
+                  const preview = (m.tables ?? []).slice(0, 3).join(', ')
+                  return (
+                    <button
+                      key={m.port}
+                      className="pbs-picker__row"
+                      data-active={active}
+                      onClick={() => {
+                        if (active) return
+                        chooseModel(m.port)
+                        void syncFromDesktop()
+                      }}
+                    >
+                      <span className="pbs-picker__main">
+                        <span className="pbs-picker__name">{name ?? `Report on port ${m.port}`}</span>
+                        <span className="pbs-picker__meta">
+                          {modelLabelParts(m)}{preview ? ` — ${preview}${(m.tables?.length ?? 0) > 3 ? '…' : ''}` : ''}
+                        </span>
+                      </span>
+                      {active ? <span className="pbs-picker__on">Connected</span> : <span className="pbs-picker__go">Connect →</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
 
             {/* trust chips */}
             <div className="pbs-glass__chips">

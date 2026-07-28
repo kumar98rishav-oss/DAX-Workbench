@@ -154,7 +154,7 @@ app.MapGet("/health", () => Results.Json(new { ok = true, product = "pbi-desktop
 
 app.MapGet("/discover", () =>
 {
-    try { return Results.Json(PowerBi.Discover().Select(i => new { i.Port, i.Database, i.Workspace })); }
+    try { return Results.Json(PowerBi.Discover().Select(i => new { i.Port, i.Database, i.Workspace, i.TableCount, i.MeasureCount, i.Tables })); }
     catch (Exception e) { return Fail(e); }
 });
 

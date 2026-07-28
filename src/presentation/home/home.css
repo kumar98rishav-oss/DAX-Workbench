@@ -780,6 +780,74 @@
 }
 .pbs-gchip b { color: #cdd5e4; font-weight: var(--weight-semibold); }
 
+/* ── Multi-report picker + reconnect nudge (over the dark glass) ── */
+.pbs-remsg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: var(--space-3);
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  font-weight: var(--weight-medium);
+  color: #f0c675;
+  background: rgba(184, 104, 28, 0.14);
+  border: 1px solid rgba(240, 198, 117, 0.32);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+}
+.pbs-remsg:hover { background: rgba(184, 104, 28, 0.22); }
+
+.pbs-picker {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pbs-picker__hd {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #7d8b9b;
+  margin-bottom: 2px;
+}
+.pbs-picker__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+}
+.pbs-picker__row:hover { border-color: rgba(120, 150, 255, 0.5); background: rgba(255, 255, 255, 0.06); }
+.pbs-picker__row[data-active='true'] {
+  border-color: rgba(120, 150, 255, 0.55);
+  background: rgba(79, 125, 255, 0.12);
+  cursor: default;
+}
+.pbs-picker__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pbs-picker__name {
+  font-size: 0.9rem;
+  font-weight: var(--weight-semibold);
+  color: #e6ecf3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pbs-picker__meta {
+  font-size: 0.74rem;
+  color: #8b98a8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pbs-picker__go { font-size: 0.78rem; color: #9db4ff; font-weight: var(--weight-medium); flex-shrink: 0; }
+.pbs-picker__on { font-size: 0.72rem; color: #7de0a0; font-weight: var(--weight-medium); flex-shrink: 0; }
+
 /* CTA button leans into the aurora */
 .pbs-connect {
   background: linear-gradient(135deg, #4f7dff, #8a5cff);
