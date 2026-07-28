@@ -17,6 +17,21 @@
     <AssemblyName>pbi-desktop-bridge</AssemblyName>
     <RootNamespace>PbiDesktopBridge</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- Identity baked into the binary. This does NOT remove SmartScreen's
+         "unknown publisher" prompt — only a code-signing certificate can do
+         that — but it does put a real name on the file: right-click the exe →
+         Properties → Details now shows the author, product and version, and
+         Task Manager shows the product name instead of a bare filename. -->
+    <Product>DAX Workbench</Product>
+    <Authors>Rishav Kumar</Authors>
+    <Company>Rishav Kumar</Company>
+    <Copyright>© 2026 Rishav Kumar</Copyright>
+    <Description>DAX Workbench — write, verify and optimize Power BI DAX against your live semantic model. Not affiliated with Microsoft.</Description>
+    <AssemblyTitle>DAX Workbench Bridge</AssemblyTitle>
+    <Version>0.4.1</Version>
+    <FileVersion>0.4.1.0</FileVersion>
+    <AssemblyVersion>0.4.1.0</AssemblyVersion>
+
     <!-- The built Studio frontend is embedded so ONE exe is the whole product. -->
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
     <!-- SQLBI's Dax.Model.Extractor (via AMO) reads Assembly.Location, which is
