@@ -112,11 +112,22 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = ui });
 
 // Auth gate — API paths only. Runs AFTER UseCors so preflights (which never
 // carry Authorization) aren't rejected before the real request can ask.
-var apiPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    { "/health", "/discover", "/model", "/dax", "/time", "/vertipaq", "/preview", "/measure", "/table" };
+// DENY BY DEFAULT. This was an allow-list of paths to guard, and an allow-list
+// fails OPEN: /delete (which removes measures from the live model) and /nim
+// both shipped reachable WITHOUT a pairing token in --remote mode, purely
+// because adding an endpoint and updating this list are two separate steps and
+// the second was missed. Twice.
+//
+// Now the question is inverted — everything is guarded unless it is provably
+// public — so a new endpoint is protected the moment it exists, and the failure
+// mode of forgetting is a 401 rather than an open door.
 app.Use(async (ctx, next) =>
 {
-    if (!apiPaths.Contains(ctx.Request.Path.Value ?? "") || HttpMethods.IsOptions(ctx.Request.Method))
+    var path = ctx.Request.Path.Value ?? "/";
+    // Public = the SPA shell and its static assets. Assets carry a file
+    // extension (.js/.css/.ico); API routes never do.
+    var isPublic = path == "/" || Path.HasExtension(path);
+    if (isPublic || HttpMethods.IsOptions(ctx.Request.Method))
     {
         await next();
         return;
