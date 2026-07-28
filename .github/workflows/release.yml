@@ -92,13 +92,86 @@ jobs:
           # "latest" pointer, every visitor keeps getting the PREVIOUS build —
           # which is how a security patch silently fails to reach anyone.
           make_latest: true
+          # A release page is the first thing a stranger sees, so it answers the
+          # questions they actually have: what is it, how do I run it, why is
+          # Windows warning me, what is it doing to my machine, how do I remove
+          # it. generate_release_notes appends the commit changelog below this.
           body: |
-            **Download `DAX-Workbench-Bridge.exe` below and double-click it.** One file, nothing else to install.
+            **DAX Workbench** — write, verify and optimize Power BI DAX against your live semantic model.
+            It attaches to the report you already have open in Power BI Desktop, previews every measure on
+            Microsoft's own engine over your full data, and deploys straight back.
 
-            Windows will warn that it is from an unknown publisher (the binary is not yet code-signed) —
-            choose **More info → Run anyway**. `SHA256SUMS.txt` lets you verify the download.
+            ---
 
-            Already running an older build? Quit it from the tray first, then replace the file.
+            ## Install
+
+            There is no installer. It is a single portable executable.
+
+            1. Download **`DAX-Workbench-Bridge.exe`** below (~89 MB) and put it anywhere you like.
+            2. Double-click it. A tray icon appears near the clock.
+            3. Windows will warn **"Windows protected your PC — unknown publisher."** The binary is not yet
+               code-signed. Choose **More info → Run anyway**. (Verify the download first if you prefer — see below.)
+            4. Open your report in Power BI Desktop, then right-click the tray icon → **Open DAX Workbench**.
+
+            **Optional, recommended:** tray icon → **Add to Power BI ribbon**. Asks for administrator once, then
+            *DAX Workbench* appears in Power BI Desktop's **External Tools** ribbon and launches already
+            attached to whichever report you have open.
+
+            ## Requirements
+
+            | | |
+            |---|---|
+            | Operating system | Windows 10 or 11, 64-bit |
+            | Power BI Desktop | Any recent version (Store or MSI install) |
+            | Anything else | **Nothing.** The .NET 8 runtime is bundled inside the executable. |
+
+            ## Verify your download
+
+            The executable is unsigned, so verify it if you are cautious — this is what `SHA256SUMS.txt` is for:
+
+            ```powershell
+            Get-FileHash DAX-Workbench-Bridge.exe -Algorithm SHA256
+            ```
+
+            Compare the result against `SHA256SUMS.txt` below. Both files are produced by the same automated
+            build, from tagged source, in a public GitHub Actions run you can inspect.
+
+            ## What it does
+
+            - **Generate DAX** — describe a measure in plain English. A deterministic pattern engine resolves it
+              against your real schema (it cannot invent a column or a value); optional AI generation is
+              available if you supply your own API key.
+            - **Measure Factory** — one field in, a full analytical suite out: YTD, QTD, prior year, YoY %,
+              moving average, running total, rank.
+            - **Optimizer** — rewrites slow DAX into the shape the engine executes best, then **proves it** by
+              benchmarking both versions cold-cache on your data. If the difference is noise, it says so.
+            - **VertiPaq storage analyzer** — column-level size, cardinality and encoding, so you can see what
+              is actually consuming your model's memory.
+            - **Model Doctor** — audits for missing format strings, unsafe division and costly filters, with
+              one-click fixes.
+            - **Dependency & cleanup analysis** — what references what, so nothing is deleted that a report
+              still uses.
+            - **Live KPI board** — your measures as real numbers, computed by the engine, without building a visual.
+
+            ## Privacy and security
+
+            - Runs **entirely on your machine**. There is no account, no sign-in and no backend of ours.
+            - The bridge listens on **loopback only** (`127.0.0.1:5177`) and makes no outbound call of its own.
+            - **No telemetry.** No analytics, no error reporting, no third-party scripts.
+            - Your model changes only when you explicitly push, deploy or apply a fix — every write is a normal
+              edit you can undo in Power BI Desktop.
+            - Network sharing is **off by default**; when enabled it requires a pairing token.
+
+            ## Uninstall
+
+            Quit from the tray icon and delete the `.exe`. Nothing is installed into Program Files and there is
+            no registry footprint unless you enabled *Start with Windows* or *Add to Power BI ribbon* — both
+            are reversible from the same tray menu.
+
+            ---
+
+            *Built by [Rishav Kumar](https://www.linkedin.com/in/rishav98kumar). Not affiliated with or endorsed
+            by Microsoft. Power BI is a trademark of Microsoft Corporation.*
 
       # Keeps a dry run useful: the artifact is downloadable from the run page.
       - name: Upload build artifact (dry runs)
