@@ -21,6 +21,20 @@ public record Instance(int Port, string Database, string Workspace)
 /// <summary>Discovery + connection helpers for the local Power BI Desktop engine.</summary>
 public static class PowerBi
 {
+    /// <summary>Shape metadata per open model, keyed by port + database id.
+    ///
+    /// Reading `database.Model.Tables` makes TOM load the model's full metadata,
+    /// which costs seconds on a real model — and /discover is POLLED every few
+    /// seconds by the UI. Without this cache discovery took 4.2s against the
+    /// client's 2.5s deadline, so every poll timed out and the app reported
+    /// "Bridge not running" while the bridge was in fact healthy.
+    ///
+    /// A model's shape does not change without a reload, and the key includes
+    /// the database id, which Desktop regenerates per session — so a reopened
+    /// or swapped report misses the cache and is re-read.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<
+        string, (int TableCount, int MeasureCount, List<string> Tables)> ShapeCache = new();
+
     private static IEnumerable<string> WorkspaceRoots()
     {
         var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -38,6 +52,23 @@ public static class PowerBi
         }
     }
 
+    /// <summary>Is anything actually listening on this loopback port?
+    ///
+    /// A workspace's port file OUTLIVES the Desktop session that wrote it, so
+    /// most machines accumulate stale entries pointing at dead ports. TOM takes
+    /// roughly two seconds to give up on one, and /discover is polled every few
+    /// seconds — so a single leftover workspace was costing 2s on every poll.
+    /// A 200ms TCP probe rejects a dead port immediately.</summary>
+    private static bool PortIsLive(int port)
+    {
+        try
+        {
+            using var client = new System.Net.Sockets.TcpClient();
+            return client.ConnectAsync(System.Net.IPAddress.Loopback, port).Wait(200) && client.Connected;
+        }
+        catch { return false; }
+    }
+
     /// <summary>Every open Power BI Desktop model on this machine.</summary>
     public static List<Instance> Discover()
     {
@@ -53,6 +84,7 @@ public static class PowerBi
                 var m = Regex.Match(raw, "\\d+");
                 if (!m.Success) continue;
                 var port = int.Parse(m.Value);
+                if (!PortIsLive(port)) continue; // stale workspace — skip before TOM stalls on it
                 string db;
                 var tableCount = 0;
                 var measureCount = 0;
@@ -64,26 +96,40 @@ public static class PowerBi
                     if (server.Databases.Count == 0) { server.Disconnect(); continue; }
                     var database = server.Databases[0];
                     db = database.Name;
-                    // Metadata only — no data scanned. Wrapped separately so a model
-                    // whose shape can't be read still appears in the list (with zero
-                    // counts) rather than vanishing.
-                    try
+
+                    // Cached after the first read — see ShapeCache. This is the
+                    // difference between a poll that costs milliseconds and one
+                    // that costs seconds.
+                    if (ShapeCache.TryGetValue($"{port}:{db}", out var cached))
                     {
-                        var model = database.Model;
-                        foreach (var t in model.Tables)
-                        {
-                            measureCount += t.Measures.Count;
-                            // User-facing tables only: skip hidden ones and pure
-                            // measure/parameter holders (they have no real columns).
-                            var hasRealColumn = t.Columns.Any(c => c.Type != Tom.ColumnType.RowNumber);
-                            if (!t.IsHidden && hasRealColumn)
-                            {
-                                tableCount++;
-                                if (tableNames.Count < 12) tableNames.Add(t.Name);
-                            }
-                        }
+                        tableCount = cached.TableCount;
+                        measureCount = cached.MeasureCount;
+                        tableNames = cached.Tables;
                     }
-                    catch { /* keep the model in the list with zero shape metadata */ }
+                    else
+                    {
+                        // Metadata only — no data scanned. Wrapped separately so a model
+                        // whose shape can't be read still appears in the list (with zero
+                        // counts) rather than vanishing.
+                        try
+                        {
+                            var model = database.Model;
+                            foreach (var t in model.Tables)
+                            {
+                                measureCount += t.Measures.Count;
+                                // User-facing tables only: skip hidden ones and pure
+                                // measure/parameter holders (they have no real columns).
+                                var hasRealColumn = t.Columns.Any(c => c.Type != Tom.ColumnType.RowNumber);
+                                if (!t.IsHidden && hasRealColumn)
+                                {
+                                    tableCount++;
+                                    if (tableNames.Count < 12) tableNames.Add(t.Name);
+                                }
+                            }
+                            ShapeCache[$"{port}:{db}"] = (tableCount, measureCount, tableNames);
+                        }
+                        catch { /* keep the model in the list with zero shape metadata */ }
+                    }
                     server.Disconnect();
                 }
                 catch { continue; } // port stale (Desktop closed) — skip

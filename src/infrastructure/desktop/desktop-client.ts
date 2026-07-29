@@ -101,7 +101,11 @@ export async function testBridge(url: string, pairingToken?: string | null): Pro
  * from "bridge up, nothing open"). */
 export async function discoverModels(): Promise<DesktopModelInfo[] | null> {
   try {
-    return await req<DesktopModelInfo[]>('/discover', undefined, 2500)
+    // 2.5s was too tight once discovery started reporting each model's shape:
+    // the FIRST call after a model opens has to read its metadata from the
+    // engine (cached thereafter), and a real model took ~4s — so every poll
+    // timed out and the UI claimed "Bridge not running" while it was healthy.
+    return await req<DesktopModelInfo[]>('/discover', undefined, 15000)
   } catch {
     return null
   }
