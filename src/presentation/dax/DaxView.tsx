@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Sparkles, Trash2, Check, FunctionSquare, MonitorCheck, MonitorX, Upload, PlayCircle, Factory, Stethoscope, GraduationCap, CalendarDays, ListTree, Zap, BrainCircuit, TriangleAlert, Copy, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlignLeft } from 'lucide-react'
 import { useApp } from '@/app/store'
+import { NIM_MODELS } from '@/application/dax/nl-to-dax'
 import { Button, EmptyState } from '@/design-system/components'
 import { makeCtx } from '@/application/query/query-engine'
 import { evaluateDax } from '@/application/dax/evaluator'
@@ -92,6 +93,8 @@ export function DaxView() {
 
   const nimApiKey = useApp((s) => s.nimApiKey)
   const setNimApiKey = useApp((s) => s.setNimApiKey)
+  const nimModel = useApp((s) => s.nimModel)
+  const setNimModel = useApp((s) => s.setNimModel)
   const nlToDaxBusy = useApp((s) => s.nlToDaxBusy)
   const nlToDaxResult = useApp((s) => s.nlToDaxResult)
   const nlToDaxError = useApp((s) => s.nlToDaxError)
@@ -373,10 +376,35 @@ export function DaxView() {
                   </div>
 
                   {nimApiKey && (
-                    <div className="dax-ai__keyrow">
-                      <span className="dax-ai__keystat">API key saved</span>
-                      <button className="dax-ai__keyclear" onClick={() => setNimApiKey('')}>Clear key</button>
-                    </div>
+                    <>
+                      <div className="dax-ai__modelrow">
+                        <label className="dax-ai__modellabel" htmlFor="nim-model">Model</label>
+                        <select
+                          id="nim-model"
+                          className="dax-select dax-ai__modelsel"
+                          value={nimModel}
+                          onChange={(e) => setNimModel(e.target.value)}
+                          disabled={nlToDaxBusy}
+                        >
+                          {NIM_MODELS.map((m) => (
+                            <option key={m.id} value={m.id}>{m.label}</option>
+                          ))}
+                          {/* A model the user typed that is no longer in our list
+                              still has to be selectable, or switching away from a
+                              retired default would be impossible. */}
+                          {!NIM_MODELS.some((m) => m.id === nimModel) && (
+                            <option value={nimModel}>{nimModel} (custom)</option>
+                          )}
+                        </select>
+                        <span className="dax-ai__modelnote">
+                          {NIM_MODELS.find((m) => m.id === nimModel)?.note ?? 'Custom model id.'}
+                        </span>
+                      </div>
+                      <div className="dax-ai__keyrow">
+                        <span className="dax-ai__keystat">API key saved</span>
+                        <button className="dax-ai__keyclear" onClick={() => setNimApiKey('')}>Clear key</button>
+                      </div>
+                    </>
                   )}
 
                   {nlToDaxError && (

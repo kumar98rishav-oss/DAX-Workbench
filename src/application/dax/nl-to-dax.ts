@@ -10,7 +10,48 @@
 import type { SemanticModel } from '@/domain/model'
 import { parseDependencies } from './dependencies'
 
-export const NIM_MODEL = 'deepseek-ai/deepseek-v4-flash'
+/**
+ * Selectable NIM models. NVIDIA retires models on its own schedule — several
+ * IDs that worked recently now return 410 Gone or 404 — so this must never be a
+ * single hardcoded constant: when the default dies, the whole feature dies with
+ * it and the user has no way out. Anything here can be overridden by typing a
+ * model id, so a retirement is a settings change, not a release.
+ *
+ * Ordering and notes come from an actual benchmark against a live 21-table
+ * model (5 prompts x 3 models), not from vendor marketing.
+ */
+export interface NimModelOption {
+  id: string
+  label: string
+  /** What the benchmark actually showed — shown in the picker. */
+  note: string
+}
+
+export const NIM_MODELS: NimModelOption[] = [
+  {
+    id: 'meta/llama-3.1-70b-instruct',
+    label: 'Llama 3.1 70B',
+    note: 'Best DAX quality in testing. ~2-9s.',
+  },
+  {
+    id: 'meta/llama-3.1-8b-instruct',
+    label: 'Llama 3.1 8B',
+    note: 'Fastest and most reliable to answer, but weaker on time intelligence.',
+  },
+  {
+    id: 'nvidia/llama-3.3-nemotron-super-49b-v1',
+    label: 'Nemotron Super 49B',
+    note: 'Slower and was the weakest on DAX in testing.',
+  },
+  {
+    id: 'deepseek-ai/deepseek-v4-flash',
+    label: 'DeepSeek V4 Flash',
+    note: 'Often rate-limited on the free tier — expect 15-25s or a quota error.',
+  },
+]
+
+/** The default. Chosen on measured DAX quality, not on model size or hype. */
+export const NIM_MODEL = NIM_MODELS[0].id
 
 export interface NlToDaxResult {
   dax: string
@@ -97,6 +138,8 @@ export async function generateDaxFromNL(
   model: SemanticModel,
   apiKey: string,
   targetTable?: string,
+  /** Which NIM model to call. Defaults to the benchmarked best. */
+  modelId: string = NIM_MODEL,
 ): Promise<NlToDaxResult> {
   if (!apiKey.trim()) throw new Error('NVIDIA NIM API key is not set.')
 
@@ -114,7 +157,7 @@ export async function generateDaxFromNL(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       apiKey,
-      model: NIM_MODEL,
+      model: modelId,
       messages: [
         { role: 'system', content: SYSTEM(schema, targetTable) },
         { role: 'user', content: userPrompt },

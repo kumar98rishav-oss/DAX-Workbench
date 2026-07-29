@@ -8,7 +8,7 @@ import { buildModel } from '@/application/model/auto-model'
 import { generateLayout, DEFAULT_LAYOUT } from '@/application/insights/dashboard-generator'
 import type { VisualSpec } from '@/application/insights/dashboard-generator'
 import { generateDaxFromNL as generateDaxFromNLTemplate } from '@/application/dax/nl-templates'
-import { generateDaxFromNL as generateDaxFromNim } from '@/application/dax/nl-to-dax'
+import { generateDaxFromNL as generateDaxFromNim, NIM_MODEL } from '@/application/dax/nl-to-dax'
 import { architectSolution } from '@/application/dax/architect/architect'
 import { NO_REPORT, type ReportUsage } from '@/application/dax/usage'
 import { scanReportFiles } from '@/application/dax/report-usage'
@@ -171,10 +171,14 @@ interface AppState {
 
   // ---- NL-to-DAX (AI) ----
   nimApiKey: string
+  /** Which NIM model to call. Persisted: NVIDIA retires models, so a user
+   * must be able to switch without waiting for a release. */
+  nimModel: string
   nlToDaxBusy: boolean
   nlToDaxResult: { dax: string; measureName: string; hallucinated: string[] } | null
   nlToDaxError: string | null
   setNimApiKey: (key: string) => void
+  setNimModel: (id: string) => void
   runNlToDax: (prompt: string, targetTable?: string) => Promise<void>
   dismissNlToDax: () => void
 
@@ -397,6 +401,7 @@ export const useApp = create<AppState>((set, get) => ({
   selectedMeasureId: null,
 
   nimApiKey: (() => { try { return localStorage.getItem('pbistudio.nimApiKey') ?? '' } catch { return '' } })(),
+  nimModel: (() => { try { return localStorage.getItem('pbistudio.nimModel') || NIM_MODEL } catch { return NIM_MODEL } })(),
   nlToDaxBusy: false,
   nlToDaxResult: null,
   nlToDaxError: null,
@@ -404,12 +409,16 @@ export const useApp = create<AppState>((set, get) => ({
     try { localStorage.setItem('pbistudio.nimApiKey', key) } catch { /* private mode */ }
     set({ nimApiKey: key })
   },
+  setNimModel: (id) => {
+    try { localStorage.setItem('pbistudio.nimModel', id) } catch { /* private mode */ }
+    set({ nimModel: id })
+  },
   runNlToDax: async (prompt, targetTable) => {
     const s = get()
     if (!prompt.trim()) return
     set({ nlToDaxBusy: true, nlToDaxResult: null, nlToDaxError: null })
     try {
-      const result = await generateDaxFromNim(prompt, s.model, s.nimApiKey, targetTable)
+      const result = await generateDaxFromNim(prompt, s.model, s.nimApiKey, targetTable, s.nimModel)
       if (!result.ok) {
         set({ nlToDaxBusy: false, nlToDaxError: result.note ?? 'Could not generate DAX for that request.' })
       } else {
