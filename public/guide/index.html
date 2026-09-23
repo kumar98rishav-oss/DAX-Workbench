@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="DAX Workbench — interactive system guide: architecture, the 11-stage governed AI delivery pipeline, live trust-but-verify demo, skills and reusability.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡</text></svg>">
+</head>
+<body>
+<title>DAX Workbench — System Guide</title>
+<style>
+  :root{
+    --accent:#6366F1; --accent-deep:#4F46E5; --accent-soft:rgba(99,102,241,.10);
+    --ground:#F6F7FB; --surface:#FFFFFF; --surface2:#EEF1F8;
+    --ink:#16203A; --muted:#5B6478; --faint:#98A1B8; --line:#E3E7F2;
+    --good:#16A34A; --good-soft:rgba(34,197,94,.10);
+    --bad:#DC2626; --bad-soft:rgba(239,68,68,.10);
+    --warn:#B45309; --warn-soft:rgba(245,158,11,.12);
+    --mono:"Cascadia Code",Consolas,ui-monospace,"SF Mono",monospace;
+    --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+    --shadow:0 1px 2px rgba(15,23,42,.05),0 8px 24px -12px rgba(15,23,42,.12);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --accent:#818CF8; --accent-deep:#A5B4FC; --accent-soft:rgba(129,140,248,.14);
+      --ground:#0B1020; --surface:#121A30; --surface2:#1A2340;
+      --ink:#E7EBF8; --muted:#9AA4C0; --faint:#5F6A8A; --line:#252F4E;
+      --good:#34D399; --good-soft:rgba(52,211,153,.12);
+      --bad:#F87171; --bad-soft:rgba(248,113,113,.12);
+      --warn:#FBBF24; --warn-soft:rgba(251,191,36,.12);
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="light"]{
+    --accent:#6366F1; --accent-deep:#4F46E5; --accent-soft:rgba(99,102,241,.10);
+    --ground:#F6F7FB; --surface:#FFFFFF; --surface2:#EEF1F8;
+    --ink:#16203A; --muted:#5B6478; --faint:#98A1B8; --line:#E3E7F2;
+    --good:#16A34A; --good-soft:rgba(34,197,94,.10);
+    --bad:#DC2626; --bad-soft:rgba(239,68,68,.10);
+    --warn:#B45309; --warn-soft:rgba(245,158,11,.12);
+    --shadow:0 1px 2px rgba(15,23,42,.05),0 8px 24px -12px rgba(15,23,42,.12);
+  }
+  :root[data-theme="dark"]{
+    --accent:#818CF8; --accent-deep:#A5B4FC; --accent-soft:rgba(129,140,248,.14);
+    --ground:#0B1020; --surface:#121A30; --surface2:#1A2340;
+    --ink:#E7EBF8; --muted:#9AA4C0; --faint:#5F6A8A; --line:#252F4E;
+    --good:#34D399; --good-soft:rgba(52,211,153,.12);
+    --bad:#F87171; --bad-soft:rgba(248,113,113,.12);
+    --warn:#FBBF24; --warn-soft:rgba(251,191,36,.12);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -12px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important} html{scroll-behavior:auto} }
+
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+  section{padding:56px 0 8px}
+  h1,h2,h3{line-height:1.2;text-wrap:balance;margin:0 0 10px}
+  h2{font-size:26px;font-weight:700;letter-spacing:-.02em}
+  h3{font-size:16px;font-weight:700}
+  p{margin:0 0 12px}
+  .lede{color:var(--muted);max-width:68ch}
+  .eyebrow{font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;display:block}
+  code,.mono{font-family:var(--mono);font-size:.92em}
+  .num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  a{color:var(--accent-deep)}
+  button{font-family:var(--sans)}
+  button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* ── top nav ── */
+  .nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--ground) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .nav__in{max-width:1120px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:14px;overflow-x:auto}
+  .nav__brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;white-space:nowrap}
+  .nav__logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--accent-deep));display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:12px}
+  .nav__links{display:flex;gap:2px;margin-left:auto}
+  .nav__links a{font-size:12.5px;font-weight:600;color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:8px;white-space:nowrap}
+  .nav__links a:hover{background:var(--accent-soft);color:var(--accent-deep)}
+
+  /* ── hero ── */
+  .hero{padding:72px 0 30px}
+  .hero h1{font-size:clamp(30px,4.6vw,46px);font-weight:800;letter-spacing:-.03em}
+  .hero h1 em{font-style:normal;color:var(--accent-deep);position:relative}
+  .hero .lede{font-size:17px;max-width:62ch}
+  .statrow{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 16px;box-shadow:var(--shadow)}
+  .stat b{display:block;font:700 20px/1.2 var(--mono);color:var(--ink)}
+  .stat span{font-size:11.5px;color:var(--muted)}
+
+  /* live mini pipeline */
+  .live{margin-top:30px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px 14px;box-shadow:var(--shadow)}
+  .live__hd{display:flex;align-items:center;gap:10px;font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+  .live__pill{margin-left:auto;font:700 10px/1 var(--mono);letter-spacing:.08em;padding:4px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent-deep)}
+  .live__rail{display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding-bottom:6px}
+  .lstage{flex:1;min-width:66px;text-align:center;position:relative}
+  .lstage::before{content:"";position:absolute;top:9px;left:calc(-50% + 10px);width:calc(100% - 20px);height:2px;background:var(--line)}
+  .lstage:first-child::before{display:none}
+  .lstage__dot{width:20px;height:20px;border-radius:50%;margin:0 auto 6px;border:2px solid var(--line);background:var(--surface);position:relative;transition:all .3s}
+  .lstage__name{font-size:10px;color:var(--muted);line-height:1.25;display:block}
+  .lstage[data-s="running"] .lstage__dot{border-color:var(--accent);box-shadow:0 0 0 5px var(--accent-soft)}
+  .lstage[data-s="running"] .lstage__dot::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--accent);animation:pulse 1s ease-in-out infinite}
+  .lstage[data-s="passed"] .lstage__dot{border-color:var(--good);background:var(--good)}
+  .lstage[data-s="passed"] .lstage__dot::after{content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800}
+  .lstage[data-s="hold"] .lstage__dot{border-color:var(--warn);background:var(--warn-soft)}
+  .lstage[data-s="hold"] .lstage__dot::after{content:"‖";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--warn);font-size:10px;font-weight:800}
+  .lstage__bp{position:absolute;top:-4px;right:calc(50% - 16px);width:7px;height:7px;border-radius:50%;background:var(--bad)}
+  @keyframes pulse{50%{transform:scale(.55)}}
+  .live__log{font:12px/1.7 var(--mono);color:var(--muted);border-top:1px dashed var(--line);margin-top:10px;padding-top:10px;min-height:44px}
+  .live__log .g{color:var(--good)} .live__log .r{color:var(--bad)} .live__log .a{color:var(--accent-deep)}
+
+  /* ── generic cards ── */
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+  .card h3{display:flex;align-items:center;gap:8px}
+  .card .k{font:700 11px/1 var(--mono);color:var(--accent-deep);letter-spacing:.06em}
+  .tag{display:inline-block;font:600 10.5px/1 var(--mono);letter-spacing:.05em;padding:3px 8px;border-radius:999px;margin:2px 3px 2px 0}
+  .tag--win{background:var(--good-soft);color:var(--good)}
+  .tag--reuse{background:var(--accent-soft);color:var(--accent-deep)}
+  .kv{margin:8px 0 0;padding:0;list-style:none;font-size:13.5px;color:var(--muted)}
+  .kv li{padding:3px 0 3px 16px;position:relative}
+  .kv li::before{content:"·";position:absolute;left:4px;color:var(--accent)}
+
+  /* ── architecture ── */
+  .arch{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow);margin-top:18px;overflow-x:auto}
+  .arch svg{display:block;min-width:760px;max-width:100%;height:auto;color:var(--muted)}
+  .arch text{font-family:var(--sans)}
+  .arch .t-name{font-weight:700;fill:var(--ink);font-size:13px}
+  .arch .t-sub{fill:var(--muted);font-size:10.5px}
+  .arch .t-edge{fill:var(--muted);font-size:10px;font-family:var(--mono)}
+  .arch .t-edge-hot{fill:var(--accent-deep);font-weight:700;font-size:10px;font-family:var(--mono)}
+  .arch .box{fill:var(--surface2);stroke:var(--line);rx:10}
+  .arch .box-hot{fill:var(--accent-soft);stroke:var(--accent)}
+  figcaption{font-size:12.5px;color:var(--muted);margin-top:10px;text-align:center}
+
+  .compgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:16px}
+  .comp{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;cursor:pointer;text-align:left;box-shadow:var(--shadow);transition:border-color .15s}
+  .comp:hover{border-color:var(--accent)}
+  .comp[aria-expanded="true"]{border-color:var(--accent);background:var(--accent-soft)}
+  .comp b{display:block;font-size:13.5px}
+  .comp span{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+  .compdetail{grid-column:1/-1;background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:16px 20px;display:none}
+  .compdetail.show{display:block}
+
+  /* ── stage explorer ── */
+  .stagebar{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 14px}
+  .sbtn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px 12px;font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .15s}
+  .sbtn .n{font:700 10.5px/1 var(--mono);color:var(--accent-deep);background:var(--accent-soft);border-radius:6px;padding:3px 6px}
+  .sbtn:hover{border-color:var(--accent)}
+  .sbtn.on{border-color:var(--accent);background:var(--accent-soft)}
+  .sbtn[data-s="passed"]{border-color:var(--good)} .sbtn[data-s="passed"] .n{background:var(--good-soft);color:var(--good)}
+  .sbtn[data-s="running"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .sbtn[data-s="hold"]{border-color:var(--warn);background:var(--warn-soft)}
+  .stagepanel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 24px;box-shadow:var(--shadow)}
+  .stagepanel__hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .stagepanel__hd h3{font-size:19px;margin:0}
+  .gatechip{font:600 10.5px/1 var(--mono);letter-spacing:.05em;padding:4px 9px;border-radius:999px;background:var(--surface2);color:var(--muted)}
+  .stagepanel__cols{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;margin-top:12px}
+  @media (max-width:760px){.stagepanel__cols{grid-template-columns:1fr}}
+  .sp-label{font:600 10.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:12px 0 6px}
+  .skillchip{display:inline-block;font:600 11.5px/1 var(--mono);background:var(--accent-soft);color:var(--accent-deep);border-radius:7px;padding:5px 9px;margin:2px 3px 2px 0}
+  .runctl{display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap}
+  .btn{border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;transition:transform .06s,filter .15s}
+  .btn:active{transform:scale(.96)}
+  .btn--go{background:var(--accent);color:#fff}
+  .btn--go:hover{filter:brightness(1.08)}
+  .btn--ghost{background:var(--surface2);color:var(--ink)}
+  .btn--good{background:var(--good);color:#fff}
+  .btn--bad{background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad)}
+  .runnote{font:12px/1.5 var(--mono);color:var(--muted)}
+
+  /* ── verify demo ── */
+  .verify{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:22px 24px;margin-top:18px}
+  .vtable{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  .vtable th{font:600 10.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  .vtable th:nth-child(n+2),.vtable td:nth-child(n+2){text-align:right}
+  .vtable td{padding:9px 10px;border-bottom:1px solid var(--line)}
+  .vtable td.num{font-size:13px}
+  .vrow[data-v="pass"]{background:var(--good-soft)} .vrow[data-v="pass"] .vres{color:var(--good);font-weight:700}
+  .vrow[data-v="fail"]{background:var(--bad-soft)} .vrow[data-v="fail"] .vres{color:var(--bad);font-weight:700}
+  .vgate{display:inline-flex;align-items:center;gap:8px;font:700 13px/1 var(--mono);padding:9px 16px;border-radius:10px;background:var(--surface2);color:var(--muted)}
+  .vgate[data-g="green"]{background:var(--good-soft);color:var(--good)}
+  .vgate[data-g="red"]{background:var(--bad-soft);color:var(--bad)}
+  .tampered{color:var(--bad);font-weight:700}
+
+  /* ── folders ── */
+  .folder{font-family:var(--mono);font-size:12.5px;line-height:1.9;color:var(--muted)}
+  .folder b{color:var(--ink)} .folder .hl{color:var(--accent-deep);font-weight:700}
+
+  /* ── JD table ── */
+  .jd{width:100%;border-collapse:collapse;margin-top:16px;font-size:13.5px;background:var(--surface);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  .jd th{background:var(--surface2);font:600 11px/1.3 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:left;padding:12px 14px}
+  .jd td{padding:12px 14px;border-top:1px solid var(--line);vertical-align:top}
+  .jd td:first-child{font-weight:700;width:26%}
+  .jd .rcpt{font:12px/1.5 var(--mono);color:var(--muted)}
+  .check{color:var(--good);font-weight:800;white-space:nowrap}
+  .jdwrap{overflow-x:auto}
+
+  /* ── receipts ── */
+  .receipt{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--good);border-radius:12px;padding:16px 20px;box-shadow:var(--shadow)}
+  .receipt h3{margin-bottom:4px}
+  .receipt .mono{color:var(--muted);font-size:12.5px;line-height:1.8}
+  .receipt .big{font:700 15px/1.6 var(--mono);color:var(--ink)}
+
+  /* ── roadmap ── */
+  .road{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:16px}
+  .road .card{border-style:dashed}
+
+  /* ── why section ── */
+  .thesis{background:var(--accent-soft);border:1px solid var(--accent);border-radius:14px;padding:18px 22px;margin:16px 0 6px;font-size:16.5px;font-weight:600;line-height:1.55;max-width:74ch}
+  .pull{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:16px 20px;margin-top:16px;box-shadow:var(--shadow);font-size:14.5px;line-height:1.7;color:var(--muted);max-width:86ch}
+  .pull b{color:var(--ink)}
+  .pull .who{display:block;margin-top:8px;font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent-deep)}
+
+  /* deep dive */
+  .dd{display:flex;flex-direction:column;gap:12px;margin-top:16px}
+  .ddcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 20px;box-shadow:var(--shadow)}
+  .ddcard h3{display:flex;align-items:baseline;gap:10px;font-size:15.5px;margin-bottom:4px}
+  .ddcard h3 .mono{color:var(--accent-deep);font-size:12px}
+  .ddrow{display:grid;grid-template-columns:118px 1fr;gap:12px;padding:8px 0;border-top:1px dashed var(--line);font-size:13.5px;color:var(--muted)}
+  .ddrow b{color:var(--ink)} .ddrow code{font-size:.9em}
+  .ddlab{font:700 9.5px/1.7 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--accent-deep)}
+  .ddlab.v{color:var(--good)} .ddlab.c{color:var(--warn)}
+  @media (max-width:640px){.ddrow{grid-template-columns:1fr;gap:2px}}
+  /* Q&A */
+  .qa-item{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 18px;box-shadow:var(--shadow);margin-top:10px}
+  .qa-item .q{font-weight:700;font-size:14px;color:var(--ink);margin-bottom:6px}
+  .qa-item .q::before{content:"Q · ";color:var(--accent-deep);font-family:var(--mono);font-size:12px}
+  .qa-item .a{font-size:13.5px;color:var(--muted);line-height:1.65}
+  .qa-item .a::before{content:"A · ";color:var(--good);font-family:var(--mono);font-size:12px;font-weight:700}
+  /* production readiness */
+  .prodwrap{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 20px;box-shadow:var(--shadow);margin-top:16px}
+  .prodrow{display:grid;grid-template-columns:170px 92px 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--line);font-size:13.5px;align-items:start}
+  .prodrow:first-child{border-top:none}
+  .pstat{font:700 10px/1 var(--mono);letter-spacing:.05em;padding:5px 8px;border-radius:999px;text-align:center}
+  .pstat--ok{background:var(--good-soft);color:var(--good)}
+  .pstat--tune{background:var(--warn-soft);color:var(--warn)}
+  .prodrow .how{color:var(--muted);font-size:13px}
+  @media (max-width:640px){.prodrow{grid-template-columns:1fr;gap:4px}}
+  /* presenter briefing */
+  .brief{background:var(--surface);border:1px solid var(--accent);border-radius:16px;padding:22px 26px;box-shadow:var(--shadow);margin-top:16px}
+  .brief ol{margin:8px 0 0;padding-left:20px;font-size:14px;color:var(--muted)}
+  .brief ol li{padding:3px 0}
+  .brief .say{background:var(--accent-soft);border-radius:10px;padding:14px 18px;font-size:14.5px;line-height:1.7;color:var(--ink);margin:10px 0}
+  @media print{
+    .nav{display:none}
+    body{background:#fff;color:#16203A}
+    :root{--ground:#fff;--surface:#fff;--surface2:#F1F3F9;--ink:#16203A;--muted:#4A5268;--faint:#7A8199;--line:#D8DDEA;--accent:#4F46E5;--accent-deep:#4338CA;--accent-soft:#EEF0FD;--good:#15803D;--good-soft:#EAF7EF;--bad:#B91C1C;--bad-soft:#FBECEC;--warn:#92400E;--warn-soft:#FdF2E0;--shadow:none}
+    section{padding:24px 0 4px}
+    .card,.receipt,.ddcard,.qa-item,.stagepanel,.verify,.brief,.prodwrap,.arch{break-inside:avoid;box-shadow:none}
+    .jd tr,.ddrow,.prodrow{break-inside:avoid}
+    .live{display:none}
+  }
+  footer{margin-top:70px;border-top:1px solid var(--line);padding:26px 0 40px;color:var(--muted);font-size:13px}
+  footer .mono{font-size:11.5px;color:var(--faint)}
+</style>
+
+<nav class="nav">
+  <div class="nav__in">
+    <span class="nav__brand"><span class="nav__logo">◈</span> DAX Workbench · System Guide</span>
+    <div class="nav__links">
+      <a href="#present">Present</a><a href="#why">Why</a><a href="#arch">Architecture</a><a href="#pipeline">Pipeline</a><a href="#deep">Deep dive</a><a href="#verify">Verify</a>
+      <a href="#skills">Skills</a><a href="#git">Git</a><a href="#cases">Case studies</a><a href="#jd">JD Fit</a><a href="#qa">Q&amp;A</a><a href="#receipts">Receipts</a><a href="#prod">Prod-ready</a><a href="#roadmap">Roadmap</a>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<!-- ══ HERO ══ -->
+<section class="hero" id="top">
+  <span class="eyebrow">Power BI External Tool · AI-Assisted BI Delivery Platform · Built by Rishav Kumar</span>
+  <h1>AI builds the BI solution.<br>The system <em>proves</em> it's right.</h1>
+  <p class="lede">DAX Workbench turns a Claude agent into a governed BI delivery team: it profiles your data, builds the semantic model and report <b>as code</b> (TMDL + PBIR), and validates every number on your <b>real Power BI engine</b> — through an 11-stage pipeline with human gates, reusable skills, and an audit trail. One click in Power BI's ribbon launches the whole thing.</p>
+
+  <div class="statrow">
+    <div class="stat"><b class="num">11</b><span>pipeline stages, gated</span></div>
+    <div class="stat"><b class="num">19</b><span>MCP tools I built</span></div>
+    <div class="stat"><b class="num">3</b><span>governed runs · every one reconciled exact</span></div>
+    <div class="stat"><b class="num">37</b><span>measures engine-validated, 0 errors</span></div>
+    <div class="stat"><b class="num">51 ms</b><span>full catalogue, cold cache</span></div>
+  </div>
+
+  <div class="live" aria-label="Live pipeline simulation">
+    <div class="live__hd">Delivery pipeline — live view <span class="live__pill" id="livePill">RUNNING</span></div>
+    <div class="live__rail" id="liveRail"></div>
+    <div class="live__log" id="liveLog" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- ══ PRESENT ══ -->
+<section id="present">
+  <span class="eyebrow">For the presenter · how to walk an interviewer through this</span>
+  <h2>Open with the claim, prove it in layers</h2>
+  <div class="brief">
+    <p style="font-weight:700;margin-bottom:4px">Your opening — say this, near-verbatim (60 seconds):</p>
+    <div class="say">"Your role asks for AI-assisted BI engineering — semantic models as code, PBIR, Git, MCP, Claude Skills, and a trust-but-verify mindset. Rather than tell you I can do those, I built a system that <b>is</b> those things, and shipped three governed deliveries through it. DAX Workbench is a Power BI External Tool where a Claude agent builds the whole solution — profile, star-schema model in TMDL, engine-validated DAX, report as PBIR — through an 11-stage pipeline. I hold the gates: breakpoints, sign-offs, and gates that don't trust the agent — the host re-runs the numbers on the engine before anything goes green. Everything lands in Git with generated docs. Let me show you the five minutes that matter."</div>
+    <p style="font-weight:700;margin:12px 0 4px">Then demo in this order (each layer proves the previous claim):</p>
+    <ol>
+      <li><b>The live pipeline</b> (hero above) — 20 sec of watching stages run, hold at a breakpoint, verify on the engine.</li>
+      <li><b>The tamper demo</b> (Verify section) — change a baseline to 999, watch the gate go RED. This is trust-but-verify as a mechanism, not a slogan.</li>
+      <li><b>The case studies</b> — greenfield build, template replay, then the RLS change request where <i>profiling changed the security design before it shipped a mistake</i>.</li>
+      <li><b>Git as the deliverable</b> — the model, report, security role and docs are diffable text; the RLS change was approved as a diff.</li>
+      <li><b>Close on the JD scorecard</b> — every requirement with a receipt, then the honest production-readiness table. Honesty closes deals.</li>
+    </ol>
+    <p style="margin-top:12px;color:var(--muted);font-size:13.5px">How this covers the role end-to-end: <b>semantic-models-as-code + PBIR + Git</b> — delivered three times, committed, documented · <b>MCP + Claude Skills</b> — I built a 19-tool MCP server and authored two skills plus a folder-based skill registry · <b>trust-but-verify + human-in-the-loop</b> — schema-grounded validation, engine reconciliation, verifying gates, and human-only approvals. The tool is the CV.</p>
+  </div>
+</section>
+
+<!-- ══ WHAT IT IS ══ -->
+<section id="planes">
+  <span class="eyebrow">The idea in one line</span>
+  <h2>Three planes: the agent works, the cockpit governs, the engine decides.</h2>
+  <p class="lede">Most "AI + BI" is a chatbot pasting DAX. This is an operating model — every plane has one job, and none of them has to trust the others.</p>
+  <div class="grid3">
+    <div class="card">
+      <h3><span class="k">PLANE 1</span> The Agent</h3>
+      <p style="color:var(--muted);font-size:13.5px">Claude, armed with <b>MCP tools</b> and <b>reusable Skills</b>, does 100% of the work: profiling, star-schema modeling, DAX authoring, PBIR report generation, docs.</p>
+      <span class="tag tag--win">does the work, not just suggestions</span>
+      <span class="tag tag--reuse">skills make its expertise portable</span>
+    </div>
+    <div class="card">
+      <h3><span class="k">PLANE 2</span> The Cockpit</h3>
+      <p style="color:var(--muted);font-size:13.5px">A visual pipeline with <b>breakpoints, sign-offs, on-fail branches</b> and run history. The agent can drive — but it <b>cannot open its own gates</b>. Humans hold approval.</p>
+      <span class="tag tag--win">governance & audit for free</span>
+      <span class="tag tag--reuse">templates replay the whole process</span>
+    </div>
+    <div class="card">
+      <h3><span class="k">PLANE 3</span> The Engine</h3>
+      <p style="color:var(--muted);font-size:13.5px">Power BI's own Analysis Services is the referee. Gates don't take the AI's word for a number — the host <b>re-runs it on the engine</b> and compares. Green means <b>reconciled</b>.</p>
+      <span class="tag tag--win">trust-but-verify, mechanically enforced</span>
+      <span class="tag tag--reuse">same check on every future run</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══ WHY NOT JUST CLAUDE ══ -->
+<section id="why">
+  <span class="eyebrow">The question every buyer asks</span>
+  <h2>Why not just use Claude directly?</h2>
+  <div class="thesis">A chat's knowledge evaporates when it ends. DAX Workbench turns everything — the process, the lessons, the truth, the evidence — into <u>files</u>. And files reproduce.</div>
+  <p class="lede">Raw Claude is a brilliant contractor. This is the construction site around it — five things the chat alone doesn't have, plus the honest math:</p>
+
+  <div class="grid3">
+    <div class="card">
+      <h3><span class="k">1</span> Hands</h3>
+      <p style="color:var(--muted);font-size:13.5px">Raw Claude <b>cannot touch Power BI at all</b> — it writes plausible DAX that you paste and hope. The bridge + MCP tools give it hands: <code>validate_measure</code> catches an invented column <i>before</i> it's written; <code>benchmark_dax</code> proves speed claims cold-cache; <code>write_measure</code> deploys to the live model.</p>
+      <span class="tag tag--win">without this, "Claude doing BI" is Claude describing BI</span>
+    </div>
+    <div class="card">
+      <h3><span class="k">2</span> Memory that survives</h3>
+      <p style="color:var(--muted);font-size:13.5px">In a chat, the bug you fixed in March gets re-hit in June — the fix died with the conversation. Here every lesson becomes a <b>skill file</b>: <code>house-report-build</code> carries the full error playbook.</p>
+      <span class="tag tag--win">run 1: 3 bugs · run 2: 0 — the skill absorbed them</span>
+    </div>
+    <div class="card">
+      <h3><span class="k">3</span> A process that replays</h3>
+      <p style="color:var(--muted);font-size:13.5px">Chat output quality depends on how good your prompt was <i>that day</i>. Here the whole delivery is a <b>template</b>: load "Polished delivery" → paste the data path → ▶. The ChocolateSales run proved it in a fresh chat with zero re-explaining.</p>
+      <span class="tag tag--reuse">the 20th delivery costs one click</span>
+    </div>
+    <div class="card">
+      <h3><span class="k">4</span> Independent truth</h3>
+      <p style="color:var(--muted);font-size:13.5px">Claude alone <i>asserts</i> numbers — you are the QA department. Here the <b>verifying gate re-computes the baselines on the engine itself</b>. Green means reconciled; the tamper demo above shows it refusing a wrong number.</p>
+      <span class="tag tag--win">the agent never grades its own homework</span>
+    </div>
+    <div class="card">
+      <h3><span class="k">5</span> A window for everyone else</h3>
+      <p style="color:var(--muted);font-size:13.5px">A chat is a wall of text only the prompter can steer. The <b>cockpit</b> lets a manager or client watch the delivery, hold it at a breakpoint, and sign off — without reading a single prompt. And it's one click in Power BI's ribbon: no terminal, no setup.</p>
+      <span class="tag tag--win">what makes AI delivery client-acceptable at all</span>
+    </div>
+    <div class="card" style="border-style:dashed">
+      <h3><span class="k">±</span> The honest math</h3>
+      <p style="color:var(--muted);font-size:13.5px">For a one-off build by an expert prompter, the uplift is ~15–25% — structure and audit. The value <b>compounds with repetition, teams, and trust requirements</b>. Nobody needs CI/CD to ship one script; you need it to ship every week without breaking things.</p>
+      <span class="tag tag--reuse">DAX Workbench = CI/CD for AI-built BI</span>
+    </div>
+  </div>
+
+  <div class="jdwrap">
+  <table class="jd" style="margin-top:18px">
+    <thead><tr><th style="width:50%">Raw Claude in a chat</th><th>With DAX Workbench</th></tr></thead>
+    <tbody>
+      <tr><td>Writes DAX it can't test</td><td>Every measure validated on the <b>live engine</b> before it's written</td></tr>
+      <tr><td>Every project starts with a mega-prompt</td><td><b>Template + source path + ▶</b></td></tr>
+      <tr><td>Lessons die with the chat</td><td>Lessons live in <b>skills</b> — on disk, in Git, inherited by every run</td></tr>
+      <tr><td>Numbers are claimed</td><td>Numbers <b>reconciled by an independent gate</b> (tamper → RED)</td></tr>
+      <tr><td>Invisible to stakeholders</td><td>Visual cockpit — breakpoints, sign-offs, run history</td></tr>
+      <tr><td>Chat scrollback as "documentation"</td><td>Generated measure catalogue, data dictionary, gate-by-gate run log</td></tr>
+      <tr><td>Works for the person who prompts</td><td>Works for the <b>team</b> — ribbon click, no CLI, shared folders</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="pull">
+    <b>"Claude is a brilliant contractor. DAX Workbench is the construction site around it</b> — the tools that let it actually touch the engine, the inspections that re-check its numbers independently, the sign-offs a human controls, and the blueprints that get filed so the next building goes up faster. Raw Claude gets me one good dashboard if I prompt well. The Workbench gets my whole team the same governed, engine-verified delivery every time — and every problem we ever solved is encoded in a skill, so it never happens twice. <b>The difference isn't the output of run one; it's everything after run one."</b>
+    <span class="who">The positioning, in thirty seconds</span>
+  </div>
+</section>
+
+<!-- ══ ARCHITECTURE ══ -->
+<section id="arch">
+  <span class="eyebrow">Architecture</span>
+  <h2>Where the data comes from, and who talks to whom</h2>
+  <p class="lede">Everything is local — no cloud, no Azure, no account. The <b>bridge</b> (.NET) speaks the engine's protocol; the <b>host</b> (Node) owns pipeline state; the agent and the UI both read and write the same state, so what you see in the cockpit is exactly what the agent sees over MCP.</p>
+
+  <figure class="arch">
+    <svg viewBox="0 0 960 480" role="img" aria-label="Architecture: the dashed boundary is DAX Workbench itself — cockpit UI, pipeline host and bridge in one exe. The Claude agent outside it sees schema and the results of queries it runs (capped at 10,000 rows), never the raw dataset. Power BI's engine holds all data locally; Git receives the PBIP deliverable.">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+        <marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+        </marker>
+      </defs>
+
+      <!-- THE PRODUCT BOUNDARY: everything inside IS DAX Workbench -->
+      <rect x="272" y="40" width="392" height="400" rx="14" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="7 5"/>
+      <text class="t-edge-hot" x="468" y="64" text-anchor="middle" font-size="11">DAX WORKBENCH — ONE EXE, RIBBON-LAUNCHED</text>
+
+      <rect class="box" x="302" y="82" width="330" height="66" rx="10"/>
+      <text class="t-name" x="467" y="108" text-anchor="middle">Cockpit UI — what YOU see</text>
+      <text class="t-sub" x="467" y="128" text-anchor="middle">stages · gates · evidence · approve &amp; continue</text>
+
+      <rect class="box box-hot" x="302" y="192" width="330" height="76" rx="10"/>
+      <text class="t-name" x="467" y="220" text-anchor="middle">Pipeline Host · :5178</text>
+      <text class="t-sub" x="467" y="242" text-anchor="middle">state · gates · skill registry — governs the work</text>
+
+      <rect class="box" x="302" y="342" width="330" height="76" rx="10"/>
+      <text class="t-name" x="467" y="370" text-anchor="middle">Bridge + MCP server · :5177</text>
+      <text class="t-sub" x="467" y="392" text-anchor="middle">.NET · TOM/ADOMD — full model access, local only</text>
+
+      <line x1="467" y1="154" x2="467" y2="186" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3" marker-start="url(#ar)" marker-end="url(#ar)"/>
+      <text class="t-edge" x="480" y="174">SSE live</text>
+      <line x1="467" y1="274" x2="467" y2="336" stroke="var(--accent)" stroke-width="2.5" marker-end="url(#arA)"/>
+      <text class="t-edge-hot" x="482" y="308">VERIFY: re-run baselines</text>
+
+      <!-- left: sources + the agent, with visibility spelled out -->
+      <rect class="box" x="20" y="52" width="190" height="82" rx="10"/>
+      <text class="t-name" x="115" y="82" text-anchor="middle">Sources</text>
+      <text class="t-sub" x="115" y="104" text-anchor="middle">CSV folder · PBIP · live model</text>
+
+      <rect class="box" x="20" y="180" width="200" height="240" rx="10"/>
+      <text class="t-name" x="120" y="208" text-anchor="middle">Claude Agent</text>
+      <text class="t-sub" x="120" y="230" text-anchor="middle">does the work:</text>
+      <text class="t-sub" x="120" y="246" text-anchor="middle">profile · model · DAX · report</text>
+      <text class="t-edge-hot" x="34" y="286" font-size="10">SEES (via MCP):</text>
+      <text class="t-sub" x="34" y="306">· schema names</text>
+      <text class="t-sub" x="34" y="324">· results of its own queries</text>
+      <text class="t-sub" x="46" y="340">(≤10,000 rows per query)</text>
+      <text class="t-sub" x="34" y="358">· pipeline state + evidence</text>
+      <text x="34" y="394" font-size="11.5" font-weight="700" fill="var(--bad)">NEVER the raw dataset</text>
+
+      <line x1="115" y1="138" x2="115" y2="176" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <text class="t-edge" x="126" y="162">reads files</text>
+      <line x1="224" y1="300" x2="268" y2="300" stroke="var(--accent)" stroke-width="2" marker-end="url(#arA)"/>
+      <text class="t-edge-hot" x="246" y="288" text-anchor="middle">MCP</text>
+
+      <!-- right: Git (top) + the engine (bottom, holds the data) -->
+      <rect class="box" x="724" y="82" width="216" height="86" rx="10"/>
+      <text class="t-name" x="832" y="110" text-anchor="middle">Git — the deliverable</text>
+      <text class="t-sub" x="832" y="130" text-anchor="middle">PBIP: TMDL + PBIR + docs</text>
+      <text class="t-sub" x="832" y="148" text-anchor="middle">diffable · reviewable · CI-able</text>
+
+      <rect class="box" x="724" y="322" width="216" height="104" rx="10"/>
+      <text class="t-name" x="832" y="350" text-anchor="middle">Power BI Desktop</text>
+      <text class="t-sub" x="832" y="370" text-anchor="middle">Analysis Services — the referee</text>
+      <text class="t-sub" x="832" y="388" text-anchor="middle">FULL data + model live here</text>
+      <text class="t-sub" x="832" y="406" text-anchor="middle">and never leave the machine</text>
+
+      <line x1="668" y1="112" x2="720" y2="112" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <text class="t-edge" x="694" y="102" text-anchor="middle">commit</text>
+      <line x1="668" y1="380" x2="720" y2="380" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <text class="t-edge" x="694" y="370" text-anchor="middle">TOM/ADOMD</text>
+    </svg>
+    <figcaption><b>Who sees what:</b> the AGENT gets schema + the results of queries it runs (≤10k rows) — never the dataset · the WORKBENCH (dashed box, one exe) has full model access, locally · YOU see everything in the cockpit · the ENGINE holds all data and decides truth. The accent edge is the differentiator: gates go green from the <b>host's</b> re-computation on the engine, never from the agent's claim.</figcaption>
+  </figure>
+
+  <div class="compgrid" id="compGrid"></div>
+  <div class="compdetail" id="compDetail"></div>
+</section>
+
+<!-- ══ PIPELINE ══ -->
+<section id="pipeline">
+  <span class="eyebrow">The delivery pipeline</span>
+  <h2>Eleven stages, each with a job, a skill, and a gate</h2>
+  <p class="lede">Click any stage to see what flows in, what it produces, and why it exists. Or press <b>Simulate run</b> to watch the governance model work — including the breakpoint hold and the engine-verified gate.</p>
+
+  <div class="runctl">
+    <button class="btn btn--go" id="simBtn">▶ Simulate run</button>
+    <button class="btn btn--ghost" id="simReset">Reset</button>
+    <span class="runnote" id="simNote">idle — click a stage to explore it</span>
+  </div>
+  <div class="stagebar" id="stageBar"></div>
+  <div class="stagepanel" id="stagePanel"></div>
+</section>
+
+<!-- ══ DEEP DIVE ══ -->
+<section id="deep">
+  <span class="eyebrow">Stage-by-stage internals</span>
+  <h2>What runs, what's checked, and what you can customize — every stage</h2>
+  <p class="lede">Each stage has four facets: <b>RUNS</b> (the skills and tools doing the work) · <b>READS / WRITES</b> (the files involved) · <b style="color:var(--good)">VERIFIES</b> (the validation built into the stage) · <b style="color:var(--warn)">CUSTOMIZE</b> (what you can edit to change behavior). This is the layer that makes it engineering, not prompting.</p>
+  <div class="dd">
+
+    <div class="ddcard"><h3><span class="mono">00</span> Bootstrap</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span>The pipeline's own step — the agent + <code>pipeline_status</code> / <code>pipeline_get_plan</code> MCP tools to read the cockpit's Source and plan.</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads <b>project-spec.md</b> (the WHAT: audience, KPIs, pages, constraints) and <b>CLAUDE.md</b> (house rules: workflow, standards, no-gos) from the project folder; reads the Source path set in the cockpit. Writes the first <b>assumption-log</b> entries.</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span>Environment gate: bridge :5177 alive, pipeline host :5178 alive, required skills present in the registry, source path exists and is readable, spec discovered (or "no spec — proceeding with defaults" declared honestly).</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>The spec template (<code>project-spec-template.md</code> in the registry), CLAUDE.md house rules, and the stage's own note via the cockpit pencil.</span></div>
+    </div>
+
+    <div class="ddcard"><h3><span class="mono">01</span> Profile</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span><code>profile-data</code> — the agent writes and executes a profiler script over the raw files (columns, types, grain, cardinality).</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads every source file. Writes <b>control totals into the cockpit as reconciliation baselines</b> (via <code>pipeline_report</code>) — the single most important write in the whole pipeline — plus profile findings to the run notes.</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span>Type inference per column · grain uniqueness (e.g. timesheet (Date, Consultant, Project) must be unique) · key cardinality · <b>referential integrity</b> (0 orphans; in the RLS delta this validated that UserAccess.csv's Region/Practice values exist in the dims — a typo here would have silently produced an empty report for a manager) · <b>control totals</b> captured from raw data become the ground truth every later gate reconciles against.</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>Add checks to the profiling checklist; decide which totals become baselines; set per-baseline tolerance.</span></div>
+    </div>
+
+    <div class="ddcard"><h3><span class="mono">02</span> Classify &amp; Design</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span><code>classify-data</code> — fact-vs-dimension classification, relationship inference, date-table strategy, measure candidates.</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads the profile + spec sections 2–4. Writes the star-schema design into the stage log — reviewable before any object exists.</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span>Star-schema rules: every fact key resolves to exactly one dimension · no snowflake chains · single-column keys · one marked date table with role-playing handled via inactive relationships (e.g. InvoiceDate active, DueDate inactive).</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>Naming conventions and modeling standards (in CLAUDE.md or the spec) — the design must comply with what you wrote there.</span></div>
+    </div>
+
+    <div class="ddcard"><h3><span class="mono">03</span> Shape (ETL)</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span>Built-in ETL planning — cleaning expressed as Power Query <b>M steps</b>, never manual edits.</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads spec §2 quirks (bench members, sentinel codes). Writes the typing plan; data fixes are documented (see <b>DATA_CLEANING_LOG.md</b> — provenance for every byte changed).</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span>Typing plan derived from the profile, not guessed (IDs → Text so no leading-zero loss; dates → Date; flags → Int64) · post-clean referential integrity re-checked = 0 orphans · reconciliation totals unchanged by cleaning.</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>Cleaning rules and quirk handling declared in spec §2 — the stage implements what the spec declares.</span></div>
+    </div>
+
+    <div class="ddcard"><h3><span class="mono">04</span> Model</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span><code>semantic-model-authoring</code> (the plugin skill: HOW to model well) + <code>powerbi-modeling-mcp</code> (Microsoft's MCP — the hands: TOM operations for tables, relationships, calc groups, field parameters, roles). In the RLS delta run the agent edited the <b>TMDL text directly</b> — same artifact, different hands.</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads the stage-2 design + spec §4/§7. Writes <code>*.SemanticModel/definition/*.tmdl</code> — tables with M partitions, relationships, the calculation group, RLS roles — and assembles the openable PBIP wrapper.</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span>The model must <b>compile under TOM</b> (bad DAX or a broken reference fails the create call loudly) · standards enforced: hidden FKs, <code>discourageImplicitMeasures</code>, marked date table, sort-by columns, format strings on everything · PBIP assembly validated against a known-good wrapper structure.</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>Modeling standards in the skill/CLAUDE.md ("always a calc group for time intelligence"); RLS design in spec §7/§8b; TMDL is text — you can hand-edit any of it and Git will show the diff.</span></div>
+    </div>
+
+    <div class="ddcard"><h3><span class="mono">05</span> Measures</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span><code>dax-workbench</code> — my own MCP server: <code>pbi_validate_measure</code>, <code>pbi_run_dax</code>, <code>pbi_benchmark_dax</code>, <code>pbi_write_measure</code>.</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads measure candidates + spec §4. Writes the measure catalogue into the model (37 measures in run 1: time intelligence, AR aging, utilization, RANKX, what-if, dynamic titles).</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span>Three layers, in order: <b>(1) static schema grounding</b> — every table/column/measure reference must exist in the live model, which makes hallucinated names structurally impossible to write · <b>(2) engine evaluation</b> — the measure is run on real data and reconciled against the Profile baselines · <b>(3) performance</b> — <code>benchmark_dax</code> times cold-cache before any speed claim (full catalogue: 51 ms). Style rules from the skill: DIVIDE never "/", VAR for readability, measures reference measures.</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>Your domain's measure library (spec §4 or a domain skill); format and display-folder conventions; which measures join the baseline set.</span></div>
+    </div>
+
+    <div class="ddcard"><h3><span class="mono">06</span> Plan</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span><code>powerbi-report-planning</code> plugin skill — pages, visuals, interactions, drill-throughs, tooltips.</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads spec §3 (business questions) + §5 (page structure). Writes the page-by-page plan with an insight-per-page statement.</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span><b>Field-refs check</b>: every field a planned visual binds must exist in the validated model — dead bindings are caught on paper, before a single visual is authored.</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>Page archetypes and interaction patterns (drill-through targets, tooltip pages) in the spec.</span></div>
+    </div>
+
+    <div class="ddcard"><h3><span class="mono">07</span> Style</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span><code>house-report-design</code> (my skill: swappable style packs — default <b>nexus</b> — each a theme.json + design guidance) + <code>house-report-build</code> (theme schema rules).</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads the pack's <code>style.md</code> + <code>theme.json</code>. Writes/applies the validated theme — one file styles every visual.</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span>The theme is pre-validated against Power BI's importer: <b>only standard top-level keys</b> (a non-standard key fails the import — a bug we hit once and encoded), no render-breaking style properties, every fontSize ≥ 8, semantic colors always paired with labels.</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>The most customizable point in the pipeline: a client brand = one new style-pack folder (theme.json + notes). Swap the default pack by name.</span></div>
+    </div>
+
+    <div class="ddcard"><h3><span class="mono">08</span> Author</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span><code>powerbi-report-authoring</code> (plugin) + <code>house-report-build</code> — my skill carrying <code>references/pbir-schema.md</code> (visual types → query roles), <code>references/error-playbook.md</code> (every render bug → fix), <code>references/conditional-formatting.md</code> (FillRule patterns) and generator scripts.</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads the plan + design system. Writes the report as code: <code>pages/*/visuals/*/visual.json</code> (~50 visuals in run 1, incl. matrix, quadrant scatter, gauge, drill-through page, tooltip page, slicers, conditional color).</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span>Every visual.json parses and matches the visual-container schema · <b>playbook enforcement</b> makes known bugs unrepeatable: matrix (pivotTable) not tableEx, container objects inside <code>visual</code>, FillRule inner nodes as bare literals — each rule is a render error we paid for exactly once · a render-confirm checkpoint before scaling from one page to six.</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>Edit the skill's SKILL.md rules; add visual archetypes; extend the playbook when a new visual type is learned (read one known-good example, encode it).</span></div>
+    </div>
+
+    <div class="ddcard"><h3><span class="mono">09</span> Integration QA</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span><code>dax-workbench</code> + <b>the host's own verifying gate</b> (<code>POST /pipeline/verify</code>) — note who runs this one: the host, not the agent.</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads the stored baselines. Writes the gate result + per-check evidence (expected vs engine, with deltas) into the stage log.</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span>The independent check: the host EVALUATEs the baseline measures <b>through the bridge on the live engine</b> and compares within 0.1% tolerance — the gate goes green from the engine's numbers, never from the agent's claim · visual-error scan across pages · <b>RLS persona matrix</b> (in the delta run: Admin baselines unchanged to the penny; the three regions partition to exactly 100% — Europe $28.02M + India $20.17M + NA $14.68M = $62.87M; unknown email → blank) · performance timing.</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>Add checks (accessibility, extra personas); tighten tolerance; require sign-off (default on).</span></div>
+    </div>
+
+    <div class="ddcard"><h3><span class="mono">10</span> Package</h3>
+      <div class="ddrow"><span class="ddlab">Runs</span><span>Built-in docs generation + <b>Git</b>.</span></div>
+      <div class="ddrow"><span class="ddlab">Reads / writes</span><span>Reads the finished model. Writes <b>MEASURE_CATALOGUE.md</b> (every measure with its DAX and format), <b>DATA_DICTIONARY.md</b> (tables, columns, relationships, security — updated with the Dynamic Access role in the delta run), <b>PIPELINE_RUN_NOTES.md</b> (the gate-by-gate journal), then commits.</span></div>
+      <div class="ddrow"><span class="ddlab v">Verifies</span><span>Docs are <b>generated from the model</b>, so they describe what IS, not what was intended — they cannot drift stale · the commit is complete (run 1: 79 files) · the run lands in cockpit History as a replayable record.</span></div>
+      <div class="ddrow"><span class="ddlab c">Customize</span><span>Doc templates, commit-message conventions; a future deploy skill (Fabric) slots here behind a final sign-off.</span></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══ VERIFY ══ -->
+<section id="verify">
+  <span class="eyebrow">Trust-but-verify · live demo</span>
+  <h2>The gate that catches a lying agent</h2>
+  <p class="lede">At <b>Profile</b>, the agent records the control totals it computed from the raw files. At the <b>Measures</b> and <b>QA</b> gates, the host — not the agent — runs <code>EVALUATE</code> on the live engine and compares. These are the real numbers from the ServicesDelivery build. Try tampering with one.</p>
+
+  <div class="verify">
+    <table class="vtable" id="vTable">
+      <thead><tr><th>Baseline measure</th><th>Expected (from raw data)</th><th>Engine says</th><th>Check</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="runctl">
+      <button class="btn btn--good" id="vBtn">🛡 Verify on engine</button>
+      <button class="btn btn--bad" id="vTamper">Tamper a baseline</button>
+      <button class="btn btn--ghost" id="vReset">Reset</button>
+      <span style="flex:1"></span>
+      <span class="vgate" id="vGate" data-g="">GATE · PENDING</span>
+    </div>
+    <p class="runnote" id="vNote" style="margin-top:10px">The host calls the bridge: <code>POST /dax → EVALUATE ROW("m0",[Revenue], …)</code> — then compares within 0.1% tolerance.</p>
+  </div>
+
+  <div class="grid3">
+    <div class="card"><h3>Why this matters</h3><p style="color:var(--muted);font-size:13.5px">An AI can produce a <i>plausible</i> wrong number. This gate makes that impossible to ship: if the model's measures don't reconcile with the source data, the pipeline stops itself — with the exact measure and delta on screen.</p><span class="tag tag--win">green = reconciled, not claimed</span></div>
+    <div class="card"><h3>What the agent can't do</h3><p style="color:var(--muted);font-size:13.5px">The MCP control tools are deliberately limited: the agent can run and pause, but it <b>cannot approve a sign-off or release a breakpoint</b>. Only a human in the cockpit can. Governance by construction, not by prompt.</p><span class="tag tag--win">human gates stay human</span></div>
+    <div class="card"><h3>Also verified per-measure</h3><p style="color:var(--muted);font-size:13.5px"><code>validate_measure</code> statically checks every reference exists in the live schema (no invented columns), then evaluates on the engine. <code>benchmark_dax</code> times cold-cache before claiming a speed-up.</p><span class="tag tag--reuse">same tools, every project</span></div>
+  </div>
+</section>
+
+<!-- ══ SKILLS ══ -->
+<section id="skills">
+  <span class="eyebrow">Skills, templates &amp; the folder registry</span>
+  <h2>Every lesson learned becomes a file the next run reuses</h2>
+  <p class="lede">The system's expertise lives on disk, not in a chat history. Three folders drive the cockpit — drop a JSON in, it appears in the UI; version them in Git; carry them to any machine.</p>
+
+  <div class="grid3">
+    <div class="card">
+      <h3>📁 default\ <span class="tag tag--reuse" style="margin-left:auto">ships with the tool</span></h3>
+      <div class="folder">
+        profile-data · classify-data<br>
+        semantic-model-authoring · powerbi-modeling-mcp<br>
+        <b>dax-workbench</b> (validate · benchmark · storage)<br>
+        report planning / design / authoring · management<br>
+        house-report-design <span style="font-size:11px">(nexus style packs)</span>
+      </div>
+      <ul class="kv"><li>The Default pipeline uses these as-is — zero setup</li></ul>
+    </div>
+    <div class="card">
+      <h3>📁 custom\ <span class="tag tag--win" style="margin-left:auto">earned from real runs</span></h3>
+      <div class="folder">
+        <span class="hl">house-report-build</span> — my authored skill:<br>
+        &nbsp;├ SKILL.md — workflow + 7 non-negotiable rules<br>
+        &nbsp;├ references/ pbir-schema · <b>error-playbook</b> · cond-formatting<br>
+        &nbsp;├ styles/ nexus-theme.json<br>
+        &nbsp;└ scripts/ gen_report · propagate · condformat
+      </div>
+      <ul class="kv"><li>Every render bug we ever hit (tableEx, FillRule, theme keys) is encoded — <b>the next run cannot re-hit them</b></li></ul>
+    </div>
+    <div class="card">
+      <h3>📁 templates\ <span class="tag tag--reuse" style="margin-left:auto">process as a file</span></h3>
+      <div class="folder">
+        <span class="hl">Polished delivery.json</span><br>
+        &nbsp;· 11 stages + house-report-build on Style/Author<br>
+        &nbsp;· breakpoints + sign-offs pre-armed
+      </div>
+      <ul class="kv"><li>New project = load template → paste source path → ▶</li><li>Proven: the second build (ChocolateSales) ran from this template in a fresh chat, start to finish</li></ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>The compounding loop</h3>
+    <p style="color:var(--muted);font-size:14px;max-width:75ch">Run a delivery → hit a problem → fix it → <b>encode the fix as a skill rule</b> → register it in the folder → the next run inherits it automatically. This is how the first build's three debugging sessions became the second build's zero. The tool doesn't just automate work — it <b>accumulates judgment</b>.</p>
+    <span class="tag tag--win">first run: 3 in-process debugs</span>
+    <span class="tag tag--win">second run: 0 — the skill absorbed them</span>
+  </div>
+</section>
+
+<!-- ══ GIT ══ -->
+<section id="git">
+  <span class="eyebrow">Version control · why Git is a pillar, not a checkbox</span>
+  <h2>Git works here because the deliverable is text</h2>
+  <p class="lede">A .pbix is a binary blob — Git can store it but can't diff, review, or merge it. This pipeline's output is <b>TMDL + PBIR + markdown: pure text</b>. That single design choice is what unlocks every practice below — it turns BI delivery into software delivery.</p>
+  <div class="grid3">
+    <div class="card"><h3>History &amp; rollback</h3><p style="color:var(--muted);font-size:13.5px">Every run commits. A bad change? <code>git revert</code> restores the previous model — including the previous <i>security</i> model — in seconds, with the reversal itself audited.</p><span class="tag tag--win">undo for governance, not just code</span></div>
+    <div class="card"><h3>Review at the gate</h3><p style="color:var(--muted);font-size:13.5px">The breakpoint pairs with <code>git diff</code>: in the RLS run, the reviewer approved a <b>readable diff of the role's DAX filter</b> — a security change reviewed as text before it could ship. That is change management most BI teams don't have.</p><span class="tag tag--win">the diff is the approval artifact</span></div>
+    <div class="card"><h3>Audit &amp; blame</h3><p style="color:var(--muted);font-size:13.5px">"Who changed this measure, when, and why?" — <code>git log</code> + <code>git blame</code> answer per line of TMDL. Paired with the cockpit's gate history, every number has a paper trail.</p><span class="tag tag--win">compliance-grade traceability</span></div>
+    <div class="card"><h3>Branches &amp; PRs</h3><p style="color:var(--muted);font-size:13.5px">A change request = a branch. The delta pipeline runs on the branch; the PR shows exactly the 3 files the RLS change touched; merge = deploy-ready. Two people can work two CRs without collisions.</p><span class="tag tag--reuse">BI change requests as pull requests</span></div>
+    <div class="card"><h3>Distributing the process</h3><p style="color:var(--muted);font-size:13.5px">The skills (<code>.claude/skills/</code>) and pipeline templates are files too — commit them to a shared repo and <b>the whole team inherits the delivery standard</b>, reviewable and versioned like everything else.</p><span class="tag tag--reuse">process as code, shared via Git</span></div>
+    <div class="card"><h3>CI hook</h3><p style="color:var(--muted);font-size:13.5px">The verify endpoint is plain HTTP. Wire it into a PR pipeline and a model change <b>cannot merge unless the baselines still reconcile</b> — regression testing for numbers.</p><span class="tag tag--reuse">roadmap: one YAML file away</span></div>
+  </div>
+  <div class="pull" style="margin-top:16px">
+    <b>How you actually use it:</b> Package commits automatically at the end of every run. For changes: branch → run the delta template → review the diff at the breakpoint → approve → merge. Tag releases (<code>v1-build</code>, <code>v2-rls</code>). Receipts: run 1's initial commit shipped <b>79 files</b>; the RLS change landed as its own commit touching exactly <b>3 TMDL files</b> plus the updated data dictionary.
+    <span class="who">Git's role in one line: it makes the AI's work reviewable, reversible, and shareable</span>
+  </div>
+</section>
+
+<!-- ══ CASE STUDIES ══ -->
+<section id="cases">
+  <span class="eyebrow">The two templates · three real runs</span>
+  <h2>Two pipelines for two kinds of work — both saved as files</h2>
+  <p class="lede">A greenfield build and a change request are different jobs, so they get different governed pipelines. Both live in <code>templates\</code> as JSON — load, point at a source, run.</p>
+
+  <div class="dd">
+    <div class="ddcard">
+      <h3><span class="mono">TEMPLATE 1</span> Polished delivery — the greenfield build <span class="tag tag--reuse" style="margin-left:auto">11 stages</span></h3>
+      <div class="ddrow"><span class="ddlab">Customization</span><span>Started from the default pipeline; attached <code>house-report-build</code> to <b>Style</b> and <b>Author</b> (so every report inherits the error playbook + conditional-formatting patterns); breakpoint armed on <b>Measures</b> (the human opens the pbip there so the engine loads data); sign-off required at <b>Integration QA</b>. Saved once — reused forever.</span></div>
+      <div class="ddrow"><span class="ddlab">Why all 11</span><span>Greenfield needs the full arc: nothing exists yet, so profile → design → shape → model → measures → plan → style → author → QA → package each add something, and each gate de-risks the next stage.</span></div>
+      <div class="ddrow"><span class="ddlab v">Run 1 — ServicesDelivery</span><span>5 CSVs (98,420 timesheet rows) → 11-table star schema, 37 engine-validated measures (0 errors), 6-page PBIR report with Client-360 drill-through + tooltip. Reconciled exact: Revenue <b>$62,870,822</b> · Utilization 71.43% · Billed $66,879,000; AR aging buckets sum precisely to $14.4M. Hit 3 issues, fixed in-process, <b>encoded into the skill</b>. Committed: 79 files.</span></div>
+      <div class="ddrow"><span class="ddlab v">Run 2 — ChocolateSales</span><span>The reproducibility proof: <b>fresh chat, zero re-explaining</b> — load template, paste path, Run. Reconciled exact: Revenue 44,692,389 · Boxes 3,784,002 · Margin 45.29%. Zero repeat issues — run 1's lessons arrived via the skill, not via memory of a conversation.</span></div>
+    </div>
+
+    <div class="ddcard">
+      <h3><span class="mono">TEMPLATE 2</span> Change request — model delta <span class="tag tag--reuse" style="margin-left:auto">stages 0 · 1 · 4 · 9 · 10</span></h3>
+      <div class="ddrow"><span class="ddlab">Customization</span><span>Derived from Template 1 by <b>removing</b> Classify, Shape, Plan, Style, Author (nothing for them to do in a model-only change) and keeping: <b>Bootstrap</b> (read the change request, spec §8b) · <b>Profile</b> (validate the NEW data — non-negotiable) · <b>Model</b> (the work + breakpoint) · <b>QA</b> (prove nothing broke) · <b>Package</b> (audit commit). Saved as a second template — the original untouched.</span></div>
+      <div class="ddrow"><span class="ddlab">Why keep Profile</span><span>The new <code>UserAccess.csv</code> had to be domain-checked: 9 rows, unique emails, and every Region/Practice value verified to exist in the dims. A silent typo here = a manager sees an empty report and nobody knows why. Profile also captured the <b>pre-change Admin baselines</b> — the yardstick QA later used.</span></div>
+      <div class="ddrow"><span class="ddlab v">The run — dynamic multi-role RLS (CR v2)</span><span>Replaced the static demonstrator role with <b>Dynamic Access</b>: <code>USERPRINCIPALNAME() → LOOKUPVALUE(UserAccess…) → SWITCH</code>. Three files changed: +<code>UserAccess.tmdl</code> (hidden import table, no relationships), the role rewritten, <code>model.tmdl</code> re-pointed. Held at the Model breakpoint for human review of the diff.</span></div>
+      <div class="ddrow"><span class="ddlab v">The design catch</span><span>The best moment of the run: profiling showed <b>82% of work is cross-practice</b>, so implementing spec §8b literally (practice filter on the consultant dim, intersecting with region) would have silently collapsed Data &amp; BI's view to $1.25M. The design was <b>re-based to a "book of business" model</b> — Region → <code>Dim_Client[Region]</code>, Practice → <code>Dim_Project[Practice]</code> — before anything shipped. <i>The pipeline's own profiling changed the security design before it shipped a mistake.</i></span></div>
+      <div class="ddrow"><span class="ddlab v">Verification</span><span><code>pipeline_verify</code> GREEN — all 10 Admin baselines unchanged to the penny · personas partition exactly: Europe $28.02M + India $20.17M + North America $14.68M = $62.87M (100.0%) · Practice scopes by project (Data &amp; BI $7.96M) · <code>nobody@firm.com</code> → blank report (deny-by-default holds) · enforcement confirmed live via Desktop View-as. Data dictionary's Security section regenerated. Cockpit end state: 0·1·4·9·10 green, 5 skipped-unchanged — an honest audit trail of a scoped change.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ JD FIT ══ -->
+<section id="jd">
+  <span class="eyebrow">Role fit · Power BI Developer — Claude AI</span>
+  <h2>Every JD requirement, demonstrated — not claimed</h2>
+  <p class="lede">Each row is something this system does today, with the receipt to prove it.</p>
+  <div class="jdwrap">
+  <table class="jd">
+    <thead><tr><th style="width:26%">JD requirement</th><th>How this system demonstrates it</th><th style="width:32%">Receipt</th></tr></thead>
+    <tbody>
+      <tr><td><span class="check">✓</span> Semantic models as code (PBIP / TMDL)</td><td>Full star-schema model authored offline via the modeling MCP — tables with M partitions, relationships, calc group, field parameters, what-if, RLS — exported to TMDL and assembled into an openable PBIP.</td><td class="rcpt">11 tables · 8 relationships · discourageImplicitMeasures · marked date table · ServicesDelivery.SemanticModel/</td></tr>
+      <tr><td><span class="check">✓</span> Reports as code (PBIR)</td><td>Six report pages (~50 visuals) generated as <code>visual.json</code> — cards, matrices, scatter quadrant, gauge, drill-through page, tooltip page — with theme, slicers, and conditional formatting.</td><td class="rcpt">ServicesDelivery.Report/definition/pages · FillRule conditional color · Client-360 drill-through</td></tr>
+      <tr><td><span class="check">✓</span> Git-based workflow</td><td>The deliverable is a Git repo: model + report as text, plus generated docs. Skills and pipeline templates are also files — versionable, diffable, shareable.</td><td class="rcpt">commit 81801ab · 79 files · MEASURE_CATALOGUE.md · DATA_DICTIONARY.md</td></tr>
+      <tr><td><span class="check">✓</span> MCP — build <i>and</i> consume</td><td>I <b>built</b> an MCP server: 12 engine tools (validate, benchmark, storage, TMDL read/write…) + 7 pipeline tools (status, report, verify, control…). The agent also consumes Microsoft's modeling MCP.</td><td class="rcpt">tools/mcp-server · pipeline_verify · pipeline_status · 19 tools total</td></tr>
+      <tr><td><span class="check">✓</span> Claude Skills — author &amp; customize</td><td>Authored <code>house-report-design</code> (swappable style packs) and <code>house-report-build</code> (PBIR playbook with an error knowledge base) — plus a folder-based skill marketplace the cockpit reads live.</td><td class="rcpt">.claude/skills/… · default\ custom\ templates\ registry</td></tr>
+      <tr><td><span class="check">✓</span> Trust-but-verify</td><td>Three layers: schema-grounded validation per measure → cold-cache benchmarks before perf claims → <b>host-run verifying gates</b> that re-compute baselines on the engine.</td><td class="rcpt">37/37 measures, 0 errors · reconciled to the penny · tamper test goes RED</td></tr>
+      <tr><td><span class="check">✓</span> Advanced DAX &amp; modeling</td><td>37-measure catalogue: time intelligence via calculation group, AR aging buckets, RANKX, what-if targets, dynamic titles — all DIVIDE/VAR discipline, formatted &amp; foldered.</td><td class="rcpt">calc group (6 items) · pMetric/pBreakdown field params · RLS role</td></tr>
+      <tr><td><span class="check">✓</span> Human-in-the-loop AI engineering</td><td>Breakpoints, sign-off gates with one-click approve &amp; continue, on-fail branch routing, run history and replay. The agent self-drives un-gated stretches; humans hold every gate.</td><td class="rcpt">MCP control limited to run/pause by design</td></tr>
+      <tr><td><span class="check">✓</span> Ships &amp; iterates like a product</td><td>Took a critical post-run review of my own tool ("it tracks, it doesn't build") and closed it: verifying gates + a friction pass (payload −96%) shipped the next day.</td><td class="rcpt">pipeline_get_plan: 1,707 lines → 69 · approve &amp; continue · runTo fix</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- ══ QA ══ -->
+<section id="qa">
+  <span class="eyebrow">Interview Q&amp;A · likely questions, strong answers</span>
+  <h2>What they'll ask — and how to answer</h2>
+
+  <div class="qa-item"><div class="q">Isn't this just a wrapper around Claude prompts?</div>
+  <div class="a">No — three things exist here that no prompt can provide: <b>hands</b> (an MCP server that validates and executes DAX on the live engine), <b>independent verification</b> (the host re-computes baselines itself — the agent can't self-certify), and <b>persistence</b> (skills, templates, baselines, history — all files). Remove the prompts entirely and the architecture still stands; remove the architecture and you're back to pasting DAX and hoping.</div></div>
+
+  <div class="qa-item"><div class="q">How do you stop the AI hallucinating column or measure names?</div>
+  <div class="a">Structurally, not by asking nicely. <code>pbi_validate_measure</code> statically resolves every table, column and measure reference against the <b>live model schema</b> before the expression can be written — an invented name fails validation and is never deployed. Then the expression is evaluated on the engine and reconciled against baselines. In run 1, 37 of 37 measures passed on the first engine run.</div></div>
+
+  <div class="qa-item"><div class="q">What happens when the AI produces a plausible but wrong number?</div>
+  <div class="a">That's exactly what the verifying gate exists for. Ground truth is captured at Profile from the raw files, before any modeling. At the Measures and QA gates the <b>host</b> — not the agent — EVALUATEs those baselines on the engine and compares within 0.1%. I can demo it: tamper a baseline and the gate goes RED with the measure and delta on screen. A plausible-but-wrong number cannot reach Package.</div></div>
+
+  <div class="qa-item"><div class="q">You let an AI touch row-level security? How is that safe?</div>
+  <div class="a">Because the pipeline treats security as its most-governed change, not its least. The RLS change ran as a delta: the new access table was domain-validated at Profile; the role change was written as TMDL text and <b>held at a human breakpoint where I reviewed the actual diff</b>; QA then proved Admin baselines were unchanged to the penny, the region personas partition to exactly 100%, and an unknown email sees nothing — deny by default. And the best part: profiling caught that the literal spec would have collapsed one practice's view to $1.25M, so the design was corrected <i>before</i> it shipped.</div></div>
+
+  <div class="qa-item"><div class="q">Why MCP instead of a Python script calling APIs?</div>
+  <div class="a">MCP makes the tools <b>agent-native and reusable</b>: typed schemas, discoverability, and the same 19 tools work from Claude Code, Claude Desktop, or any MCP client — no glue code per environment. It also enforces the trust boundary cleanly: the agent gets validate/run/benchmark, but gate-release and sign-off deliberately have no MCP tool — those are cockpit-only, human-only.</div></div>
+
+  <div class="qa-item"><div class="q">What did the AI actually get wrong? (the honesty test)</div>
+  <div class="a">Run 1 hit three real issues: an offline calculated date table that couldn't bind relationships (rebuilt as an M table), a report visual type that throws on render (switched to matrix), and a conditional-format expression shape that crashed on interaction (fixed to bare literals). Each was fixed in-process and <b>encoded into the skill — run 2 hit zero</b>. I also commissioned a critical review of my own tool; it said "it tracks, it doesn't build" — so I built verifying gates and cut the agent's status payload by 96% the next day. I'd rather show you the fix-loop than pretend there were no bugs.</div></div>
+
+  <div class="qa-item"><div class="q">How does this scale to a team?</div>
+  <div class="a">Everything that matters is a file: skills, templates, specs, the deliverable itself. Commit the registry to a shared repo and every analyst inherits the same pipeline, standards and error playbook; change requests become branches; the verify endpoint becomes a CI check on PRs. The cockpit means a lead can supervise a delivery without reading prompts. What's genuinely single-user today is the local host state — that's on my production-hardening list, with a clear path (shared host + the token-auth pattern the bridge already uses).</div></div>
+
+  <div class="qa-item"><div class="q">Where does the data go?</div>
+  <div class="a">Nowhere. The entire platform is local-first: the bridge binds to loopback, the host binds to loopback, there's no account, no telemetry, no cloud dependency. The AI reads schema and query results through local MCP calls. That posture was a design goal — it's what makes the tool usable on client data.</div></div>
+
+  <div class="qa-item"><div class="q">How do you handle performance on large models?</div>
+  <div class="a">Measured, never asserted: <code>benchmark_dax</code> clears the cache and does a warm-up pass so timings are honest cold-cache numbers; the storage analyzer (same library DAX Studio uses) finds the expensive columns; the optimizer proves rewrites with before/after timings and refuses to claim a win when the delta is inside noise. The demo model's full 37-measure catalogue evaluates in 51 ms cold — small data, but the discipline is what scales.</div></div>
+
+  <div class="qa-item"><div class="q">Why is the output PBIP and not a .pbix?</div>
+  <div class="a">PBIP stores the model as TMDL and the report as PBIR — <b>text</b>. That's what makes Git meaningful: diffs, reviews, blame, rollback, CI. A .pbix is a binary blob you can only version, not review. PBIP is also Microsoft's strategic direction for pro BI development, and it round-trips into Desktop and the Service.</div></div>
+
+  <div class="qa-item"><div class="q">If Microsoft ships Copilot for all of this, why does your tool matter?</div>
+  <div class="a">Copilot is a worker; this is the <b>operating model around any worker</b>. The pipeline, verifying gates, human sign-offs, skills registry and audit trail are agent-agnostic — the MCP layer means I could swap the agent tomorrow. If anything, better AI workers make the governance layer more valuable, because more work happens without a human writing it.</div></div>
+
+  <div class="qa-item"><div class="q">What would you build next?</div>
+  <div class="a">Three things, in order: a headless engine step so scratch-to-Git needs zero manual opens; the CI verify hook so model PRs can't merge if baselines break; and a deployment skill wrapping report-management so Package can push to a Fabric workspace behind a final sign-off. All three are content or thin glue — the architecture already has the seams for them.</div></div>
+</section>
+
+<!-- ══ RECEIPTS ══ -->
+<section id="receipts">
+  <span class="eyebrow">Proof of work · two full deliveries</span>
+  <h2>Two templates, three governed runs — every number reconciled</h2>
+  <div class="grid3" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+    <div class="receipt">
+      <h3>Run 1 — ServicesDelivery <span class="tag tag--win">first build</span></h3>
+      <p class="mono">5 CSVs (98,420 timesheet rows) → model + 4-page report + Client 360 + tooltip → Git</p>
+      <p class="big">Revenue $62,870,822 · Utilization 71.43% · Billed $66,879,000 — engine = source, exact</p>
+      <p class="mono">AR aging buckets sum precisely to Outstanding $14.4M · full catalogue 51 ms cold · surfaced a client the firm was <b>losing money on</b> and $8.16M overdue AR (56.6%)</p>
+      <p class="mono">3 issues hit → fixed in-process → <b>encoded into house-report-build</b></p>
+    </div>
+    <div class="receipt">
+      <h3>Run 2 — ChocolateSales <span class="tag tag--win">template replay, fresh chat</span></h3>
+      <p class="mono">Loaded "Polished delivery" template → pasted the data path → ▶</p>
+      <p class="big">Revenue 44,692,389 · Boxes 3,784,002 · Margin 45.29% — recon EXACT</p>
+      <p class="mono">Ran with breakpoints + sign-offs live; the verifying gate later re-confirmed these numbers on the engine independently — including catching a deliberately tampered baseline (expected 999 → RED)</p>
+      <p class="mono">0 repeat issues — the skill absorbed run 1's lessons</p>
+    </div>
+    <div class="receipt">
+      <h3>Run 3 — RLS change request <span class="tag tag--win">delta template</span></h3>
+      <p class="mono">Change request v2 (spec §8b) run through the 5-stage delta pipeline on the live ServicesDelivery project</p>
+      <p class="big">Dynamic Access role: Admin baselines unchanged to the penny · regions partition to exactly 100%</p>
+      <p class="mono">Europe $28.02M + India $20.17M + NA $14.68M = $62.87M · Data &amp; BI $7.96M by project · unknown email → blank (deny) · profiling re-based the design (82% cross-practice) before a leaky spec shipped</p>
+      <p class="mono">3 TMDL files changed · reviewed as a diff at the Model breakpoint · own commit + history entry</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PROD ══ -->
+<section id="prod">
+  <span class="eyebrow">Honest engineering · production readiness</span>
+  <h2>What's solid, what needs fine-tuning, and how</h2>
+  <p class="lede">"Production-ready" is a claim that should come with a punch list. Here's mine — the green rows are load-bearing today; the amber rows have a named gap and a concrete fix.</p>
+  <div class="prodwrap">
+    <div class="prodrow"><b>Engine verification loop</b><span class="pstat pstat--ok">SOLID</span><span class="how">Schema grounding + engine evaluation + host-run gates, proven across 3 runs. One dependency: a live model must be open in Desktop for the engine to answer.</span></div>
+    <div class="prodrow"><b>Governance &amp; audit</b><span class="pstat pstat--ok">SOLID</span><span class="how">Breakpoints, human-only sign-offs, on-fail branches, per-gate evidence, 20-run history, generated docs. The agent's control tools are run/pause only — by design.</span></div>
+    <div class="prodrow"><b>Skills &amp; registry</b><span class="pstat pstat--ok">SOLID</span><span class="how">Folder-based, Git-shareable, live in the cockpit. Growth is content (more packs, more domains), not code.</span></div>
+    <div class="prodrow"><b>Local security posture</b><span class="pstat pstat--ok">SOLID</span><span class="how">Loopback-only, no account, no telemetry; RLS deny-by-default pattern shipped and persona-tested.</span></div>
+    <div class="prodrow"><b>Headless verification</b><span class="pstat pstat--tune">TUNE</span><span class="how">Today a human opens the pbip so the engine loads data. Fix: scripted Desktop launch + wait-for-port at the gate, or point the bridge at a Fabric XMLA endpoint — then scratch → verified → Git is one shot.</span></div>
+    <div class="prodrow"><b>Team / multi-user</b><span class="pstat pstat--tune">TUNE</span><span class="how">Host state is per-machine. Fix: run the host as a small shared service with bearer-token auth (the bridge already implements exactly this pattern for remote pairing) — the UI and MCP layers don't change.</span></div>
+    <div class="prodrow"><b>Visual-type coverage</b><span class="pstat pstat--tune">TUNE</span><span class="how">The PBIR playbook covers the 12 core types used so far. Fix per new type: read one known-good example, encode its query roles + quirks into the skill — the same learn-from-a-template method that built the current playbook.</span></div>
+    <div class="prodrow"><b>Distribution</b><span class="pstat pstat--tune">TUNE</span><span class="how">Single self-contained exe with update-check, but unsigned (SmartScreen prompt). Fix: code-signing certificate; optionally an installer that registers the External Tool without the UAC step.</span></div>
+    <div class="prodrow"><b>CI/CD integration</b><span class="pstat pstat--tune">TUNE</span><span class="how">The verify endpoint is plain HTTP and already scriptable. Fix: a GitHub Action / Azure DevOps task that runs it on PRs touching the SemanticModel — RED blocks the merge. Roughly a YAML file of work.</span></div>
+  </div>
+  <p class="runnote" style="margin-top:12px">The pattern across every amber row: the architecture already has the seam — each fix is thin glue or content, not a redesign. That's what "almost production-ready" means concretely.</p>
+</section>
+
+<!-- ══ ROADMAP ══ -->
+<section id="roadmap">
+  <span class="eyebrow">Where this goes next</span>
+  <h2>The skill marketplace makes the roadmap cheap</h2>
+  <p class="lede">Because stages are configurable and skills are files, most future capability is <i>content</i>, not code. Each of these is a folder drop, not a rebuild:</p>
+  <div class="road">
+    <div class="card"><h3>Headless engine gate</h3><p style="color:var(--muted);font-size:13px">Auto-open the PBIP into an engine inside the pipeline, so scratch → verified → Git needs zero manual opens. The one honest gap today.</p></div>
+    <div class="card"><h3>Deployment skill</h3><p style="color:var(--muted);font-size:13px">A Package-stage skill wrapping <code>powerbi-report-management</code>: push the verified PBIP to a Fabric workspace behind a final sign-off gate.</p></div>
+    <div class="card"><h3>Industry style packs</h3><p style="color:var(--muted);font-size:13px"><code>house-report-design</code> is already multi-pack: add finance, healthcare, exec-dark. A client's brand becomes one theme file + one skill note.</p></div>
+    <div class="card"><h3>Org template library</h3><p style="color:var(--muted);font-size:13px">Commit <code>templates\</code> to a shared repo: "Quick model-only", "Full audit", "Migration QA" — the team's delivery standards as reviewable JSON.</p></div>
+    <div class="card"><h3>CI verification</h3><p style="color:var(--muted);font-size:13px">The verify endpoint is plain HTTP — call it from a PR pipeline so a model change can't merge unless baselines still reconcile.</p></div>
+    <div class="card"><h3>Domain skills</h3><p style="color:var(--muted);font-size:13px">Encode a domain's measure library (SaaS churn, AR aging, utilization) as skills — the agent then builds <i>your</i> KPIs, not generic ones.</p></div>
+  </div>
+</section>
+
+<footer>
+  <div><b>DAX Workbench</b> — designed &amp; built by Rishav Kumar. React + TypeScript cockpit · .NET 8 bridge (TOM/ADOMD) · Node pipeline host · MCP server · Claude Skills.</div>
+  <div class="mono" style="margin-top:6px">Local-first: loopback only, no account, no telemetry. Data never leaves the machine. Not affiliated with Microsoft.</div>
+</footer>
+
+</div><!-- /wrap -->
+
+<script>
+(function(){
+  const $ = (s,el)=> (el||document).querySelector(s);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fmt = (n)=> typeof n==='number' ? n.toLocaleString('en-US',{maximumFractionDigits:2}) : n;
+
+  /* ───────── stage data (single source for hero + explorer) ───────── */
+  const STAGES=[
+    {n:'Bootstrap',gate:'env',skills:[],inp:'Source path from the cockpit + project-spec.md',out:'Confirmed tools, defaults, assumption log',does:'Reads the Source panel (data folder or PBIP), the project spec, and confirms every tool it needs is alive — before touching anything.',win:'No mega-prompts: the path & spec live in the cockpit, so a new project kickoff is one sentence.',reuse:'Source config is per-project; the stage itself is identical everywhere.'},
+    {n:'Profile',gate:'profile',skills:['profile-data'],inp:'Raw files',out:'Schema, grain, keys + CONTROL TOTALS → stored as baselines',does:'Profiles every file: columns, types, grain, key cardinality, orphan checks — and computes the control totals that become the reconciliation baselines.',win:'This is where "reconciled to the penny" is born: truth is captured from the raw data before any modeling.',reuse:'Baselines feed the verifying gates automatically on every later stage.'},
+    {n:'Classify & Design',gate:'design',skills:['classify-data'],inp:'Profile results',out:'Star-schema design: facts, dims, relationships, date table plan',does:'Classifies tables fact-vs-dimension, infers relationships and the date strategy, and lists measure candidates.',win:'Design is explicit and reviewable before a single object is created.',reuse:'The design doc pattern repeats for any dataset shape.'},
+    {n:'Shape (ETL)',gate:'etl',skills:[],inp:'Raw files + design',out:'Typing plan, cleaning rules, bench/orphan handling',does:'Fixes types, dates, dedupes, and referential-integrity gaps (e.g. bench members) — as declared M steps, not manual edits.',win:'Cleaning is code: repeatable, documented, reversible.',reuse:'Typing rules derive from the profile, so messier data follows the same path.'},
+    {n:'Model',gate:'BPA + refresh',skills:['semantic-model-authoring','powerbi-modeling-mcp'],inp:'Design + shaped data',out:'Semantic model as TMDL: tables, relationships, calc groups, field params, RLS',does:'Builds the model as code through the modeling MCP — star schema, hidden FKs, marked date table, calculation group, what-if, row-level security — then exports PBIP.',win:'The model is text in Git, not clicks in a UI. Reviewable, diffable, regenerable.',reuse:'The TMDL patterns (date table, calc group, RLS) are templates for every future model.'},
+    {n:'Measures',gate:'validate + reconcile · breakpoint',skills:['dax-workbench'],inp:'Model + measure candidates',out:'Full DAX catalogue, each measure engine-validated',does:'Authors the measure catalogue (DIVIDE/VAR discipline, formats, folders), then validates every expression on the live engine — references checked against the real schema, values reconciled against baselines.',win:'37/37 measures correct on first engine run. No invented column names can survive this stage.',reuse:'The catalogue itself (time-intel, AR aging, utilization) is a reusable measure library.'},
+    {n:'Plan',gate:'field-refs',skills:['powerbi-report-planning'],inp:'Validated model',out:'Page-by-page report plan with insight-per-page',does:'Plans pages, visuals, interactions, drill-throughs and tooltips — every visual bound to fields that provably exist.',win:'Insight-first planning: each page answers a stated business question.',reuse:'The 4-page + drill-through + tooltip shape is a rerunnable pattern.'},
+    {n:'Style',gate:'theme-schema',skills:['house-report-design','house-report-build'],inp:'Report plan',out:'Design system: theme.json + component rules',does:'Applies the house style pack (nexus): validated theme, typography, semantic colors, card treatments — one file styles everything.',win:'Brand consistency is automatic; the theme is pre-validated against Power BI’s schema quirks.',reuse:'Style packs are swappable — a new client brand is one folder.'},
+    {n:'Author',gate:'bindings',skills:['powerbi-report-authoring','house-report-build'],inp:'Plan + design system',out:'PBIR report: pages, visuals, slicers, conditional formatting',does:'Writes the report as code — ~50 visual.json files including matrix, quadrant scatter, gauge, drill-through and tooltip pages — using the error-playbook so known render bugs are impossible.',win:'Report-as-code means PRs, diffs and regeneration — not pixel archaeology.',reuse:'house-report-build carries the visual schema + every fix we ever paid for.'},
+    {n:'Integration QA',gate:'refresh + reconcile · sign-off',skills:['dax-workbench'],inp:'The full solution',out:'Engine-verified reconciliation + visual error scan',does:'The host re-runs the baselines on the engine (verifying gate), scans for visual errors, checks RLS and performance.',win:'The gate goes green from the engine’s numbers — the agent cannot self-certify.',reuse:'Same verification, zero extra effort, on every run forever.'},
+    {n:'Package',gate:'export + docs',skills:[],inp:'Verified solution',out:'Git commit: PBIP + measure catalogue + data dictionary + run notes',does:'Commits the deliverable and generates its documentation — catalogue, dictionary, and the full run log with every gate result.',win:'Documentation is a by-product, not a chore. The audit trail writes itself.',reuse:'The docs regenerate from the model — they can’t drift stale.'},
+  ];
+
+  /* ───────── hero live rail ───────── */
+  const rail=$('#liveRail'), log=$('#liveLog'), pill=$('#livePill');
+  const SHORT=['Boot','Profile','Classify','Shape','Model','Measures','Plan','Style','Author','QA','Package'];
+  STAGES.forEach((s,i)=>{
+    const d=document.createElement('div'); d.className='lstage'; d.dataset.s='pending';
+    d.innerHTML=(i===5?'<span class="lstage__bp" title="breakpoint"></span>':'')+'<span class="lstage__dot"></span><span class="lstage__name">'+SHORT[i]+'</span>';
+    rail.appendChild(d);
+  });
+  const L=[...rail.children];
+  const script=[
+    {i:0,s:'running',t:'▸ Bootstrap — reading source path + spec from the cockpit'},
+    {i:0,s:'passed'},{i:1,s:'running',t:'▸ Profile — control totals captured → <span class="a">baselines stored</span>'},
+    {i:1,s:'passed'},{i:2,s:'running'},{i:2,s:'passed'},{i:3,s:'running'},{i:3,s:'passed'},
+    {i:4,s:'running',t:'▸ Model — TMDL authored via modeling MCP (11 tables · 8 relationships)'},
+    {i:4,s:'passed'},
+    {i:5,s:'hold',t:'‖ HOLD — breakpoint on Measures. <span class="a">Human opens the pbip; agent waits.</span>'},
+    {i:5,s:'running',t:'▸ approve &amp; continue → validating 37 measures on the live engine…'},
+    {i:5,s:'passed',t:'🛡 VERIFY (host→engine): Revenue 62,870,822 = 62,870,822 · <span class="g">gate GREEN — reconciled</span>'},
+    {i:6,s:'running'},{i:6,s:'passed'},{i:7,s:'running'},{i:7,s:'passed'},
+    {i:8,s:'running',t:'▸ Author — ~50 PBIR visuals written as code'},
+    {i:8,s:'passed'},{i:9,s:'running'},
+    {i:9,s:'passed',t:'🛡 QA gate re-verified on engine · <span class="g">all baselines reconcile</span>'},
+    {i:10,s:'running'},{i:10,s:'passed',t:'✓ Packaged — <span class="g">PBIP + docs committed to Git</span>. Run saved to history.'},
+  ];
+  let k=0;
+  function heroTick(){
+    if(k>=script.length){ pill.textContent='DONE'; pill.style.background='var(--good-soft)'; pill.style.color='var(--good)';
+      setTimeout(()=>{L.forEach(el=>el.dataset.s='pending');log.innerHTML='';k=0;pill.textContent='RUNNING';pill.style.background='';pill.style.color='';heroTick();}, 6000); return; }
+    const st=script[k++]; L[st.i].dataset.s=st.s;
+    if(st.t){ log.innerHTML=st.t; }
+    setTimeout(heroTick, st.s==='hold'?2200:(st.t?1600:520));
+  }
+  if(reduced){ L.forEach(el=>el.dataset.s='passed'); pill.textContent='DONE'; log.innerHTML='✓ Packaged — <span class="g">PBIP + docs committed to Git</span>.'; }
+  else heroTick();
+
+  /* ───────── architecture components ───────── */
+  const COMPS=[
+    {n:'Claude Agent',sub:'skills + 2 MCP servers',d:'Does 100% of the delivery work: profiling scripts, TMDL modeling, DAX authoring, PBIR generation, documentation. Reads its instructions from versioned Skills, not from ad-hoc prompts.',win:'Consistent output — the skill is the spec.',reuse:'Point it at a new dataset; everything else is unchanged.'},
+    {n:'Pipeline Host',sub:'Node · :5178 · zero deps',d:'Owns the shared pipeline state: stages, gates, breakpoints, branches, history (last 20 runs), the folder registry, and the verifying-gate logic. Streams every change to the UI over SSE.',win:'One source of truth — agent and human always see the same state.',reuse:'Plain HTTP API: scriptable from CI, other agents, or curl.'},
+    {n:'Bridge',sub:'.NET 8 · :5177 · one exe',d:'The engine whisperer: TOM + ADOMD against Power BI Desktop’s embedded Analysis Services (the same libraries Tabular Editor uses). Also serves the cockpit UI and auto-spawns the host — ribbon click = whole platform up.',win:'Zero terminal, zero setup for the analyst.',reuse:'Its /dax, /measure, /time endpoints power every tool above it.'},
+    {n:'Cockpit UI',sub:'React + Zustand · in the exe',d:'The governance surface: drag-and-drop stages and skills, three-tab tray (Default / Custom / Templates), source panel, breakpoint dots, verify buttons, approve & continue, run history.',win:'Non-developers can supervise an AI delivery visually.',reuse:'Templates make a team’s process one click to reload.'},
+    {n:'Skills & registry',sub:'default\\ · custom\\ · templates\\',d:'Skills are markdown + scripts on disk; the cockpit reads the folders live. house-report-build encodes the PBIR schema, the error playbook and conditional-formatting patterns learned from real runs.',win:'Institutional knowledge as reviewable files.',reuse:'Git-share the folders → the whole team inherits the expertise.'},
+    {n:'Git deliverable',sub:'PBIP + docs',d:'The output is a repository: TMDL model, PBIR report, measure catalogue, data dictionary, run notes with every gate result. Diffable, reviewable, CI-able.',win:'The dashboard has a paper trail.',reuse:'Regenerate docs any time — they derive from the model.'},
+  ];
+  const grid=$('#compGrid'), detail=$('#compDetail');
+  COMPS.forEach((c,i)=>{
+    const b=document.createElement('button'); b.className='comp'; b.setAttribute('aria-expanded','false');
+    b.innerHTML='<b>'+c.n+'</b><span>'+c.sub+'</span>';
+    b.onclick=()=>{
+      const open=b.getAttribute('aria-expanded')==='true';
+      [...grid.querySelectorAll('.comp')].forEach(x=>x.setAttribute('aria-expanded','false'));
+      if(open){detail.classList.remove('show');return;}
+      b.setAttribute('aria-expanded','true');
+      detail.innerHTML='<h3>'+c.n+' <span class="mono" style="font-size:11px;color:var(--faint)">'+c.sub+'</span></h3><p style="color:var(--muted);font-size:14px;max-width:80ch">'+c.d+'</p><span class="tag tag--win">'+c.win+'</span> <span class="tag tag--reuse">'+c.reuse+'</span>';
+      detail.classList.add('show');
+    };
+    grid.appendChild(b);
+  });
+
+  /* ───────── stage explorer ───────── */
+  const bar=$('#stageBar'), panel=$('#stagePanel'), simNote=$('#simNote');
+  let cur=5;
+  STAGES.forEach((s,i)=>{
+    const b=document.createElement('button'); b.className='sbtn'; b.dataset.i=i; b.dataset.s='pending';
+    b.innerHTML='<span class="n">'+i+'</span>'+s.n+(i===5?' <span title="breakpoint" style="color:var(--bad)">●</span>':'');
+    b.onclick=()=>{cur=i;render();};
+    bar.appendChild(b);
+  });
+  const B=[...bar.children];
+  function render(){
+    B.forEach((b,i)=>b.classList.toggle('on',i===cur));
+    const s=STAGES[cur];
+    panel.innerHTML=
+      '<div class="stagepanel__hd"><h3><span class="mono" style="color:var(--accent-deep)">'+String(cur).padStart(2,'0')+'</span> '+s.n+'</h3><span class="gatechip">gate: '+s.gate+'</span></div>'+
+      '<p style="color:var(--muted);max-width:78ch">'+s.does+'</p>'+
+      '<div class="stagepanel__cols"><div>'+
+        '<div class="sp-label">Flows in</div><div style="font-size:13.5px">'+s.inp+'</div>'+
+        '<div class="sp-label">Produces</div><div style="font-size:13.5px">'+s.out+'</div>'+
+        '<div class="sp-label">Skills attached</div><div>'+(s.skills.length?s.skills.map(x=>'<span class="skillchip">'+x+'</span>').join(''):'<span style="font-size:12.5px;color:var(--faint)">built-in step — no external skill needed</span>')+'</div>'+
+      '</div><div>'+
+        '<div class="sp-label">Why it wins</div><span class="tag tag--win" style="white-space:normal;line-height:1.5;display:block;padding:8px 10px">'+s.win+'</span>'+
+        '<div class="sp-label">Reusability</div><span class="tag tag--reuse" style="white-space:normal;line-height:1.5;display:block;padding:8px 10px">'+s.reuse+'</span>'+
+      '</div></div>';
+  }
+  render();
+
+  /* run simulation across the explorer bar */
+  let simT=null;
+  $('#simReset').onclick=()=>{ if(simT){clearTimeout(simT);simT=null;} B.forEach(b=>b.dataset.s='pending'); simNote.textContent='idle — click a stage to explore it'; };
+  $('#simBtn').onclick=()=>{
+    if(simT){clearTimeout(simT);simT=null;}
+    B.forEach(b=>b.dataset.s='pending');
+    let i=0, held=false;
+    function step(){
+      if(i>0) B[i-1].dataset.s='passed';
+      if(i>=B.length){ simNote.innerHTML='✓ run complete — saved to history. <b>Load the template and it replays on any dataset.</b>'; simT=null; return; }
+      if(i===5 && !held){
+        B[i].dataset.s='hold'; held=true; cur=i; render();
+        simNote.innerHTML='‖ holding at <b>Measures</b> — breakpoint + sign-off. In the real cockpit this is where a human clicks <b>approve &amp; continue</b>. Auto-approving in 2.5s…';
+        simT=setTimeout(step, 2500); return;
+      }
+      B[i].dataset.s='running'; cur=i; render();
+      simNote.textContent='▸ running stage '+i+' — '+STAGES[i].n+(i===9?' (host re-verifying baselines on the engine)':'');
+      i++; simT=setTimeout(step, i===6||i===10?1500:800);
+    }
+    step();
+  };
+
+  /* ───────── verify demo ───────── */
+  const BASE=[
+    {m:'Revenue',exp:62870822,eng:62870822},
+    {m:'Total Hours',exp:677435.4,eng:677435.4},
+    {m:'Billed Amount',exp:66879000,eng:66879000},
+    {m:'Outstanding AR',exp:14400000,eng:14400000},
+  ];
+  let tampered=false;
+  const tb=$('#vTable tbody'), vGate=$('#vGate'), vNote=$('#vNote');
+  function vRender(state){ // state: null | 'checked'
+    tb.innerHTML='';
+    BASE.forEach((b,i)=>{
+      const exp = (tampered&&i===0)?999:b.exp;
+      const pass = Math.abs(b.eng-exp)<=Math.max(1,Math.abs(exp)*.001);
+      const tr=document.createElement('tr'); tr.className='vrow';
+      if(state==='checked') tr.dataset.v=pass?'pass':'fail';
+      tr.innerHTML='<td>'+b.m+'</td><td class="num'+(tampered&&i===0?' tampered':'')+'">'+fmt(exp)+(tampered&&i===0?' ⚠':'')+'</td>'+
+        '<td class="num">'+(state==='checked'?fmt(b.eng):'—')+'</td>'+
+        '<td class="vres">'+(state==='checked'?(pass?'PASS':'FAIL Δ '+fmt(Math.abs(b.eng-exp))):'·')+'</td>';
+      tb.appendChild(tr);
+    });
+    if(state==='checked'){
+      const allPass=!tampered;
+      vGate.dataset.g=allPass?'green':'red';
+      vGate.textContent=allPass?'GATE · GREEN — VERIFIED ON ENGINE':'GATE · RED — DOES NOT RECONCILE';
+      vNote.innerHTML=allPass
+        ? 'Host log: <code>VERIFY (host→engine): 4/4 baselines reconcile → gate GREEN</code> — the agent’s claim matched the engine’s truth.'
+        : 'Host log: <code>VERIFY (host→engine): 3/4 baselines reconcile → gate RED</code> — <b>the pipeline stops itself.</b> A plausible-but-wrong number cannot ship.';
+    } else {
+      vGate.dataset.g=''; vGate.textContent='GATE · PENDING';
+      vNote.innerHTML='The host calls the bridge: <code>POST /dax → EVALUATE ROW("m0",[Revenue], …)</code> — then compares within 0.1% tolerance.';
+    }
+  }
+  $('#vBtn').onclick=()=>vRender('checked');
+  $('#vTamper').onclick=()=>{tampered=true;vRender(null);vNote.innerHTML='Baseline tampered: Revenue expected → <b class="tampered">999</b>. Now click <b>Verify on engine</b> and watch the gate refuse it.';};
+  $('#vReset').onclick=()=>{tampered=false;vRender(null);};
+  vRender(null);
+})();
+</script>
+
+</body>
+</html>

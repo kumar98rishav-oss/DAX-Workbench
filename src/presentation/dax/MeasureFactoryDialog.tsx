@@ -2,7 +2,17 @@ import { useMemo, useState } from 'react'
 import { X, Factory, Check, Upload, Sparkles } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { Button, IconButton } from '@/design-system/components'
-import { SUITE_KINDS, buildSuite, suiteFields, suitePlan, modelHasDate } from '@/application/dax/factory'
+import {
+  SUITE_KINDS,
+  MEASURE_SUITE_KINDS,
+  buildSuite,
+  buildSuiteForMeasure,
+  suiteColumnsByTable,
+  suiteMeasures,
+  measureHomeTable,
+  suitePlan,
+  modelHasDate,
+} from '@/application/dax/factory'
 import type { SuiteMeasure } from '@/application/dax/factory'
 import { desktopCreateMeasure, desktopEvaluateScalar } from '@/infrastructure/desktop/desktop-client'
 import { buildDefineQuery, dependencyClosure, modelMeasures, defineHomeTable } from '@/application/dax/live-preview'
@@ -20,26 +30,47 @@ export function MeasureFactoryDialog() {
   const commitMeasures = useApp((s) => s.commitMeasures)
   const desktop = useApp((s) => s.desktop)
 
-  const fields = useMemo(() => suiteFields(model), [model])
+  const columnsByTable = useMemo(() => suiteColumnsByTable(model), [model])
+  const measures = useMemo(() => suiteMeasures(model), [model])
   const hasDate = useMemo(() => modelHasDate(model), [model])
-  const kinds = useMemo(() => SUITE_KINDS.filter((k) => !k.needsDate || hasDate), [hasDate])
 
-  const [field, setField] = useState('')
-  // null = "every kind this model supports". The dialog is mounted before a model
-  // is loaded, so a useState initializer would latch onto the empty startup model
-  // and permanently drop the time-intelligence kinds.
+  // Base is chosen by three linked pickers: a Table scopes the Column list; a
+  // Measure (model-global) is the alternative base. Empty string = "not chosen",
+  // resolved to a default at render — the dialog mounts before a model loads, so
+  // a useState initializer would latch onto the empty startup model.
+  const [table, setTable] = useState('')
+  const [column, setColumn] = useState('')
+  const [measure, setMeasure] = useState('')
+  // null = "every kind this base supports".
   const [picked, setPicked] = useState<string[] | null>(null)
   const [suite, setSuite] = useState<SuiteMeasure[]>([])
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   if (!open) return null
-  const activeField = field || fields[0] || ''
+
+  const tableNames = columnsByTable.map((g) => g.table)
+  const activeTable = table && tableNames.includes(table) ? table : tableNames[0] ?? ''
+  const activeCols = columnsByTable.find((g) => g.table === activeTable)?.columns ?? []
+  const activeColumn = column && activeCols.includes(column) ? column : activeCols[0] ?? ''
+  const baseIsMeasure = measure !== '' && measures.some((m) => m.name === measure)
+  const homeForMeasure = baseIsMeasure ? measureHomeTable(model, measure) : undefined
+
+  const kinds = (baseIsMeasure ? MEASURE_SUITE_KINDS : SUITE_KINDS).filter((k) => !k.needsDate || hasDate)
   const sel = picked ?? kinds.map((k) => k.id)
+  const canBuild = baseIsMeasure ? kinds.length > 0 : activeColumn !== ''
+
+  // Changing the source resets the kind selection to "all" and clears the result.
+  const resetSource = () => { setPicked(null); setSuite([]); setMsg(null) }
+  const onTable = (v: string) => { setTable(v); setColumn(''); setMeasure(''); resetSource() }
+  const onColumn = (v: string) => { setColumn(v); setMeasure(''); resetSource() }
+  const onMeasure = (v: string) => { setMeasure(v); resetSource() }
 
   const build = () => {
     setMsg(null)
-    const built = buildSuite(activeField, model, datasets, sel)
+    const built = baseIsMeasure
+      ? buildSuiteForMeasure(measure, model, sel)
+      : buildSuite(activeColumn, model, datasets, sel, activeTable)
     setSuite(built)
     // Swap each row's sample number for the real engine's, sequentially so a
     // 12-measure suite doesn't hammer Desktop with parallel queries.
@@ -73,9 +104,11 @@ export function MeasureFactoryDialog() {
       commitMeasures(steps, last.name)
       let pushed = 0
       if (desktop.connected) {
-        // Land the suite on the table that owns the field, not just the first fact.
+        // Land the suite on the table that owns the base — the field's table for a
+        // column base, the measure's own home table for a measure base.
+        const homeName = baseIsMeasure ? homeForMeasure : activeTable
         const home =
-          model.tables.find((t) => t.columns.some((c) => c.name === activeField)) ??
+          (homeName ? model.tables.find((t) => t.name === homeName) : undefined) ??
           model.tables.find((t) => t.role === 'fact') ??
           model.tables[0]
         for (const st of steps) {
@@ -103,7 +136,7 @@ export function MeasureFactoryDialog() {
             <Factory size={20} style={{ color: 'var(--accent)' }} />
             <div>
               <div className="impdlg__title">Measure factory</div>
-              <div className="impdlg__sub">Build a whole suite for one field — verified, then deployed together.</div>
+              <div className="impdlg__sub">Build a whole suite for a field or an existing measure — verified, then deployed together.</div>
             </div>
           </div>
           <IconButton label="Close" onClick={() => toggle(false)}><X size={18} /></IconButton>
@@ -111,14 +144,40 @@ export function MeasureFactoryDialog() {
 
         <div className="impdlg__body pbs-scroll">
           <div className="fct__row">
-            <label className="dax-field" style={{ maxWidth: 260 }}>
-              <span className="dax-field__label">Field</span>
-              <select className="dax-select" value={activeField} onChange={(e) => { setField(e.target.value); setSuite([]) }}>
-                {fields.map((f) => <option key={f} value={f}>{f}</option>)}
+            <label className="dax-field">
+              <span className="dax-field__label">Table</span>
+              <select className="dax-select" value={activeTable} onChange={(e) => onTable(e.target.value)} disabled={tableNames.length === 0}>
+                {tableNames.length === 0 && <option value="">no tables</option>}
+                {tableNames.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </label>
-            <Button variant="primary" icon={<Sparkles size={15} />} onClick={build} disabled={!activeField}>Build suite</Button>
+            <label className="dax-field">
+              <span className="dax-field__label">Column</span>
+              <select className="dax-select" value={baseIsMeasure ? '' : activeColumn} onChange={(e) => onColumn(e.target.value)} disabled={activeCols.length === 0}>
+                {baseIsMeasure && <option value="">— using a measure —</option>}
+                {activeCols.length === 0 && !baseIsMeasure && <option value="">no numeric columns</option>}
+                {activeCols.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label className="dax-field">
+              <span className="dax-field__label">Measure</span>
+              <select className="dax-select" value={measure} onChange={(e) => onMeasure(e.target.value)} disabled={measures.length === 0}>
+                <option value="">— build from column —</option>
+                {measures.map((m) => <option key={`${m.table}|${m.name}`} value={m.name}>{m.name}</option>)}
+              </select>
+            </label>
+            <Button variant="primary" icon={<Sparkles size={15} />} onClick={build} disabled={!canBuild}>Build suite</Button>
           </div>
+
+          <p className="fct__base">
+            {baseIsMeasure ? (
+              <>Building the time-intelligence family for measure <code>[{measure}]</code>{homeForMeasure && <> · lives on <code>{homeForMeasure}</code></>}</>
+            ) : activeColumn ? (
+              <>Building from <code>{activeTable}[{activeColumn}]</code> — <strong>{activeCols.length}</strong> numeric {activeCols.length === 1 ? 'column' : 'columns'} on this table.</>
+            ) : (
+              <>This table has no numeric column to build on — pick another table, or choose an existing measure.</>
+            )}
+          </p>
 
           <div className="fct__kinds">
             {kinds.map((k) => (
@@ -129,7 +188,7 @@ export function MeasureFactoryDialog() {
           </div>
 
           {suite.length === 0 ? (
-            <p className="fct__empty">Pick a field and press <strong>Build suite</strong> — each measure is generated with the same deterministic engine and previewed before you deploy.</p>
+            <p className="fct__empty">Pick a base and press <strong>Build suite</strong> — each measure is generated with the same deterministic engine and previewed against the live model before you deploy.</p>
           ) : (
             suite.map((m) => (
               <div key={m.name} className="fct__item" data-on={m.selected} onClick={() => toggleRow(m.name)}>

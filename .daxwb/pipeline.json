@@ -1,0 +1,260 @@
+{
+  "pipelineId": "pbi-1786536880411",
+  "project": "Untitled",
+  "status": "idle",
+  "mode": "default",
+  "currentStage": 0,
+  "runToStage": null,
+  "bpReleased": [],
+  "reconciliation": {
+    "rows": {},
+    "sums": {}
+  },
+  "assumptions": [],
+  "templates": [],
+  "history": [],
+  "customSkills": [],
+  "stages": [
+    {
+      "id": 0,
+      "name": "Bootstrap",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [],
+      "gate": {
+        "type": "env",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null
+    },
+    {
+      "id": 1,
+      "name": "Profile",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [
+        {
+          "ref": "profile-data",
+          "order": 0,
+          "enabled": true
+        }
+      ],
+      "gate": {
+        "type": "profile",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null,
+      "breakpoint": false
+    },
+    {
+      "id": 2,
+      "name": "Classify & Design",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [
+        {
+          "ref": "classify-data",
+          "order": 0,
+          "enabled": true
+        }
+      ],
+      "gate": {
+        "type": "design",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null
+    },
+    {
+      "id": 3,
+      "name": "Shape (ETL)",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [],
+      "gate": {
+        "type": "etl",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null
+    },
+    {
+      "id": 4,
+      "name": "Model",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [
+        {
+          "ref": "semantic-model-authoring",
+          "order": 0,
+          "enabled": true
+        },
+        {
+          "ref": "powerbi-modeling-mcp",
+          "order": 1,
+          "enabled": true
+        }
+      ],
+      "gate": {
+        "type": "BPA+refresh",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null
+    },
+    {
+      "id": 5,
+      "name": "Measures",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [
+        {
+          "ref": "dax-workbench",
+          "order": 0,
+          "enabled": true
+        }
+      ],
+      "gate": {
+        "type": "validate+reconcile",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null
+    },
+    {
+      "id": 6,
+      "name": "Plan",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [
+        {
+          "ref": "powerbi-report-planning",
+          "order": 0,
+          "enabled": true
+        }
+      ],
+      "gate": {
+        "type": "field-refs",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null
+    },
+    {
+      "id": 7,
+      "name": "Style",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [
+        {
+          "ref": "house-report-design",
+          "order": 0,
+          "enabled": true
+        }
+      ],
+      "gate": {
+        "type": "theme-schema",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null
+    },
+    {
+      "id": 8,
+      "name": "Author",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [
+        {
+          "ref": "powerbi-report-authoring",
+          "order": 0,
+          "enabled": true
+        }
+      ],
+      "gate": {
+        "type": "bindings",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null
+    },
+    {
+      "id": 9,
+      "name": "Integration QA",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [
+        {
+          "ref": "dax-workbench",
+          "order": 0,
+          "enabled": true
+        }
+      ],
+      "gate": {
+        "type": "refresh+reconcile",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null
+    },
+    {
+      "id": 10,
+      "name": "Package",
+      "state": "pending",
+      "requiresSignoff": false,
+      "approved": false,
+      "skills": [],
+      "gate": {
+        "type": "export+docs",
+        "result": "pending",
+        "checks": []
+      },
+      "logs": [],
+      "artifacts": [],
+      "startedAt": null,
+      "endedAt": null
+    }
+  ]
+}

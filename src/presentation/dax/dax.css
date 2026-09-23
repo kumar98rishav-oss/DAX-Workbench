@@ -643,7 +643,22 @@
 .dax-tool:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ---- factory dialog ---- */
-.fct__row { display: flex; align-items: flex-end; gap: var(--space-3); margin-bottom: var(--space-3); }
+.fct__row { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-2); }
+.fct__row .dax-field { min-width: 150px; }
+.fct__base {
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+  margin: 0 0 var(--space-3);
+  line-height: var(--leading-snug);
+}
+.fct__base code {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+}
+.fct__base strong { color: var(--text); font-weight: var(--weight-semibold); }
 .fct__kinds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: var(--space-3); }
 .fct__kind {
   display: inline-flex; align-items: center; gap: 4px;
@@ -926,7 +941,7 @@
 /* ---- AI model picker ---- */
 .dax-ai__modelrow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-2);
   flex-wrap: wrap;
   margin-top: var(--space-2);
@@ -937,11 +952,165 @@
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
   color: var(--text-subtle);
+  padding-top: 6px;
+}
+/* combobox = select quick-pick + free-text input side by side */
+.dax-ai__modelcombo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
 }
 .dax-ai__modelsel { max-width: 220px; }
+.dax-ai__modelinput {
+  width: 340px;
+  max-width: 100%;
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-xs);
+}
 .dax-ai__modelnote {
   font-size: var(--text-xs);
   color: var(--text-subtle);
   flex: 1;
   min-width: 180px;
+  padding-top: 6px;
+}
+
+/* ---- EOL "no longer available" banner ---- */
+.dax-ai__eol {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  margin-top: var(--space-2);
+}
+.dax-ai__eol svg { flex-shrink: 0; margin-top: 2px; color: var(--danger); }
+.dax-ai__eol code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85em;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.dax-ai__eol a { color: var(--accent); text-decoration: underline; }
+.dax-ai__eol a:hover { opacity: 0.8; }
+
+/* ============================================================================
+   DAX AUTOCOMPLETE
+   ========================================================================== */
+
+/* Wrapper — relative so the popup positions against the textarea */
+.dax-ac {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.dax-ac textarea { flex: 1; }
+
+/* Signature Help popup */
+.dax-ac__sighelp {
+  position: absolute;
+  z-index: 101;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  pointer-events: none;
+  max-width: 400px;
+}
+.dax-ac__sighelp-name {
+  font-family: var(--font-mono, monospace);
+  font-weight: var(--weight-semibold);
+  color: var(--accent);
+  margin-bottom: var(--space-1);
+}
+.dax-ac__sighelp-desc {
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+/* Popup dropdown */
+.dax-ac__popup {
+  position: absolute;
+  z-index: 100;
+  min-width: 300px;
+  max-width: 520px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+
+/* Individual completion item */
+.dax-ac__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 5px var(--space-3);
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  line-height: 1.4;
+}
+.dax-ac__item:hover,
+.dax-ac__item.is-selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* Kind icon badge */
+.dax-ac__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  color: #fff;
+}
+.dax-ac__icon--fn  { background: #6366f1; } /* indigo — function */
+.dax-ac__icon--tbl { background: #0ea5e9; } /* sky — table */
+.dax-ac__icon--col { background: #22c55e; } /* green — column */
+.dax-ac__icon--msr { background: #f59e0b; } /* amber — measure */
+
+/* Label (name) */
+.dax-ac__label {
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Detail (syntax / type) */
+.dax-ac__detail {
+  margin-left: auto;
+  color: var(--text-subtle);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+  flex-shrink: 1;
+  padding-left: var(--space-2);
 }

@@ -8,6 +8,7 @@ import { KpiView } from '@/presentation/kpi/KpiView'
 import { ModelView } from '@/presentation/model/ModelView'
 import { CleanupView } from '@/presentation/cleanup/CleanupView'
 import { DaxView } from '@/presentation/dax/DaxView'
+import { PipelinePanel } from '@/presentation/pipeline/PipelinePanel'
 import './shell.css'
 
 export function AppShell() {
@@ -24,6 +25,7 @@ export function AppShell() {
           {mode === 'model' && <ModelView />}
           {mode === 'cleanup' && <CleanupView />}
           {mode === 'dax' && <DaxView />}
+          {mode === 'pipeline' && <PipelinePanel />}
           <BottomPanel />
         </div>
         <RightPanel />

@@ -15,6 +15,7 @@ import { formatDax } from '@/application/dax/formatter'
 import { DependencyGraph } from './DependencyGraph'
 import { DaxAll } from './DaxAll'
 import { DaxOptimizer } from './DaxOptimizer'
+import { DaxAutocomplete } from './DaxAutocomplete'
 import './dax.css'
 import './dax-panel.css'
 
@@ -326,7 +327,7 @@ export function DaxView() {
                 onClick={() => { setAiExpanded((v) => !v); dismissNlToDax() }}
               >
                 <BrainCircuit size={14} />
-                <span>AI Generate <em>(DeepSeek · NVIDIA NIM)</em></span>
+                <span>AI Generate <em>(NVIDIA NIM)</em></span>
                 {aiExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
               </button>
 
@@ -379,25 +380,32 @@ export function DaxView() {
                     <>
                       <div className="dax-ai__modelrow">
                         <label className="dax-ai__modellabel" htmlFor="nim-model">Model</label>
-                        <select
-                          id="nim-model"
-                          className="dax-select dax-ai__modelsel"
-                          value={nimModel}
-                          onChange={(e) => setNimModel(e.target.value)}
-                          disabled={nlToDaxBusy}
-                        >
-                          {NIM_MODELS.map((m) => (
-                            <option key={m.id} value={m.id}>{m.label}</option>
-                          ))}
-                          {/* A model the user typed that is no longer in our list
-                              still has to be selectable, or switching away from a
-                              retired default would be impossible. */}
-                          {!NIM_MODELS.some((m) => m.id === nimModel) && (
-                            <option value={nimModel}>{nimModel} (custom)</option>
-                          )}
-                        </select>
+                        <div className="dax-ai__modelcombo">
+                          <select
+                            className="dax-select dax-ai__modelsel"
+                            value={NIM_MODELS.some((m) => m.id === nimModel) ? nimModel : '__custom__'}
+                            onChange={(e) => {
+                              if (e.target.value !== '__custom__') setNimModel(e.target.value)
+                            }}
+                            disabled={nlToDaxBusy}
+                          >
+                            {NIM_MODELS.map((m) => (
+                              <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                            <option value="__custom__">Custom model ID…</option>
+                          </select>
+                          <input
+                            id="nim-model"
+                            className="dax-input dax-ai__modelinput"
+                            placeholder="Paste model ID from build.nvidia.com"
+                            value={nimModel}
+                            onChange={(e) => setNimModel(e.target.value.trim())}
+                            disabled={nlToDaxBusy}
+                            spellCheck={false}
+                          />
+                        </div>
                         <span className="dax-ai__modelnote">
-                          {NIM_MODELS.find((m) => m.id === nimModel)?.note ?? 'Custom model id.'}
+                          {NIM_MODELS.find((m) => m.id === nimModel)?.note ?? 'Custom — paste any model ID from build.nvidia.com'}
                         </span>
                       </div>
                       <div className="dax-ai__keyrow">
@@ -408,10 +416,25 @@ export function DaxView() {
                   )}
 
                   {nlToDaxError && (
-                    <div className="dax-ai__error">
-                      <TriangleAlert size={14} /> {nlToDaxError}
-                    </div>
+                    /end of life|no longer available|end-of-life|eol|retired|410|gone/i.test(nlToDaxError) ? (
+                      <div className="dax-ai__eol">
+                        <TriangleAlert size={14} />
+                        <div>
+                          <strong>Model no longer available.</strong>{' '}
+                          The model <code>{nimModel}</code> has been retired by NVIDIA.{' '}
+                          Pick a different model above, or paste a fresh ID from{' '}
+                          <a href="https://build.nvidia.com/explore/discover" target="_blank" rel="noopener noreferrer">
+                            build.nvidia.com ↗
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="dax-ai__error">
+                        <TriangleAlert size={14} /> {nlToDaxError}
+                      </div>
+                    )
                   )}
+
 
                   {nlToDaxResult && (
                     <div className="dax-ai__result">
@@ -532,12 +555,12 @@ export function DaxView() {
                   Format
                 </button>
               </div>
-              <textarea
-                ref={codeRef}
-                className="dax-code"
-                spellCheck={false}
+              <DaxAutocomplete
                 value={selected.expression}
-                onChange={(e) => updateMeasure(selected.id, { expression: e.target.value })}
+                onChange={(v) => updateMeasure(selected.id, { expression: v })}
+                model={model}
+                className="dax-code"
+                textareaRef={codeRef}
                 onKeyDown={(e) => {
                   if (e.shiftKey && e.altKey && e.key === 'F') {
                     e.preventDefault()
@@ -546,6 +569,7 @@ export function DaxView() {
                 }}
               />
             </div>
+
 
             <div className="dax-preview">
               <span className="dax-preview__label">Preview</span>

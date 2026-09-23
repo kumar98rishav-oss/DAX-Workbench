@@ -134,7 +134,7 @@ function buildArtifacts(model: SemanticModel, layoutId: string): { model: Semant
 
 export type View = 'home' | 'studio'
 export type Theme = 'light' | 'dark'
-export type StudioMode = 'kpi' | 'data' | 'model' | 'cleanup' | 'dax'
+export type StudioMode = 'kpi' | 'data' | 'model' | 'cleanup' | 'dax' | 'pipeline'
 
 interface PanelState {
   left: boolean
@@ -401,7 +401,19 @@ export const useApp = create<AppState>((set, get) => ({
   selectedMeasureId: null,
 
   nimApiKey: (() => { try { return localStorage.getItem('pbistudio.nimApiKey') ?? '' } catch { return '' } })(),
-  nimModel: (() => { try { return localStorage.getItem('pbistudio.nimModel') || NIM_MODEL } catch { return NIM_MODEL } })(),
+  nimModel: (() => {
+    try {
+      const stored = localStorage.getItem('pbistudio.nimModel')
+      // Migrate: these model IDs reached EOL on 2026-08-26. Silently rewrite so
+      // the user isn't stuck on a dead model after a reload.
+      const EOL_MODELS = ['meta/llama-3.1-70b-instruct', 'meta/llama-3.1-8b-instruct', 'meta/llama-3.3-70b-instruct']
+      if (!stored || EOL_MODELS.includes(stored)) {
+        localStorage.setItem('pbistudio.nimModel', NIM_MODEL)
+        return NIM_MODEL
+      }
+      return stored
+    } catch { return NIM_MODEL }
+  })(),
   nlToDaxBusy: false,
   nlToDaxResult: null,
   nlToDaxError: null,

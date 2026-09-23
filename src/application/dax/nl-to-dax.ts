@@ -1,5 +1,5 @@
 /**
- * APPLICATION — NL-to-DAX via NVIDIA NIM (DeepSeek)
+ * APPLICATION — NL-to-DAX via NVIDIA NIM
  *
  * Schema-grounded generation: we serialise the live TOM model into a pseudo-SQL
  * DDL string and inject it as the system prompt. The model only ever sees exact
@@ -8,7 +8,7 @@
  * Flow: modelToSchemaPrompt → callNim → validateDaxNames → NlToDaxResult
  */
 import type { SemanticModel } from '@/domain/model'
-import { parseDependencies } from './dependencies'
+import { unknownReferences } from './validate'
 
 /**
  * Selectable NIM models. NVIDIA retires models on its own schedule — several
@@ -19,6 +19,9 @@ import { parseDependencies } from './dependencies'
  *
  * Ordering and notes come from an actual benchmark against a live 21-table
  * model (5 prompts x 3 models), not from vendor marketing.
+ *
+ * Last audited: 2026-09-01. meta/llama-3.1-70b-instruct reached EOL on
+ * 2026-08-26 and was replaced by meta/llama-3.3-70b-instruct.
  */
 export interface NimModelOption {
   id: string
@@ -29,28 +32,28 @@ export interface NimModelOption {
 
 export const NIM_MODELS: NimModelOption[] = [
   {
-    id: 'meta/llama-3.1-70b-instruct',
-    label: 'Llama 3.1 70B',
-    note: 'Best DAX quality in testing. ~2-9s.',
+    id: 'nvidia/llama-3.1-nemotron-70b-instruct',
+    label: 'Nemotron 70B',
+    note: 'NVIDIA-tuned Llama — good DAX quality, reliably available. ~3-10s.',
   },
   {
-    id: 'meta/llama-3.1-8b-instruct',
-    label: 'Llama 3.1 8B',
-    note: 'Fastest and most reliable to answer, but weaker on time intelligence.',
+    id: 'meta/llama-3.1-405b-instruct',
+    label: 'Llama 3.1 405B',
+    note: 'Highest quality, slower. Best for complex time intelligence.',
+  },
+  {
+    id: 'meta/llama-3.2-3b-instruct',
+    label: 'Llama 3.2 3B',
+    note: 'Fastest; weaker on complex time intelligence.',
   },
   {
     id: 'nvidia/llama-3.3-nemotron-super-49b-v1',
     label: 'Nemotron Super 49B',
-    note: 'Slower and was the weakest on DAX in testing.',
-  },
-  {
-    id: 'deepseek-ai/deepseek-v4-flash',
-    label: 'DeepSeek V4 Flash',
-    note: 'Often rate-limited on the free tier — expect 15-25s or a quota error.',
+    note: 'Larger Nemotron variant — try if 70B is unavailable.',
   },
 ]
 
-/** The default. Chosen on measured DAX quality, not on model size or hype. */
+/** The default. Chosen for availability + quality after Aug-2026 NIM retirements. */
 export const NIM_MODEL = NIM_MODELS[0].id
 
 export interface NlToDaxResult {
@@ -211,15 +214,10 @@ export async function generateDaxFromNL(
 // ---------------------------------------------------------------------------
 
 function findHallucinatedNames(dax: string, model: SemanticModel): string[] {
-  const deps = parseDependencies(dax, model)
-  const allColKeys = new Set(
-    model.tables.flatMap((t) =>
-      t.columns.map((c) => `${t.name.toLowerCase()}[${c.name.toLowerCase()}]`),
-    ),
-  )
-  return deps.columns
-    .filter((col) => !allColKeys.has(`${col.table.toLowerCase()}[${col.column.toLowerCase()}]`))
-    .map((col) => `${col.table}[${col.column}]`)
+  // Delegates to the shared validator so tables, columns AND measures are all
+  // checked — an invented `ALL(Dates)` or `[Made Up Measure]` is caught, not
+  // just a bad column. Same logic the MCP server's validate tool uses.
+  return unknownReferences(dax, model)
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,31 @@
+{
+  "name": "dax-workbench-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server that exposes a live Power BI model to Claude through the DAX Workbench bridge — read the model, run DAX, and verify measures on the real engine before they are written.",
+  "bin": {
+    "dax-workbench-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node dist/index.js",
+    "dev": "node build.mjs && node dist/index.js",
+    "test": "node test-client.mjs",
+    "test:write": "node test-write.mjs",
+    "test:project": "node test-project.mjs",
+    "test:unit": "vitest run",
+    "test:pipeline": "node ../pipeline-host/test-server.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.11"
+  }
+}

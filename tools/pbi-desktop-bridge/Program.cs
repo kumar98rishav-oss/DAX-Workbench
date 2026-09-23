@@ -504,6 +504,12 @@ app.MapPost("/nim", async (NimProxyReq req) =>
 // ---- run: server in the background, tray in the foreground ----
 _ = app.RunAsync($"http://{listenIp}:{listenPort}");
 
+// Bring up the Delivery Pipeline cockpit's backing host (best-effort, loopback
+// only). Only the primary instance reaches here — a second launch returned at
+// the single-instance mutex — so exactly one host is ever started, and it is
+// torn down with the tray on Quit.
+PipelineHost.Start();
+
 // What the tray's "pairing info" dialog shows when sharing is on.
 string? pairingInfo = null;
 if (isRemote)

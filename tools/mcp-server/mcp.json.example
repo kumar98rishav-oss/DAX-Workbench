@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "dax-workbench": {
+      "command": "node",
+      "args": ["C:\\Users\\risha\\power-bi-studio\\tools\\mcp-server\\dist\\index.js"],
+      "env": {
+        "DAXWB_MCP_ALLOW_WRITE": "0"
+      }
+    }
+  }
+}

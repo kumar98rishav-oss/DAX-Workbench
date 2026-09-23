@@ -61,6 +61,10 @@
   <ItemGroup>
     <!-- wwwroot/ is the Studio's vite build output, copied in by build-full.cmd. -->
     <EmbeddedResource Include="wwwroot\**\*" />
+    <!-- The Delivery Pipeline cockpit's backing host, shipped inside the exe and
+         spawned on launch by PipelineHost.cs. One source of truth: the same
+         zero-dep script the dev host and smoke tests use. -->
+    <EmbeddedResource Include="..\pipeline-host\server.mjs" LogicalName="pipeline-host.server.mjs" />
     <EmbeddedResource Include="assets\icon.png" />
     <EmbeddedResource Include="app.ico" />
   </ItemGroup>

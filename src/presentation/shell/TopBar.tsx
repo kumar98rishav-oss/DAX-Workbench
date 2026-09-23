@@ -20,6 +20,7 @@ const MODE_OPTIONS: { value: StudioMode; label: string }[] = [
   { value: 'model', label: 'Model' },
   { value: 'cleanup', label: 'Cleanup' },
   { value: 'dax', label: 'DAX' },
+  { value: 'pipeline', label: 'Pipeline' },
 ]
 
 export function TopBar() {

@@ -24,6 +24,7 @@ import {
   CalendarDays,
   BrainCircuit,
   Lock,
+  Workflow,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -55,11 +56,27 @@ const OTHER_WAYS: StartOption[] = [
 
 const FEATURES = [
   {
+    id: 'pipeline',
+    icon: <Workflow size={22} />,
+    name: 'Delivery Pipeline',
+    tag: 'New',
+    line: 'An 11-stage cockpit your AI agent drives over MCP — profile, model, measures, report, QA — with breakpoints, sign-offs, on-fail branches, reusable skills and templates. The agent works; you govern.',
+    accent: 'purple',
+  },
+  {
+    id: 'gates',
+    icon: <ShieldCheck size={22} />,
+    name: 'Verifying Gates',
+    tag: 'New',
+    line: "Gates don't take the AI's word for it. The host re-runs the numbers on your live engine and only goes green when they reconcile — verified, not asserted.",
+    accent: 'purple',
+  },
+  {
     id: 'ai',
     icon: <BrainCircuit size={22} />,
     name: 'AI Generate',
-    tag: 'New',
-    line: 'Describe the measure in plain English. DeepSeek reads your live schema and writes schema-grounded DAX — no hallucinated column names.',
+    tag: null,
+    line: 'Describe the measure in plain English. AI reads your live schema and writes schema-grounded DAX — no hallucinated column names.',
     accent: 'purple',
   },
   {
@@ -116,7 +133,7 @@ const TRUST = [
   { icon: <Lock size={13} />, label: 'No account, ever' },
   { icon: <ShieldCheck size={13} />, label: 'Data stays on your machine' },
   { icon: <MonitorCheck size={13} />, label: 'No telemetry' },
-  { icon: <Check size={13} />, label: 'You control every write' },
+  { icon: <Check size={13} />, label: 'AI drives — you hold the gates' },
 ]
 
 export function HomeScreen() {
@@ -248,13 +265,14 @@ export function HomeScreen() {
           </span>
 
           <h1 className="pbs-home__title">
-            Build better DAX,<br />
-            against your <em>real</em> model
+            AI builds your BI —<br />
+            <em>verified</em> on your real engine
           </h1>
           <p className="pbs-home__lede">
-            A Power BI External Tool that reads your live model, generates and
-            optimises measures, and deploys them straight back — powered by AI
-            and your own engine.
+            A Power BI External Tool where an AI agent delivers the whole solution —
+            profile, model, measures, report — through a governed pipeline with human
+            gates, and every number is re-checked on your own engine before a gate
+            goes green. Automated delivery, provable results.
           </p>
 
           {/* CTA glass */}
