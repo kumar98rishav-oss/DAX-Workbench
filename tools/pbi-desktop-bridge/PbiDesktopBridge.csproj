@@ -48,6 +48,10 @@
     <PackageReference Include="Microsoft.AnalysisServices.NetCore.retail.amd64" Version="19.84.1" />
     <PackageReference Include="Microsoft.AnalysisServices.AdomdClient.NetCore.retail.amd64" Version="19.84.1" />
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.11" />
+    <!-- Reconciliation reads the model's SQL Server source. Read-only by
+         construction: see ReadOnlySql in Sql.cs, which every statement passes
+         through before a connection is even opened. -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
     <!-- VertiPaq Analyzer — SQLBI's OWN extraction library (MIT), the same code
          DAX Studio and the standalone VertiPaq Analyzer use. We read the model's
          storage metrics through it rather than re-deriving the DMV math, so the

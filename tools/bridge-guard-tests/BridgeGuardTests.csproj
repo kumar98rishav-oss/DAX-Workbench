@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Tests for the bridge's read-only SQL guard.
+
+       Lives OUTSIDE tools/pbi-desktop-bridge on purpose: that project globs
+       **/*.cs, so a test Program.cs sitting inside it would be compiled into
+       the bridge and collide with its entry point.
+
+       ReadOnlySql.cs is compiled straight into this assembly rather than
+       referenced, which keeps the guard testable with no database, no driver
+       and no package restore — and makes its `internal` members visible. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>bridge-guard-tests</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="..\pbi-desktop-bridge\ReadOnlySql.cs" />
+  </ItemGroup>
+
+</Project>

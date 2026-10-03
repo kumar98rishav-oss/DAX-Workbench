@@ -55,6 +55,10 @@ var token = Arg(args, "--token")
             ?? Environment.GetEnvironmentVariable("PBI_BRIDGE_TOKEN")
             ?? (isRemote ? Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant() : null);
 
+// Reaching a SQL Server on behalf of a REMOTE caller is a bigger grant than
+// reading the open model, so it is off until asked for by name.
+var allowRemoteSql = Flag(args, "--allow-remote-sql");
+
 // A restart (tray mode-switch) starts the new process while the old one is
 // still letting go of the port — wait for it rather than crash.
 Tray.WaitForPortFree(listenPort, 8000);
@@ -155,6 +159,22 @@ app.Use(async (ctx, next) =>
             await ctx.Response.WriteAsJsonAsync(new { error = "Missing or wrong pairing token." });
             return;
         }
+
+        // SQL reconciliation is loopback-only unless explicitly opened up.
+        // A correct token proves the caller is trusted with THIS MODEL; it does
+        // not follow that they are trusted with every database this machine can
+        // reach, which is a categorically larger blast radius. Opting in is a
+        // deliberate act, not a side effect of enabling sharing.
+        if (path.StartsWith("/sql", StringComparison.OrdinalIgnoreCase) && !allowRemoteSql)
+        {
+            ctx.Response.StatusCode = 403;
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                error = "SQL reconciliation only answers this computer. A shared bridge will not open database " +
+                        "connections for a remote caller unless it was started with --allow-remote-sql.",
+            });
+            return;
+        }
     }
     await next();
 });
@@ -216,6 +236,82 @@ app.MapGet("/vertipaq", (int? port) =>
 {
     try { return Results.Json(Vertipaq.Analyze(PowerBi.Resolve(port))); }
     catch (Exception e) { return Fail(e); }
+});
+
+// ── Reconciliation ──────────────────────────────────────────────────────────
+// Where each table's data actually comes from. /model answers what the model
+// CONTAINS; this answers where it came FROM — the partition's Power Query text
+// (so the UI can suggest which SQL object feeds which table) and the last
+// refresh time (so a stale Import model is reported as stale rather than as a
+// data defect). Metadata only: no rows are read.
+app.MapGet("/sources", (int? port) =>
+{
+    try
+    {
+        var inst = PowerBi.Resolve(port);
+        var db = PowerBi.ConnectDatabase(inst, out var server);
+        using var _ = server;
+        var tables = db.Model.Tables.Select(t =>
+        {
+            var part = t.Partitions.FirstOrDefault();
+            string? expression = part?.Source switch
+            {
+                Tom.MPartitionSource m => m.Expression,
+                Tom.CalculatedPartitionSource c => c.Expression,
+                _ => null,
+            };
+            return new
+            {
+                name = t.Name,
+                isHidden = t.IsHidden,
+                // "calculated" has no SQL source at all and must not be offered
+                // for reconciliation.
+                kind = part?.Source switch
+                {
+                    Tom.MPartitionSource => "query",
+                    Tom.CalculatedPartitionSource => "calculated",
+                    null => "none",
+                    _ => "other",
+                },
+                mode = part?.Mode.ToString(),
+                expression,
+                refreshedAt = part?.RefreshedTime,
+            };
+        });
+        return Results.Json(new { database = inst.Database, port = inst.Port, tables });
+    }
+    catch (Exception e) { return Fail(e); }
+});
+
+// Every SQL failure is redacted: SqlException quotes the connection string
+// freely, and a password must not travel back to the browser in an error body.
+static IResult SqlFail(Exception e) => Results.Json(new { error = Sql.Redact(e.Message) }, statusCode: 500);
+
+app.MapPost("/sql/test", (SqlTestReq req) =>
+{
+    try { return Results.Json(Sql.Test(req.Connection)); }
+    catch (Exception e) { return SqlFail(e); }
+});
+
+app.MapPost("/sql/schema", (SqlTestReq req) =>
+{
+    try { return Results.Json(Sql.Schema(req.Connection)); }
+    catch (Exception e) { return SqlFail(e); }
+});
+
+app.MapPost("/sql/query", (SqlQueryReq req) =>
+{
+    try
+    {
+        return Results.Json(Sql.Query(req.Connection, req.Sql, req.RowCap ?? 100_000));
+    }
+    catch (InvalidOperationException e)
+    {
+        // The read-only guard refusing is a 400: the request was understood and
+        // deliberately declined, and the message tells the user how to fix it.
+        return Results.Json(new { error = Sql.Redact(e.Message) }, statusCode: 400);
+    }
+    catch (Exception e) { return SqlFail(e); }
 });
 
 // Benchmark a query on the real engine. Used by the Optimizer to prove — rather
@@ -553,3 +649,5 @@ record MeasureReq(string Table, string Name, string Dax, string? FormatString, s
 record DeleteItem(string Kind, string Table, string Name);
 record DeleteReq(DeleteItem[] Items, int? Port);
 record TableReq(string Name, string Dax, string? RelateTable, string? RelateColumn, int? Port);
+record SqlTestReq(SqlConn Connection);
+record SqlQueryReq(SqlConn Connection, string Sql, int? RowCap);
