@@ -72,6 +72,32 @@ export const sqlSchema = (connection: SqlConnection) =>
 export const sqlQuery = (connection: SqlConnection, sql: string, rowCap = 100_000) =>
   post<SqlQueryResult>('/sql/query', { connection, sql, rowCap }, 180_000)
 
+// ── Saved suites ────────────────────────────────────────────────────────────
+
+/** Saved checks live in %LOCALAPPDATA%\DAX Workbench, beside the pipeline's
+ * state — so they survive a cleared browser and do not depend on where the exe
+ * was launched from. The bridge holds the JSON verbatim; the shape belongs to
+ * the application layer. */
+export const getSuites = async <T>(): Promise<T[]> => {
+  const r = await fetch(`${bridgeBase()}/suites`, { signal: AbortSignal.timeout(15_000) })
+  if (!r.ok) throw new Error(`Could not read saved checks (HTTP ${r.status})`)
+  const parsed = await r.json().catch(() => [])
+  return Array.isArray(parsed) ? (parsed as T[]) : []
+}
+
+export const putSuites = async <T>(suites: T[]): Promise<void> => {
+  const r = await fetch(`${bridgeBase()}/suites`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(suites),
+    signal: AbortSignal.timeout(20_000),
+  })
+  if (!r.ok) {
+    const body = (await r.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error || `Could not save checks (HTTP ${r.status})`)
+  }
+}
+
 // ── Model side ──────────────────────────────────────────────────────────────
 
 export interface ModelSource {

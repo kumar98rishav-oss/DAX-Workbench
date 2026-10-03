@@ -288,6 +288,58 @@ app.MapGet("/sources", (int? port) =>
     catch (Exception e) { return Fail(e); }
 });
 
+// Saved reconciliation suites. Stored beside the pipeline's state in
+// %LOCALAPPDATA%\DAX Workbench so they survive a cleared browser and a
+// reinstall, and are not tangled into whatever folder the exe was launched
+// from. The payload is opaque to the bridge — it is the client's JSON, held
+// verbatim — because the shape of a check belongs to the application layer and
+// should not need a bridge release to change.
+//
+// Credentials are never in here: the client stores server and database as a
+// label and no password at all.
+static string SuitesPath()
+{
+    var dir = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DAX Workbench");
+    Directory.CreateDirectory(dir);
+    return Path.Combine(dir, "reconcile-suites.json");
+}
+
+app.MapGet("/suites", () =>
+{
+    try
+    {
+        var path = SuitesPath();
+        // Absent is a normal first run, not an error.
+        return Results.Content(File.Exists(path) ? File.ReadAllText(path) : "[]", "application/json");
+    }
+    catch (Exception e) { return Fail(e); }
+});
+
+app.MapPut("/suites", async (HttpRequest req) =>
+{
+    try
+    {
+        using var reader = new StreamReader(req.Body);
+        var body = await reader.ReadToEndAsync();
+        // Parse before writing: a malformed body would otherwise corrupt the
+        // file and lose every saved check on the next read.
+        using (System.Text.Json.JsonDocument.Parse(body)) { }
+        var path = SuitesPath();
+        // Write beside, then move: a crash mid-write must not leave a truncated
+        // file where a working suite used to be.
+        var tmp = path + ".tmp";
+        await File.WriteAllTextAsync(tmp, body);
+        File.Move(tmp, path, overwrite: true);
+        return Results.Json(new { status = "saved", bytes = body.Length });
+    }
+    catch (System.Text.Json.JsonException)
+    {
+        return Results.Json(new { error = "That is not valid JSON — nothing was written." }, statusCode: 400);
+    }
+    catch (Exception e) { return Fail(e); }
+});
+
 // Every SQL failure is redacted: SqlException quotes the connection string
 // freely, and a password must not travel back to the browser in an error body.
 static IResult SqlFail(Exception e) => Results.Json(new { error = Sql.Redact(e.Message) }, statusCode: 500);

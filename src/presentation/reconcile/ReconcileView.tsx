@@ -8,7 +8,7 @@
  */
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
-  Database, Play, Plug, Check, X, Trash2, TriangleAlert, Link2, RefreshCw, Table2,
+  Database, Play, PlayCircle, Plug, Check, X, Trash2, TriangleAlert, Link2, RefreshCw, Table2, Save,
 } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { useReconcile, ROW_CAP } from '@/app/reconcile-store'
@@ -19,6 +19,7 @@ import {
 import {
   byGrain, distinctValues, duplicateKeys, nullCount, rowCount,
 } from '@/application/reconcile/generators'
+import { summarize, type CheckRun, type CheckStatus } from '@/application/reconcile/suite'
 import type { ComparisonRow, ResultSet, RowStatus } from '@/application/reconcile/types'
 import './reconcile.css'
 
@@ -233,6 +234,118 @@ function CheckBar({ sources }: { sources: ModelSource[] }) {
             : 'Both queries are written into the panes — read and edit them before running.'}
       </span>
     </div>
+  )
+}
+
+// ── Suite ───────────────────────────────────────────────────────────────────
+
+/** One line explaining a result without making the reader open it. */
+function runDetail(run?: CheckRun): string {
+  if (!run) return 'not run yet'
+  if (run.error) return run.error
+  if (run.refusal) return run.refusal.message
+  const s = run.summary
+  if (!s) return ''
+  if (run.status === 'pass') return `${s.matched.toLocaleString()} matched`
+  const bits: string[] = []
+  if (s.mismatched) bits.push(`${s.mismatched.toLocaleString()} mismatched`)
+  if (s.onlySource) bits.push(`${s.onlySource.toLocaleString()} only in source`)
+  if (s.onlyTarget) bits.push(`${s.onlyTarget.toLocaleString()} only in target`)
+  return bits.join(' · ')
+}
+
+const STATUS_MARK: Record<CheckStatus, string> = { pass: '✓', fail: '✗', inconclusive: '!' }
+
+function SuitePanel() {
+  const {
+    suite, suiteError, runs, running, runningCheckId, lastRunAt, connected,
+    loadSuite, saveCurrentAsCheck, removeCheck, toggleCheck, openCheck, runAll, values,
+  } = useReconcile()
+  const [name, setName] = useState('')
+
+  useEffect(() => { void loadSuite() }, [loadSuite])
+
+  const counts = summarize(runs)
+  const ran = runs.length > 0
+
+  return (
+    <section className="rec-suite">
+      <header className="rec-suite__head">
+        <span className="rec-checks__label">Checks ({suite.checks.length})</span>
+        <input
+          className="rec-input rec-input--sm"
+          placeholder="Name this check…"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <button
+          className="rec-btn"
+          disabled={values.length === 0}
+          title={values.length === 0 ? 'Pair at least one value first' : 'Save the current queries and pairing'}
+          onClick={() => { void saveCurrentAsCheck(name); setName('') }}
+        >
+          <Save size={12} /> Save current
+        </button>
+        <span className="rec-conn__spacer" />
+        {ran && (
+          <span className="rec-suite__verdict">
+            {/* Inconclusive is never folded into passed: a suite that could not
+                evaluate half its checks must not read as healthy. */}
+            <span className="rec-stat rec-stat--ok">{counts.passed} passed</span>
+            {counts.failed > 0 && <span className="rec-stat rec-stat--bad">{counts.failed} failed</span>}
+            {counts.inconclusive > 0 && (
+              <span className="rec-stat rec-stat--warn">{counts.inconclusive} could not run</span>
+            )}
+          </span>
+        )}
+        <button
+          className="rec-btn rec-btn--primary"
+          disabled={running || !connected || suite.checks.every((c) => !c.enabled)}
+          onClick={() => void runAll()}
+        >
+          <PlayCircle size={13} /> {running ? 'Running…' : 'Run all'}
+        </button>
+      </header>
+
+      {suiteError && <div className="rec-err rec-err--block">{suiteError}</div>}
+
+      {suite.checks.length === 0 ? (
+        <div className="rec-suite__empty">
+          Build a check below, then <b>Save current</b>. Saved checks re-run together after every
+          refresh, so you find out what moved instead of hoping.
+        </div>
+      ) : (
+        <ul className="rec-suite__list">
+          {suite.checks.map((c) => {
+            const run = runs.find((r) => r.checkId === c.id)
+            const active = runningCheckId === c.id
+            return (
+              <li key={c.id} className="rec-suite__row" data-status={run?.status ?? 'none'} data-off={!c.enabled}>
+                <input
+                  type="checkbox"
+                  checked={c.enabled}
+                  onChange={() => void toggleCheck(c.id)}
+                  title={c.enabled ? 'Included in Run all' : 'Skipped'}
+                />
+                <span className={`rec-suite__mark rec-suite__mark--${run?.status ?? 'none'}`}>
+                  {active ? '…' : run ? STATUS_MARK[run.status] : '·'}
+                </span>
+                <button className="rec-suite__name" onClick={() => openCheck(c.id)} title="Load into the panes">
+                  {c.name}
+                </button>
+                <span className="rec-suite__detail">{active ? 'running…' : runDetail(run)}</span>
+                {run && <span className="rec-suite__ms">{run.durationMs} ms</span>}
+                <button className="rec-suite__del" onClick={() => void removeCheck(c.id)} title="Remove">
+                  <Trash2 size={12} />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {lastRunAt && <footer className="rec-suite__foot">Last run {ago(lastRunAt)}</footer>}
+    </section>
   )
 }
 
@@ -657,6 +770,7 @@ export function ReconcileView() {
 
       <ConnectionBar />
       {connected && desktop.connected && <CheckBar sources={sources} />}
+      <SuitePanel />
 
       <div className="rec-panes">
         <QueryPane

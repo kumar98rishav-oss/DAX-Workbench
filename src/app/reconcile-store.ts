@@ -16,6 +16,11 @@ import {
 } from '@/infrastructure/desktop/sql-client'
 import { compare, type CompareOptions } from '@/application/reconcile/compare'
 import { DEFAULT_NORMALIZE, type NormalizeOptions } from '@/application/reconcile/normalize'
+import {
+  bindCheck, classify, newId, suggestName, summarize,
+  type CheckRun, type CheckSuite, type SavedCheck,
+} from '@/application/reconcile/suite'
+import { getSuites, putSuites } from '@/infrastructure/desktop/sql-client'
 import type { ComparisonResult, FieldPair, ResultSet, Tolerance } from '@/application/reconcile/types'
 
 /** How many rows either side may return before a comparison is refused.
@@ -69,6 +74,24 @@ interface ReconcileState {
   setTolerance: (t: Partial<Tolerance>) => void
   setNormalize: (n: Partial<NormalizeOptions>) => void
   recompute: () => void
+
+  // ── Suite ─────────────────────────────────────────────────────────────────
+  suite: CheckSuite
+  suiteLoaded: boolean
+  suiteError: string | null
+  running: boolean
+  /** Which check is executing, so the list can show progress rather than freeze. */
+  runningCheckId: string | null
+  runs: CheckRun[]
+  lastRunAt: string | null
+
+  loadSuite: () => Promise<void>
+  saveCurrentAsCheck: (name?: string) => Promise<void>
+  removeCheck: (id: string) => Promise<void>
+  toggleCheck: (id: string) => Promise<void>
+  /** Put a saved check back into the two panes so it can be inspected or edited. */
+  openCheck: (id: string) => void
+  runAll: () => Promise<void>
 }
 
 /** Drop the comparison whenever its inputs change — a stale verdict shown
@@ -220,6 +243,139 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
   clearPairs: () => set({ keys: [], values: [], ...invalidate }),
   setTolerance: (t) => set((s) => ({ tolerance: { ...s.tolerance, ...t }, ...invalidate })),
   setNormalize: (n) => set((s) => ({ normalize: { ...s.normalize, ...n }, ...invalidate })),
+
+  // ── Suite ───────────────────────────────────────────────────────────────
+  suite: { id: 'default', name: 'Checks', checks: [] },
+  suiteLoaded: false,
+  suiteError: null,
+  running: false,
+  runningCheckId: null,
+  runs: [],
+  lastRunAt: null,
+
+  loadSuite: async () => {
+    try {
+      const all = await getSuites<CheckSuite>()
+      set({ suite: all[0] ?? { id: 'default', name: 'Checks', checks: [] }, suiteLoaded: true, suiteError: null })
+    } catch (e) {
+      // A missing bridge must not make the screen unusable — ad-hoc comparison
+      // still works, only saving is unavailable.
+      set({ suiteLoaded: true, suiteError: (e as Error).message })
+    }
+  },
+
+  saveCurrentAsCheck: async (name) => {
+    const { sourceQuery, targetQuery, keys, values, tolerance, suite, connection } = get()
+    if (values.length === 0) {
+      set({ suiteError: 'Pair at least one value before saving — a check with nothing to compare would always pass.' })
+      return
+    }
+    const check: SavedCheck = {
+      id: newId('chk'),
+      name: name?.trim() || suggestName(sourceQuery, targetQuery),
+      sourceQuery,
+      targetQuery,
+      // Stored by column NAME: result-set ids change on every run.
+      keys: keys.map((k) => ({ source: k.source.column, target: k.target.column })),
+      values: values.map((v) => ({ source: v.source.column, target: v.target.column })),
+      tolerance,
+      enabled: true,
+    }
+    const next: CheckSuite = {
+      ...suite,
+      builtAgainst: { server: connection.server, database: connection.database },
+      checks: [...suite.checks, check],
+    }
+    set({ suite: next, suiteError: null })
+    try { await putSuites([next]) } catch (e) { set({ suiteError: (e as Error).message }) }
+  },
+
+  removeCheck: async (id) => {
+    const next = { ...get().suite, checks: get().suite.checks.filter((c) => c.id !== id) }
+    set({ suite: next, runs: get().runs.filter((r) => r.checkId !== id) })
+    try { await putSuites([next]) } catch (e) { set({ suiteError: (e as Error).message }) }
+  },
+
+  toggleCheck: async (id) => {
+    const next = {
+      ...get().suite,
+      checks: get().suite.checks.map((c) => (c.id === id ? { ...c, enabled: !c.enabled } : c)),
+    }
+    set({ suite: next })
+    try { await putSuites([next]) } catch (e) { set({ suiteError: (e as Error).message }) }
+  },
+
+  openCheck: (id) => {
+    const c = get().suite.checks.find((x) => x.id === id)
+    if (!c) return
+    set({
+      sourceQuery: c.sourceQuery,
+      targetQuery: c.targetQuery,
+      tolerance: c.tolerance,
+      // The pairing cannot be restored until both queries have run and produced
+      // result sets to bind against, so it is cleared rather than left pointing
+      // at ids from a previous run.
+      keys: [], values: [], source: null, target: null,
+      ...invalidate,
+    })
+  },
+
+  /**
+   * Run every enabled check.
+   *
+   * Sequential across checks (two engines, one at a time, so a big suite does
+   * not stampede them) but both sides of a SINGLE check run together — the gap
+   * between those two reads is drift, and drift is a difference nobody caused.
+   */
+  runAll: async () => {
+    const { suite, connection, normalize } = get()
+    const enabled = suite.checks.filter((c) => c.enabled)
+    if (enabled.length === 0) return
+
+    set({ running: true, runs: [], suiteError: null })
+    const port = useApp.getState().desktop.port
+    const out: CheckRun[] = []
+
+    for (const check of enabled) {
+      set({ runningCheckId: check.id })
+      const t0 = performance.now()
+      const base = { checkId: check.id, name: check.name, ranAt: new Date().toISOString() }
+      try {
+        const [sq, tq] = await Promise.all([
+          sqlQuery(connection, check.sourceQuery, ROW_CAP),
+          desktopRunDax(check.targetQuery, port, ROW_CAP),
+        ])
+        const mk = (origin: 'source' | 'target', cols: string[], rows: Record<string, unknown>[], truncated: boolean): ResultSet => ({
+          id: nextId(), origin, label: origin, query: '', executedAt: new Date().toISOString(),
+          durationMs: 0, columns: cols.map((name) => ({ name })),
+          rows: rows.map((r) => cols.map((c) => r[c] ?? null)), truncated,
+        })
+        const s = mk('source', sq.columns, sq.rows, sq.truncated)
+        const t = mk('target', tq.columns, tq.rows, tq.truncated)
+        const bound = bindCheck(check, s, t)
+        const result = compare(s, t, bound.keys, bound.values, { tolerance: check.tolerance, normalize })
+        out.push({
+          ...base,
+          status: classify(result),
+          summary: result.summary,
+          refusal: result.refusal,
+          durationMs: Math.round(performance.now() - t0),
+        })
+      } catch (e) {
+        // A query error or a renamed column means the check did not run. That is
+        // inconclusive, never a pass — see classify().
+        out.push({
+          ...base,
+          status: 'inconclusive',
+          error: (e as Error).message,
+          durationMs: Math.round(performance.now() - t0),
+        })
+      }
+      set({ runs: [...out] })
+    }
+
+    set({ running: false, runningCheckId: null, lastRunAt: new Date().toISOString() })
+  },
 
   recompute: () => {
     const { source, target, keys, values, tolerance, normalize } = get()
