@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   byGrain,
+  dateCoverage,
   daxColumn,
   daxTable,
   distinctValues,
@@ -17,6 +18,7 @@ import {
   rowCount,
   sqlIdent,
   sqlObject,
+  valueSet,
 } from './generators'
 
 describe('L4 — identifier quoting', () => {
@@ -135,11 +137,48 @@ describe('L1 — by grain', () => {
   })
 })
 
+describe('L1 — date coverage', () => {
+  const D = { ...T, column: 'Order Date', sqlColumn: 'OrderDate' }
+  const g = dateCoverage(D)
+
+  it('returns range AND density, because they fail differently', () => {
+    // First/Last move when a boundary shifts; Days alone moves when a date in
+    // the middle is missing. Either on its own misses a real failure.
+    for (const k of ['First', 'Last', 'Days']) {
+      expect(g.sql).toContain(`AS [${k}]`)
+      expect(g.dax).toContain(`"${k}"`)
+    }
+  })
+  it('counts days with DISTINCTCOUNTNOBLANK to match COUNT(DISTINCT)', () => {
+    expect(g.dax).toContain('DISTINCTCOUNTNOBLANK')
+    expect(g.sql).toContain('COUNT(DISTINCT [OrderDate])')
+  })
+  it('quotes both identifiers', () => {
+    expect(g.dax).toContain(`'Fact Sales'[Order Date]`)
+    expect(g.sql).toContain('FROM [dbo].[Fact_Sales]')
+  })
+})
+
+describe('L1 — value set', () => {
+  const g = valueSet(C)
+
+  it('returns each distinct value with its frequency, not just a count', () => {
+    expect(g.sql).toContain('GROUP BY [CustomerID]')
+    expect(g.sql).toContain('COUNT(*) AS [Value]')
+    expect(g.dax).toContain(`'Fact Sales'[Customer Id]`)
+  })
+  it('explains why a matching count is not a matching set', () => {
+    expect(g.note).toMatch(/does not mean a matching set/i)
+  })
+})
+
 describe('generated queries are read-only', () => {
   const all = [
     rowCount(T),
     distinctValues(C),
     nullCount(C),
+    dateCoverage({ ...T, column: 'Order Date', sqlColumn: 'OrderDate' }),
+    valueSet(C),
     duplicateKeys({ ...T, columns: [{ model: 'Order Id', sql: 'OrderID' }] }),
     byGrain({ ...T, dimensions: [{ model: 'Year', sql: 'OrderYear' }] }),
   ]

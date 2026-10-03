@@ -124,6 +124,67 @@ describe('compare — blanks are differences, not zeros', () => {
   })
 })
 
+describe('compare — non-numeric values', () => {
+  const build = (sv: unknown, tv: unknown) => {
+    const source = rs('source', ['K', 'V'], [['a', sv]])
+    const target = rs('target', ['K', 'V'], [['a', tv]])
+    return compare(source, target, [pair(source, 'K', target, 'K')], [pair(source, 'V', target, 'V')])
+  }
+
+  it('two different dates MISMATCH (regression: they both parsed to null and read as equal)', () => {
+    // This was a false green in the comparator itself. toComparableNumber
+    // returns null for a date, null === null, and 2023 vs 2024 reported as a
+    // match — so any date or text column was waved through silently.
+    const r = build('2023-01-01', '2024-12-31')
+    expect(r.rows[0].status).toBe('mismatch')
+    expect(r.rows[0].cells[0].sourceValue).toBe('2023-01-01')
+    expect(r.rows[0].cells[0].targetValue).toBe('2024-12-31')
+  })
+
+  it('identical dates match, in either serialization', () => {
+    expect(build('2024-01-01', '2024-01-01T00:00:00').rows[0].status).toBe('match')
+  })
+
+  it('two different text values mismatch', () => {
+    expect(build('Acme', 'Globex').rows[0].status).toBe('mismatch')
+  })
+
+  it('text matching follows the collation setting', () => {
+    expect(build('Acme', 'ACME').rows[0].status).toBe('match') // CI by default
+  })
+
+  it('a number against text is a mismatch, and both are shown', () => {
+    const r = build(5, 'five')
+    expect(r.rows[0].status).toBe('mismatch')
+    expect(r.rows[0].cells[0].sourceValue).toBe(5)
+    expect(r.rows[0].cells[0].targetValue).toBe('five')
+  })
+
+  it('there is no delta to report for a text comparison', () => {
+    expect(build('a', 'b').rows[0].cells[0].delta).toBeNull()
+  })
+
+  it('several different texts under one key can never be declared equal', () => {
+    // Summing text is meaningless, so a bucket holding more than one distinct
+    // value has no single answer to compare.
+    const source = rs('source', ['K', 'V'], [['a', 'x'], ['a', 'y']])
+    const target = rs('target', ['K', 'V'], [['a', 'x']])
+    const r = compare(source, target, [pair(source, 'K', target, 'K')], [pair(source, 'V', target, 'V')])
+    expect(r.rows[0].status).toBe('mismatch')
+    expect(r.rows[0].cells[0].sourceValue).toBe('(multiple values)')
+  })
+
+  it('blank on both sides is still a match, not a text comparison', () => {
+    expect(build(null, null).rows[0].status).toBe('match')
+  })
+
+  it('numeric comparison is unaffected', () => {
+    expect(build(100, 100).rows[0].status).toBe('match')
+    expect(build(100, 101).rows[0].status).toBe('mismatch')
+    expect(build(100, 101).rows[0].cells[0].delta).toBe(1)
+  })
+})
+
 describe('compare — tolerance', () => {
   const build = (sv: number, tv: number) => {
     const source = rs('source', ['K', 'V'], [['a', sv]])

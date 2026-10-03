@@ -71,10 +71,19 @@ export const EXACT: Tolerance = { absolute: 0, relative: 0 }
 export type RowStatus = 'match' | 'mismatch' | 'onlySource' | 'onlyTarget'
 
 export interface ComparisonCell {
-  /** null means the side produced no value (SQL NULL / DAX BLANK). */
-  sourceValue: number | null
-  targetValue: number | null
-  /** target − source, with null treated as 0. null when both sides are null. */
+  /**
+   * null means the side produced no value (SQL NULL / DAX BLANK).
+   *
+   * A string means the pair was compared as TEXT — dates, codes, names. Those
+   * are legitimate things to reconcile (is MIN(OrderDate) the same on both
+   * sides?) and they must not be waved through: comparing them numerically
+   * yields null on both sides, which reads as agreement no matter how far apart
+   * the real values are.
+   */
+  sourceValue: number | string | null
+  targetValue: number | string | null
+  /** target − source, with null treated as 0. null when both sides are null, and
+   * null for a text comparison — there is nothing to subtract. */
   delta: number | null
   status: RowStatus
 }

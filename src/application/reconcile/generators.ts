@@ -132,6 +132,61 @@ export function duplicateKeys(k: BusinessKey): GeneratedPair {
   }
 }
 
+/**
+ * Date coverage: the first date, the last date, and how many distinct days
+ * carry data.
+ *
+ * Catches the failure a row count cannot: a load that brought *most* of the
+ * data. Totals look plausible, nothing is obviously broken, and the report just
+ * looks quiet at one end of the calendar. The three numbers together localize
+ * it — a moved boundary shows in First/Last, a hole in the middle shows only in
+ * the day count.
+ *
+ * First and Last compare as TEXT, not as numbers; see ComparisonCell.
+ */
+export function dateCoverage(c: ColumnTarget): GeneratedPair {
+  const col = daxColumn(c.table, c.column)
+  return {
+    dax:
+      `EVALUATE\n` +
+      `ROW (\n` +
+      `    "First", MIN ( ${col} ),\n` +
+      `    "Last", MAX ( ${col} ),\n` +
+      `    "Days", DISTINCTCOUNTNOBLANK ( ${col} )\n` +
+      `)`,
+    sql:
+      `SELECT MIN(${sqlIdent(c.sqlColumn)}) AS [First],\n` +
+      `       MAX(${sqlIdent(c.sqlColumn)}) AS [Last],\n` +
+      `       COUNT(DISTINCT ${sqlIdent(c.sqlColumn)}) AS [Days]\n` +
+      `FROM ${sqlObject(c.sqlObject, c.sqlSchema)};`,
+    note:
+      `Range and density of ${c.column}. Compare all three: First and Last move when a ` +
+      `boundary shifts, Days alone moves when a date in the middle is missing.`,
+  }
+}
+
+/**
+ * Every distinct value of a column with how often it occurs.
+ *
+ * Two sides can both report 60 products and not hold the same 60 — a count
+ * alone cannot tell them apart. Comparing the values themselves makes the
+ * difference land as "only in source" / "only in target", naming the exact
+ * codes that diverge.
+ *
+ * Mechanically this is `byGrain` over a single column with no measure; it
+ * exists separately because the question is a different one, and a user looking
+ * for "which values differ" will not find it filed under grain.
+ */
+export function valueSet(c: ColumnTarget): GeneratedPair {
+  const g = byGrain({ ...c, dimensions: [{ model: c.column, sql: c.sqlColumn }] })
+  return {
+    ...g,
+    note:
+      `Every distinct ${c.column} and its row count. Values present on only one side are the ` +
+      `set difference — a matching count does not mean a matching set.`,
+  }
+}
+
 export interface GrainCompare extends TableTarget {
   /** Grouping columns, coarsest first — this is also the drill order. */
   dimensions: { model: string; sql: string }[]

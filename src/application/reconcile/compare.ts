@@ -38,10 +38,29 @@ export interface CompareOptions {
   minKeyOverlap?: number
 }
 
+/**
+ * What one value column accumulated inside one key bucket.
+ *
+ * Numbers are summed to the grain. Non-numeric values — dates, codes, names —
+ * cannot be summed, so the first one is kept and `multi` records that the
+ * bucket held more than one distinct value, which is itself a finding.
+ */
+interface ValueAgg {
+  sum: number | null
+  /** First non-numeric value, already normalized for comparison. */
+  text: string | null
+  /** More than one DISTINCT non-numeric value landed here. */
+  multi: boolean
+  /** At least one value was present and was not a number. */
+  nonNumeric: boolean
+}
+
+const emptyAgg = (): ValueAgg => ({ sum: null, text: null, multi: false, nonNumeric: false })
+
 interface Bucket {
   rowCount: number
-  /** One running sum per value pair; null until a non-null value is seen. */
-  sums: (number | null)[]
+  /** One accumulator per value pair. */
+  vals: ValueAgg[]
 }
 
 const columnIndex = (rs: ResultSet, column: string): number =>
@@ -76,16 +95,24 @@ function bucketize(
 
     let bucket = buckets.get(key)
     if (!bucket) {
-      bucket = { rowCount: 0, sums: valueColumns.map(() => null) }
+      bucket = { rowCount: 0, vals: valueColumns.map(emptyAgg) }
       buckets.set(key, bucket)
       display.set(key, parts.map(displayKeyPart))
     }
     bucket.rowCount++
 
     for (let v = 0; v < valIdx.length; v++) {
-      const n = toComparableNumber(row[valIdx[v]])
-      if (n === null) continue
-      bucket.sums[v] = (bucket.sums[v] ?? 0) + n
+      const raw = row[valIdx[v]]
+      const agg = bucket.vals[v]
+      const n = toComparableNumber(raw)
+      if (n !== null) { agg.sum = (agg.sum ?? 0) + n; continue }
+      // Genuinely blank — contributes nothing either way.
+      if (raw === null || raw === undefined || raw === '') continue
+      // Present but not a number: keep it as text so it can still be compared.
+      const text = normalizeKeyValue(raw, opts)
+      if (agg.text === null) agg.text = text
+      else if (agg.text !== text) agg.multi = true
+      agg.nonNumeric = true
     }
   }
 
@@ -102,21 +129,42 @@ function withinTolerance(source: number, target: number, tol: Tolerance): boolea
   return false
 }
 
-function cellFor(sourceValue: number | null, targetValue: number | null, tol: Tolerance): ComparisonCell {
-  if (sourceValue === null && targetValue === null) {
+function cellFor(s: ValueAgg | undefined, t: ValueAgg | undefined, tol: Tolerance): ComparisonCell {
+  // ── Text comparison ──────────────────────────────────────────────────────
+  // If either side produced a value that is not a number, this pair cannot be
+  // subtracted. Falling back to the numeric path here was a real false green:
+  // both sides parse to null, null equals null, and '2023-01-01' vs
+  // '2024-12-31' reported as a match.
+  if (s?.nonNumeric || t?.nonNumeric) {
+    const show = (a?: ValueAgg): number | string | null =>
+      a?.multi ? '(multiple values)' : a?.text != null ? displayKeyPart(a.text) : a?.sum ?? null
+    // A bucket holding several different text values has no single answer, so
+    // it can never be declared equal.
+    const comparable = !s?.multi && !t?.multi
+    return {
+      sourceValue: show(s),
+      targetValue: show(t),
+      delta: null,
+      status: comparable && (s?.text ?? null) === (t?.text ?? null) ? 'match' : 'mismatch',
+    }
+  }
+
+  // ── Numeric comparison ───────────────────────────────────────────────────
+  const sv = s?.sum ?? null
+  const tv = t?.sum ?? null
+  if (sv === null && tv === null) {
     return { sourceValue: null, targetValue: null, delta: null, status: 'match' }
   }
   // A blank on one side is a real difference, so it is compared as 0 rather
   // than skipped — but both raw values are kept so the UI can show "(blank)"
   // instead of pretending the engine returned a zero.
-  const s = sourceValue ?? 0
-  const t = targetValue ?? 0
-  const delta = t - s
+  const a = sv ?? 0
+  const b = tv ?? 0
   return {
-    sourceValue,
-    targetValue,
-    delta,
-    status: withinTolerance(s, t, tol) ? 'match' : 'mismatch',
+    sourceValue: sv,
+    targetValue: tv,
+    delta: b - a,
+    status: withinTolerance(a, b, tol) ? 'match' : 'mismatch',
   }
 }
 
@@ -216,7 +264,7 @@ export function compare(
     if (s && s.rowCount > 1) sourceDuplicateKeys++
     if (t && t.rowCount > 1) targetDuplicateKeys++
 
-    const cells = values.map((_, i) => cellFor(s?.sums[i] ?? null, t?.sums[i] ?? null, tol))
+    const cells = values.map((_, i) => cellFor(s?.vals[i], t?.vals[i], tol))
 
     let status: RowStatus
     if (!t) status = 'onlySource'

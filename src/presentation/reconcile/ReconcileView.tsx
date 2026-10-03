@@ -17,14 +17,16 @@ import {
   type ModelSource, type SqlSchemaObject,
 } from '@/infrastructure/desktop/sql-client'
 import {
-  byGrain, distinctValues, duplicateKeys, nullCount, rowCount,
+  byGrain, dateCoverage, distinctValues, duplicateKeys, nullCount, rowCount, valueSet,
 } from '@/application/reconcile/generators'
 import { summarize, type CheckRun, type CheckStatus } from '@/application/reconcile/suite'
 import type { ComparisonRow, ResultSet, RowStatus } from '@/application/reconcile/types'
 import './reconcile.css'
 
-const fmt = (n: number | null) =>
-  n === null ? '—' : n.toLocaleString(undefined, { maximumFractionDigits: 4 })
+const fmt = (n: number | string | null) =>
+  n === null ? '—'
+    : typeof n === 'string' ? n
+      : n.toLocaleString(undefined, { maximumFractionDigits: 4 })
 
 /**
  * Deltas need more precision than values do.
@@ -212,6 +214,8 @@ function CheckBar({ sources }: { sources: ModelSource[] }) {
       <button className="rec-btn" disabled={!target} onClick={() => target && run(rowCount(target))}>Row count</button>
       <button className="rec-btn" disabled={!colTarget} onClick={() => colTarget && run(distinctValues(colTarget))}>Distinct</button>
       <button className="rec-btn" disabled={!colTarget} onClick={() => colTarget && run(nullCount(colTarget))}>Nulls</button>
+      <button className="rec-btn" disabled={!colTarget} onClick={() => colTarget && run(dateCoverage(colTarget))} title="First date, last date and how many distinct days carry data">Date range</button>
+      <button className="rec-btn" disabled={!colTarget} onClick={() => colTarget && run(valueSet(colTarget))} title="Every distinct value and its frequency — a matching count is not a matching set">Value set</button>
       <button
         className="rec-btn"
         disabled={!colTarget}
@@ -537,18 +541,29 @@ interface Node {
   /** Per value pair, rolled up from this node's rows. A parent that shows only
    * a delta is half a story — the user needs both sides to judge whether a
    * difference matters. */
-  sourceTotals: (number | null)[]
-  targetTotals: (number | null)[]
+  sourceTotals: (number | string | null)[]
+  targetTotals: (number | string | null)[]
   totals: (number | null)[]
 }
 
-/** Sum one side of one value pair across rows, keeping null when no row on that
- * side produced a value — so "no data" never renders as a confident zero. */
-function rollup(rows: ComparisonRow[], i: number, pick: (c: ComparisonRow['cells'][number]) => number | null) {
+/**
+ * Roll one side of one value pair up to this node.
+ *
+ * A single row shows its own value verbatim, so a text comparison (a date, a
+ * code) survives to the screen instead of being flattened to a dash. Several
+ * rows can only be summed, which is meaningful for numbers and not for text —
+ * so text parents show nothing rather than something invented.
+ */
+function rollup(
+  rows: ComparisonRow[],
+  i: number,
+  pick: (c: ComparisonRow['cells'][number]) => number | string | null,
+): number | string | null {
+  if (rows.length === 1) return pick(rows[0].cells[i])
   let sum: number | null = null
   for (const r of rows) {
     const v = pick(r.cells[i])
-    if (v !== null && v !== undefined) sum = (sum ?? 0) + v
+    if (typeof v === 'number') sum = (sum ?? 0) + v
   }
   return sum
 }
@@ -579,7 +594,10 @@ function buildTree(rows: ComparisonRow[], depth: number, keyCount: number, value
     const idx = Array.from({ length: valueCount }, (_, i) => i)
     const sourceTotals = idx.map((i) => rollup(group, i, (c) => c?.sourceValue ?? null))
     const targetTotals = idx.map((i) => rollup(group, i, (c) => c?.targetValue ?? null))
-    const totals = idx.map((i) => rollup(group, i, (c) => c?.delta ?? null))
+    const totals = idx.map((i) => {
+      const d = rollup(group, i, (c) => c?.delta ?? null)
+      return typeof d === 'number' ? d : null
+    })
     const status: RowStatus =
       group.some((r) => r.status === 'onlySource') ? 'onlySource'
         : group.some((r) => r.status === 'onlyTarget') ? 'onlyTarget'
