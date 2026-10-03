@@ -379,12 +379,33 @@ reconciliation report.
 
 ---
 
-## 12. Open decisions
+## 12. Decisions, and what building it changed
 
-1. **Where the panel lives.** A new top-level tab beside KPI / Data / Model / DAX, or a mode
-   inside Data? Note the top bar overflowed at 983px when the 5th tab was added — a 6th
-   needs re-measuring.
-2. **SQL-auth credential storage.** Session-only memory, or a Windows DPAPI-encrypted
-   profile? Windows Integrated avoids the question entirely and should be the default.
-3. **Reconciliation row cap.** 100,000 per side is the proposal; confirm against the largest
-   model this will realistically run on.
+**Settled.** The panel *replaces* the KPI tab rather than becoming a 7th — which also
+sidesteps the top-bar overflow. Windows Integrated is the default, so no credential storage
+question arises; SQL auth keeps its password in memory for the session only. The row cap is
+100,000 per side.
+
+Four things only showed up once it ran against a real database:
+
+**Tolerance does not default to exact.** A SQL `decimal` becomes a JS `number` through JSON,
+and summing those reintroduces binary floating-point residue: two sides agreeing to the cent
+still differ by ~1e-9. Comparing exactly reported all 24 months of a matching dataset as
+mismatches, each with a delta rendering as `0` — precisely the confident-but-wrong answer
+this tool exists to avoid. The default absolute tolerance is now **1e-6**, far below any
+difference that could matter, and integer counts still differ by at least 1. The delta
+formatter collapses at the same threshold, so the number never argues with the verdict
+beside it.
+
+**Pairing is click-first, drag-second.** Dragging works, but click-a-source then
+click-its-target survives a mis-aimed pointer, works from the keyboard, and is testable.
+The requirement that pairing be *explicit* is unchanged.
+
+**Mapping falls back to the table name.** A model built from CSV extracts names no SQL
+object in its Power Query at all — and reconciling exactly that case is the point. When the
+M yields nothing, match on name and say so: *"Matched by name — this table does not load
+from SQL, so check the object is the right one."*
+
+**A scalar comparison has no key.** Row count and grand total are one value per side with
+nothing to group by. Zero key pairs is a legitimate setup, not an incomplete one: both sides
+collapse to a single bucket and compare directly.

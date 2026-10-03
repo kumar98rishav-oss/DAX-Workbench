@@ -134,7 +134,7 @@ function buildArtifacts(model: SemanticModel, layoutId: string): { model: Semant
 
 export type View = 'home' | 'studio'
 export type Theme = 'light' | 'dark'
-export type StudioMode = 'kpi' | 'data' | 'model' | 'cleanup' | 'dax' | 'pipeline'
+export type StudioMode = 'reconcile' | 'data' | 'model' | 'cleanup' | 'dax' | 'pipeline'
 
 interface PanelState {
   left: boolean
@@ -147,8 +147,8 @@ interface AppState {
   theme: Theme
   mode: StudioMode
   panels: PanelState
-  /** Which tab the bottom panel shows — lifted here so a KPI card click can
-   * jump straight to the DAX tab. */
+  /** Which tab the bottom panel shows — lifted out of the panel so any view can
+   * jump straight to the DAX tab (inspectMeasure does this). */
   bottomTab: 'insights' | 'dax' | 'data'
   commandPaletteOpen: boolean
   projectName: string | null
@@ -216,17 +216,6 @@ interface AppState {
   factoryOpen: boolean
   doctorOpen: boolean
   dateTableOpen: boolean
-  /** KPI board slot overrides (index -> measure name, null = cleared). Slots
-   * without an override auto-fill newest-first. */
-  kpiOverrides: Record<number, string | null>
-  answersMatrix: { row: string | null; col: string | null; values: string[] }
-  answersTable: { dims: string[]; values: string[] }
-  /** Zoom factor for the KPI surface (1 = 100%). */
-  kpiZoom: number
-  setKpiSlot: (index: number, measureName: string | null) => void
-  setKpiZoom: (zoom: number) => void
-  setAnswersMatrix: (cfg: Partial<{ row: string | null; col: string | null; values: string[] }>) => void
-  setAnswersTable: (cfg: Partial<{ dims: string[]; values: string[] }>) => void
   toggleFactory: (open?: boolean) => void
   toggleDoctor: (open?: boolean) => void
   toggleDateTable: (open?: boolean) => void
@@ -381,7 +370,7 @@ function uniqueId(base: string, taken: Set<string>): string {
 export const useApp = create<AppState>((set, get) => ({
   view: 'home',
   theme: initialTheme,
-  mode: 'kpi',
+  mode: 'dax',
   panels: { left: true, right: true, bottom: false },
   bottomTab: 'insights',
   commandPaletteOpen: false,
@@ -463,24 +452,18 @@ export const useApp = create<AppState>((set, get) => ({
   factoryOpen: false,
   doctorOpen: false,
   dateTableOpen: false,
-  kpiOverrides: {},
-  answersMatrix: { row: null, col: null, values: [] },
-  answersTable: { dims: [], values: [] },
-  kpiZoom: 1,
   _pickFiles: null,
   _pickPbip: null,
   _pickPbix: null,
 
   goHome: () => set({ view: 'home' }),
 
-  openStudio: (projectName) => set({ view: 'studio', projectName, mode: 'kpi' }),
+  openStudio: (projectName) => set({ view: 'studio', projectName, mode: 'dax' }),
 
-  setMode: (mode) => {
-    // KPI is the home view — both sidebars open. All other tabs are focused
-    // workspaces where the side panels are just clutter, so close them.
-    const kpi = mode === 'kpi'
-    set((s) => ({ mode, panels: { ...s.panels, left: kpi, right: kpi } }))
-  },
+  // Panels belong to the user, not to the tab. The old rule forced both
+  // sidebars open on the KPI board and shut on every other tab, so switching
+  // away and back silently discarded whatever the user had arranged.
+  setMode: (mode) => set({ mode }),
 
   toggleTheme: () => {
     const next: Theme = get().theme === 'light' ? 'dark' : 'light'
@@ -603,7 +586,7 @@ export const useApp = create<AppState>((set, get) => ({
     resetAccent()
     set({
       view: 'studio',
-      mode: 'kpi',
+      mode: 'dax',
       datasets: load.datasets,
       model: load.model,
       report: load.report,
@@ -816,10 +799,6 @@ export const useApp = create<AppState>((set, get) => ({
         : `Restored ${snap.length} measure${snap.length === 1 ? '' : 's'}. Re-sync to refresh the model.`,
     })
   },
-  setKpiSlot: (index, measureName) => set((s) => ({ kpiOverrides: { ...s.kpiOverrides, [index]: measureName } })),
-  setKpiZoom: (zoom) => set({ kpiZoom: Math.min(1.5, Math.max(0.5, Math.round(zoom * 100) / 100)) }),
-  setAnswersMatrix: (cfg) => set((s) => ({ answersMatrix: { ...s.answersMatrix, ...cfg } })),
-  setAnswersTable: (cfg) => set((s) => ({ answersTable: { ...s.answersTable, ...cfg } })),
 
   // Pull the REAL model + data from the connected Power BI Desktop into the Studio.
   syncFromDesktop: async () => {
@@ -865,7 +844,7 @@ export const useApp = create<AppState>((set, get) => ({
       const syncedSignature = activeSignature(s.desktop)
       set({
         view: 'studio',
-        mode: 'kpi',
+        mode: 'dax',
         datasets: load.datasets,
         model: load.model,
         report: load.report,
@@ -899,7 +878,7 @@ export const useApp = create<AppState>((set, get) => ({
       resetAccent()
       set({
         view: 'studio',
-        mode: 'kpi',
+        mode: 'dax',
         datasets: load.datasets,
         model: load.model,
         report: load.report,
@@ -971,7 +950,7 @@ export const useApp = create<AppState>((set, get) => ({
         importing: false,
         importError: error,
         view: imported ? 'studio' : s.view,
-        mode: imported ? 'kpi' : s.mode,
+        mode: imported ? 'dax' : s.mode,
         projectName: s.projectName ?? addedData[0]?.name ?? null,
         selectedVisualId: null,
         past: [],
@@ -1087,7 +1066,7 @@ export const useApp = create<AppState>((set, get) => ({
             ? pending.fileNames[0]?.replace(/\.[^.]+$/, '') ?? selected[0]?.name ?? 'Imported'
             : s.projectName,
         view: 'studio',
-        mode: 'kpi',
+        mode: 'dax',
         pendingImport: null,
         selectedVisualId: null,
         selectedMeasureId: null,
@@ -1122,7 +1101,7 @@ export const useApp = create<AppState>((set, get) => ({
       return {
         model: artifacts.model,
         report: artifacts.report,
-        mode: 'kpi',
+        mode: 'dax',
         selectedVisualId: null,
         past: [],
         future: [],
@@ -1136,7 +1115,7 @@ export const useApp = create<AppState>((set, get) => ({
         layoutId,
         model: artifacts.model,
         report: artifacts.report,
-        mode: 'kpi',
+        mode: 'dax',
         selectedVisualId: null,
         past: [],
         future: [],

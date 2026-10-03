@@ -4,7 +4,7 @@ import { LeftSidebar } from './LeftSidebar'
 import { RightPanel } from './RightPanel'
 import { BottomPanel } from './BottomPanel'
 import { DataView } from '@/presentation/data/DataView'
-import { KpiView } from '@/presentation/kpi/KpiView'
+import { ReconcileView } from '@/presentation/reconcile/ReconcileView'
 import { ModelView } from '@/presentation/model/ModelView'
 import { CleanupView } from '@/presentation/cleanup/CleanupView'
 import { DaxView } from '@/presentation/dax/DaxView'
@@ -20,7 +20,7 @@ export function AppShell() {
       <div className="pbs-shell__body">
         <LeftSidebar />
         <div className="pbs-shell__center">
-          {mode === 'kpi' && <KpiView />}
+          {mode === 'reconcile' && <ReconcileView />}
           {mode === 'data' && <DataView />}
           {mode === 'model' && <ModelView />}
           {mode === 'cleanup' && <CleanupView />}

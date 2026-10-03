@@ -46,12 +46,12 @@ export function buildCommands(): Command[] {
       run: () => s.requestImport(),
     },
     {
-      id: 'mode.kpi',
-      title: 'Switch to KPI Board',
+      id: 'mode.reconcile',
+      title: 'Switch to Reconcile',
       group: 'View',
       icon: <PenTool size={16} />,
-      keywords: ['kpi', 'answers', 'cards', 'matrix', 'table'],
-      run: () => s.setMode('kpi'),
+      keywords: ['reconcile', 'sql', 'source', 'validate', 'compare', 'variance'],
+      run: () => s.setMode('reconcile'),
     },
     {
       id: 'mode.data',

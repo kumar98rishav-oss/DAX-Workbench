@@ -15,7 +15,7 @@ import { IconButton, Segmented } from '@/design-system/components'
 import type { StudioMode } from '@/app/store'
 
 const MODE_OPTIONS: { value: StudioMode; label: string }[] = [
-  { value: 'kpi', label: 'KPI' },
+  { value: 'reconcile', label: 'Reconcile' },
   { value: 'data', label: 'Data' },
   { value: 'model', label: 'Model' },
   { value: 'cleanup', label: 'Cleanup' },
