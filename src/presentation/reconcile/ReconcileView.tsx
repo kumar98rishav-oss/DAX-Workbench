@@ -16,10 +16,12 @@ import {
   getModelSources, suggestSqlObject, sqlSchema,
   type ModelSource, type SqlSchemaObject,
 } from '@/infrastructure/desktop/sql-client'
+import { getDesktopModel, type DesktopRelationship } from '@/infrastructure/desktop/desktop-client'
 import {
-  byGrain, dateCoverage, distinctValues, duplicateKeys, nullCount, rowCount, valueSet,
+  byGrain, dateCoverage, distinctValues, duplicateKeys, nullCount, orphanKeys, rowCount, valueSet,
 } from '@/application/reconcile/generators'
 import { summarize, type CheckRun, type CheckStatus } from '@/application/reconcile/suite'
+import type { ProposalKind } from '@/application/reconcile/propose'
 import type { ComparisonRow, ResultSet, RowStatus } from '@/application/reconcile/types'
 import './reconcile.css'
 
@@ -143,7 +145,8 @@ function ConnectionBar() {
 
 // ── Check generators ────────────────────────────────────────────────────────
 
-function CheckBar({ sources }: { sources: ModelSource[] }) {
+function CheckBar({ sources, rels }: { sources: ModelSource[]; rels: DesktopRelationship[] }) {
+  const [relKey, setRelKey] = useState('')
   const { connected, loadPair } = useReconcile()
   const [schema, setSchema] = useState<SqlSchemaObject[]>([])
   const [modelTable, setModelTable] = useState('')
@@ -191,6 +194,20 @@ function CheckBar({ sources }: { sources: ModelSource[] }) {
 
   const run = (g: { dax: string; sql: string }) => loadPair(g.dax, g.sql)
 
+  const activeRels = rels.filter((r) => r.isActive)
+  const rel = activeRels.find((r) => `${r.fromTable}|${r.fromColumn}|${r.toTable}|${r.toColumn}` === relKey)
+  // Both ends need a SQL object before there is an anti-join to write.
+  const factObj = rel && schema.find((o) => o.name.toLowerCase() === rel.fromTable.toLowerCase())
+  const dimObj = rel && schema.find((o) => o.name.toLowerCase() === rel.toTable.toLowerCase())
+  const orphanTarget = rel && factObj && dimObj
+    ? {
+        factTable: rel.fromTable, factColumn: rel.fromColumn,
+        factSqlObject: factObj.name, factSqlSchema: factObj.schema, factSqlColumn: rel.fromColumn,
+        dimTable: rel.toTable, dimColumn: rel.toColumn,
+        dimSqlObject: dimObj.name, dimSqlSchema: dimObj.schema, dimSqlColumn: rel.toColumn,
+      }
+    : null
+
   return (
     <div className="rec-checks">
       <span className="rec-checks__label">Check</span>
@@ -230,6 +247,31 @@ function CheckBar({ sources }: { sources: ModelSource[] }) {
       >
         By grain
       </button>
+
+      {/* Orphans is driven by a relationship, not by a table and column, so it
+          gets its own picker. ACTIVE relationships only: RELATED follows the
+          active path, and offering an inactive one would generate DAX that
+          quietly measures something else. */}
+      {activeRels.length > 0 && (
+        <>
+          <select className="rec-input rec-input--sm" value={relKey} onChange={(e) => setRelKey(e.target.value)}>
+            <option value="">Relationship…</option>
+            {activeRels.map((r) => {
+              const k = `${r.fromTable}|${r.fromColumn}|${r.toTable}|${r.toColumn}`
+              return <option key={k} value={k}>{`${r.fromTable}[${r.fromColumn}] → ${r.toTable}`}</option>
+            })}
+          </select>
+          <button
+            className="rec-btn"
+            disabled={!orphanTarget}
+            title="Fact rows whose key resolves to nothing — the failure every other check here passes straight through"
+            onClick={() => orphanTarget && run(orphanKeys(orphanTarget))}
+          >
+            Orphans
+          </button>
+        </>
+      )}
+
       <span className="rec-checks__hint">
         {matchedBy === 'name'
           ? 'Matched by name — this table does not load from SQL, so check the object is the right one.'
@@ -259,6 +301,15 @@ function runDetail(run?: CheckRun): string {
 }
 
 const STATUS_MARK: Record<CheckStatus, string> = { pass: '✓', fail: '✗', inconclusive: '!' }
+
+/** Exhaustive by type, so adding a proposal kind cannot silently fall through
+ * to the wrong label — which is exactly what happened when orphans shipped. */
+const KIND_LABEL: Record<ProposalKind, string> = {
+  rowCount: 'rows',
+  dateRange: 'dates',
+  duplicates: 'dupes',
+  orphans: 'orphans',
+}
 
 /** Review the drafted checks before any of them join the suite. A mapping can
  * be wrong and a deliberate filter produces a correct difference, so this step
@@ -300,7 +351,7 @@ function ProposalReview() {
         {proposals.map((p) => (
           <li key={p.id} className="rec-prop__row" data-caution={!!p.caution}>
             <input type="checkbox" checked={p.selected} onChange={() => toggleProposal(p.id)} />
-            <span className="rec-prop__kind">{p.kind === 'rowCount' ? 'rows' : p.kind === 'dateRange' ? 'dates' : 'dupes'}</span>
+            <span className="rec-prop__kind">{KIND_LABEL[p.kind]}</span>
             <span className="rec-prop__name">{p.name}</span>
             <span className="rec-prop__obj">{p.object}</span>
             {p.caution && <span className="rec-prop__caution">{p.caution}</span>}
@@ -317,7 +368,7 @@ function ProposalReview() {
   )
 }
 
-function SuitePanel({ sources }: { sources: ModelSource[] }) {
+function SuitePanel({ sources, rels }: { sources: ModelSource[]; rels: DesktopRelationship[] }) {
   const {
     suite, suiteError, runs, running, runningCheckId, lastRunAt, connected,
     loadSuite, saveCurrentAsCheck, removeCheck, toggleCheck, openCheck, runAll, values,
@@ -352,7 +403,13 @@ function SuitePanel({ sources }: { sources: ModelSource[] }) {
           className="rec-btn"
           disabled={!connected || proposing || sources.length === 0}
           title="Draft a baseline suite from the model and the database"
-          onClick={() => void propose(sources.map((s) => ({ name: s.name, kind: s.kind, expression: s.expression })))}
+          onClick={() => void propose(
+            sources.map((s) => ({ name: s.name, kind: s.kind, expression: s.expression })),
+            rels.map((r) => ({
+              fromTable: r.fromTable, fromColumn: r.fromColumn,
+              toTable: r.toTable, toColumn: r.toColumn, isActive: r.isActive,
+            })),
+          )}
         >
           <Wand2 size={12} /> {proposing ? 'Reading…' : 'Propose checks'}
         </button>
@@ -822,6 +879,7 @@ function Matrix() {
 export function ReconcileView() {
   const desktop = useApp((s) => s.desktop)
   const [sources, setSources] = useState<ModelSource[]>([])
+  const [rels, setRels] = useState<DesktopRelationship[]>([])
   const {
     connected, sourceQuery, targetQuery, setSourceQuery, setTargetQuery,
     runSource, runTarget, runBoth, runningSource, runningTarget,
@@ -831,6 +889,9 @@ export function ReconcileView() {
   useEffect(() => {
     if (!desktop.connected) return
     void getModelSources(desktop.port).then(setSources).catch(() => setSources([]))
+    // Relationships drive the orphan checks — the one failure no other check
+    // here can see.
+    void getDesktopModel(desktop.port).then((m) => setRels(m.relationships)).catch(() => setRels([]))
   }, [desktop.connected, desktop.port])
 
   // Import models hold a snapshot: a difference may mean the refresh is stale
@@ -856,8 +917,8 @@ export function ReconcileView() {
       </header>
 
       <ConnectionBar />
-      {connected && desktop.connected && <CheckBar sources={sources} />}
-      <SuitePanel sources={sources} />
+      {connected && desktop.connected && <CheckBar sources={sources} rels={rels} />}
+      <SuitePanel sources={sources} rels={rels} />
 
       <div className="rec-panes">
         <QueryPane

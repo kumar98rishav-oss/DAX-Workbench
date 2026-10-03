@@ -17,7 +17,7 @@ import {
 } from '@/infrastructure/desktop/sql-client'
 import {
   proposeChecks, resetProposalIds, unmatched,
-  type Proposal, type ProposeObject, type ProposeSource,
+  type Proposal, type ProposeObject, type ProposeRelationship, type ProposeSource,
 } from '@/application/reconcile/propose'
 import { compare, type CompareOptions } from '@/application/reconcile/compare'
 import { DEFAULT_NORMALIZE, type NormalizeOptions } from '@/application/reconcile/normalize'
@@ -94,7 +94,7 @@ interface ReconcileState {
   proposals: Proposal[]
   proposing: boolean
   unmatchedTables: { name: string; why: string }[]
-  propose: (sources: ProposeSource[]) => Promise<void>
+  propose: (sources: ProposeSource[], relationships: ProposeRelationship[]) => Promise<void>
   toggleProposal: (id: string) => void
   setAllProposals: (selected: boolean) => void
   addSelectedProposals: () => Promise<void>
@@ -272,7 +272,7 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
   proposing: false,
   unmatchedTables: [],
 
-  propose: async (sources) => {
+  propose: async (sources, relationships) => {
     set({ proposing: true, suiteError: null })
     try {
       const schema = await sqlSchema(get().connection)
@@ -283,7 +283,7 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
       }))
       resetProposalIds()
       set({
-        proposals: proposeChecks(sources, objects),
+        proposals: proposeChecks(sources, objects, relationships),
         unmatchedTables: unmatched(sources, objects),
         proposing: false,
       })
@@ -318,6 +318,7 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
       rowCount: { keys: [], values: ['RowCount'] },
       dateRange: { keys: [], values: ['First', 'Last', 'Days'] },
       duplicates: { keys: [], values: ['DuplicateKeys', 'ExtraRows'] },
+      orphans: { keys: [], values: ['Orphans', 'OrphanKeys'] },
     }
 
     const checks: SavedCheck[] = picked.map((p) => {

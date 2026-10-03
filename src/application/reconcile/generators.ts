@@ -204,6 +204,71 @@ export function valueSet(c: ColumnTarget): GeneratedPair {
   }
 }
 
+/** One side of a relationship, on both engines. */
+export interface RelationshipTarget {
+  /** The many side — the fact holding the foreign key. */
+  factTable: string
+  factColumn: string
+  factSqlObject: string
+  factSqlSchema?: string
+  factSqlColumn: string
+  /** The one side — the dimension the key should resolve to. */
+  dimTable: string
+  dimColumn: string
+  dimSqlObject: string
+  dimSqlSchema?: string
+  dimSqlColumn: string
+}
+
+/**
+ * Orphaned foreign keys: fact rows whose key resolves to nothing.
+ *
+ * The check no other one here can stand in for. Row counts agree, totals agree,
+ * every duplicate check is clean — and Power BI has quietly created a blank row
+ * in the dimension and parked the orphans there. Slice by that dimension and a
+ * chunk of revenue sits under "(Blank)", which is the kind of thing that
+ * survives all the way to a board pack.
+ *
+ * A NULL foreign key is deliberately NOT counted. "No customer recorded" and
+ * "a customer id that does not exist" are different problems with different
+ * fixes, and the nulls check already owns the first one. Folding them together
+ * would make both harder to act on.
+ */
+export function orphanKeys(r: RelationshipTarget): GeneratedPair {
+  const fk = daxColumn(r.factTable, r.factColumn)
+  const pk = daxColumn(r.dimTable, r.dimColumn)
+  const F = daxTable(r.factTable)
+  const fCol = sqlIdent(r.factSqlColumn)
+  const dCol = sqlIdent(r.dimSqlColumn)
+
+  return {
+    dax:
+      `EVALUATE\n` +
+      `VAR _Orphans =\n` +
+      `    FILTER (\n` +
+      `        ${F},\n` +
+      `        NOT ISBLANK ( ${fk} )\n` +
+      `            && ISBLANK ( RELATED ( ${pk} ) )\n` +
+      `    )\n` +
+      `RETURN\n` +
+      `    ROW (\n` +
+      `        "Orphans", COALESCE ( COUNTROWS ( _Orphans ), 0 ),\n` +
+      `        "OrphanKeys", COALESCE ( COUNTROWS ( SUMMARIZE ( _Orphans, ${fk} ) ), 0 )\n` +
+      `    )`,
+    sql:
+      `SELECT COUNT(*) AS [Orphans],\n` +
+      `       COUNT(DISTINCT f.${fCol}) AS [OrphanKeys]\n` +
+      `FROM ${sqlObject(r.factSqlObject, r.factSqlSchema)} AS f\n` +
+      `LEFT JOIN ${sqlObject(r.dimSqlObject, r.dimSqlSchema)} AS d\n` +
+      `    ON f.${fCol} = d.${dCol}\n` +
+      `WHERE f.${fCol} IS NOT NULL AND d.${dCol} IS NULL;`,
+    note:
+      `${r.factTable}[${r.factColumn}] values with no matching ${r.dimTable}[${r.dimColumn}]. ` +
+      `Blank keys are excluded — those are the nulls check, and they need a different fix. ` +
+      `Both zero is the healthy answer.`,
+  }
+}
+
 export interface GrainCompare extends TableTarget {
   /** Grouping columns, coarsest first — this is also the drill order. */
   dimensions: { model: string; sql: string }[]

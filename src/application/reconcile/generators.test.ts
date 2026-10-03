@@ -15,6 +15,7 @@ import {
   distinctValues,
   duplicateKeys,
   nullCount,
+  orphanKeys,
   rowCount,
   sqlIdent,
   sqlObject,
@@ -123,6 +124,51 @@ describe('L1 — duplicate business keys', () => {
     // rather than as a zero.
     expect(g.dax).toContain('COALESCE ( COUNTROWS ( _Dups ), 0 )')
     expect(g.sql).toContain('ISNULL(SUM([Rows]) - COUNT(*), 0)')
+  })
+})
+
+describe('L1 — orphaned foreign keys', () => {
+  const R = {
+    factTable: 'Fact Sales', factColumn: 'Product Key',
+    factSqlObject: 'Fact_Sales', factSqlSchema: 'dbo', factSqlColumn: 'ProductKey',
+    dimTable: 'Dim Product', dimColumn: 'Product Key',
+    dimSqlObject: 'Dim_Product', dimSqlSchema: 'dbo', dimSqlColumn: 'ProductKey',
+  }
+  const g = orphanKeys(R)
+
+  it('anti-joins on the source side', () => {
+    expect(g.sql).toContain('LEFT JOIN [dbo].[Dim_Product] AS d')
+    expect(g.sql).toContain('ON f.[ProductKey] = d.[ProductKey]')
+    expect(g.sql).toContain('d.[ProductKey] IS NULL')
+  })
+
+  it('walks the relationship with RELATED on the model side', () => {
+    expect(g.dax).toContain(`RELATED ( 'Dim Product'[Product Key] )`)
+    expect(g.dax).toContain(`FILTER (\n        'Fact Sales'`)
+  })
+
+  it('EXCLUDES blank keys on both sides', () => {
+    // "No product recorded" and "a product id that does not exist" are different
+    // problems with different fixes; the nulls check already owns the first.
+    expect(g.sql).toContain('f.[ProductKey] IS NOT NULL')
+    expect(g.dax).toContain(`NOT ISBLANK ( 'Fact Sales'[Product Key] )`)
+  })
+
+  it('reports rows AND distinct bad keys', () => {
+    // 4,000 rows across 3 bad keys is a mapping gap; across 4,000 keys it is a
+    // broken load. The counts tell those apart.
+    expect(g.sql).toContain('AS [Orphans]')
+    expect(g.sql).toContain('COUNT(DISTINCT f.[ProductKey]) AS [OrphanKeys]')
+    expect(g.dax).toContain('"Orphans"')
+    expect(g.dax).toContain('"OrphanKeys"')
+  })
+
+  it('coalesces the clean case to 0 so a healthy model is a pass', () => {
+    expect(g.dax).toContain('COALESCE ( COUNTROWS ( _Orphans ), 0 )')
+  })
+
+  it('explains that blanks are somebody else’s check', () => {
+    expect(g.note).toMatch(/blank keys are excluded/i)
   })
 })
 

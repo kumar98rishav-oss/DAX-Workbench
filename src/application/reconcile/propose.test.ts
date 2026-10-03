@@ -15,7 +15,7 @@ const col = (name: string, dataType = 'int') => ({ name, dataType })
 const factSales: ProposeObject = {
   schema: 'dbo', name: 'Fact_Sales', kind: 'table',
   primaryKey: ['OrderID', 'OrderLineNo'],
-  columns: [col('OrderID'), col('OrderLineNo'), col('OrderDate', 'date'), col('SalesAmount', 'decimal')],
+  columns: [col('OrderID'), col('OrderLineNo'), col('OrderDate', 'date'), col('ProductKey'), col('SalesAmount', 'decimal')],
 }
 const dimProduct: ProposeObject = {
   schema: 'dbo', name: 'Dim_Product', kind: 'table',
@@ -99,6 +99,54 @@ describe('proposeChecks — cautions', () => {
       ' f = Table.SelectRows(t, each [Status] <> "Cancelled") in f'
     const p = proposeChecks([src('Fact_Sales', { expression: m })], [factSales])
     expect(p[0].caution).toMatch(/filters rows out/i)
+  })
+})
+
+describe('proposeChecks — orphan checks from relationships', () => {
+  const rel = (over: Partial<import('./propose').ProposeRelationship> = {}) => ({
+    fromTable: 'Fact_Sales', fromColumn: 'ProductKey',
+    toTable: 'Dim_Product', toColumn: 'ProductKey',
+    isActive: true, ...over,
+  })
+  const both = [factSales, dimProduct]
+  const srcs = [src('Fact_Sales'), src('Dim_Product')]
+
+  it('proposes one per active relationship', () => {
+    const p = proposeChecks(srcs, both, [rel()])
+    const o = p.filter((x) => x.kind === 'orphans')
+    expect(o).toHaveLength(1)
+    expect(o[0].name).toContain('Fact_Sales[ProductKey]')
+    expect(o[0].queries.sql).toContain('LEFT JOIN [dbo].[Dim_Product]')
+  })
+
+  it('SKIPS an inactive relationship', () => {
+    // RELATED follows the active path; proposing an inactive one would generate
+    // DAX that quietly measures something else.
+    expect(proposeChecks(srcs, both, [rel({ isActive: false })]).some((x) => x.kind === 'orphans')).toBe(false)
+  })
+
+  it('skips when one end has no SQL object', () => {
+    const p = proposeChecks([src('Fact_Sales')], [factSales], [rel()])
+    expect(p.some((x) => x.kind === 'orphans')).toBe(false)
+  })
+
+  it('skips when the joining column is missing from either side', () => {
+    // Power Query can rename on the way in; with no column there is no join.
+    const p = proposeChecks(srcs, both, [rel({ fromColumn: 'RenamedKey' })])
+    expect(p.some((x) => x.kind === 'orphans')).toBe(false)
+  })
+
+  it('carries the name-match caution from either end', () => {
+    const withM = [
+      src('Fact_Sales', { expression: 'let S = Sql.Database("s","d"), t = S{[Schema="dbo",Item="Fact_Sales"]}[Data] in t' }),
+      src('Dim_Product'), // no M — name matched
+    ]
+    const o = proposeChecks(withM, both, [rel()]).find((x) => x.kind === 'orphans')
+    expect(o?.caution).toMatch(/matched by name/i)
+  })
+
+  it('proposes nothing when no relationships are supplied', () => {
+    expect(proposeChecks(srcs, both).some((x) => x.kind === 'orphans')).toBe(false)
   })
 })
 

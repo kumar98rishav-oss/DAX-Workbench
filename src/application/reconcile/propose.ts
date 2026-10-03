@@ -14,7 +14,7 @@
  * because a mapping can be wrong and a deliberate Power Query filter will
  * produce a difference that is correct.
  */
-import { dateCoverage, duplicateKeys, rowCount, type GeneratedPair } from './generators'
+import { dateCoverage, duplicateKeys, orphanKeys, rowCount, type GeneratedPair } from './generators'
 
 export interface ProposeSource {
   name: string
@@ -37,7 +37,18 @@ export interface ProposeObject {
   primaryKey?: string[]
 }
 
-export type ProposalKind = 'rowCount' | 'dateRange' | 'duplicates'
+/** A model relationship, as the bridge reports it: names, not ids. */
+export interface ProposeRelationship {
+  /** Many side — the table holding the foreign key. */
+  fromTable: string
+  fromColumn: string
+  /** One side. */
+  toTable: string
+  toColumn: string
+  isActive: boolean
+}
+
+export type ProposalKind = 'rowCount' | 'dateRange' | 'duplicates' | 'orphans'
 
 export interface Proposal {
   id: string
@@ -99,8 +110,14 @@ const id = () => `prop_${++seq}`
 /** Reset between runs so ids stay short and predictable in tests. */
 export function resetProposalIds(): void { seq = 0 }
 
-export function proposeChecks(sources: ProposeSource[], schema: ProposeObject[]): Proposal[] {
+export function proposeChecks(
+  sources: ProposeSource[],
+  schema: ProposeObject[],
+  relationships: ProposeRelationship[] = [],
+): Proposal[] {
   const out: Proposal[] = []
+  /** Reused for the relationship pass, so both ends resolve the same way. */
+  const resolved = new Map<string, { object: ProposeObject; matchedBy: 'query' | 'name' }>()
 
   for (const source of sources) {
     // A calculated table is derived inside the model; there is no source to
@@ -109,6 +126,7 @@ export function proposeChecks(sources: ProposeSource[], schema: ProposeObject[])
 
     const match = matchObject(source, schema)
     if (!match) continue // nothing to compare it to — silently skipped, not a failure
+    resolved.set(source.name, match)
 
     const { object, matchedBy } = match
     const target = { table: source.name, sqlObject: object.name, sqlSchema: object.schema }
@@ -140,6 +158,54 @@ export function proposeChecks(sources: ProposeSource[], schema: ProposeObject[])
         duplicateKeys({ ...target, columns: object.primaryKey.map((c) => ({ model: c, sql: c })) }),
       )
     }
+  }
+
+  // ── Orphan checks, one per relationship ───────────────────────────────────
+  // Done after the table pass so both ends of a relationship resolve through
+  // exactly the same mapping the row-count checks used.
+  for (const rel of relationships) {
+    // RELATED walks the ACTIVE relationship. An inactive one needs
+    // USERELATIONSHIP to mean anything, so proposing it would generate DAX that
+    // quietly measures the wrong path.
+    if (!rel.isActive) continue
+
+    const fact = resolved.get(rel.fromTable)
+    const dim = resolved.get(rel.toTable)
+    if (!fact || !dim) continue // one end has no SQL object to anti-join against
+
+    const hasColumn = (o: ProposeObject, c: string) =>
+      o.columns.some((x) => x.name.toLowerCase() === c.toLowerCase())
+    // Power Query can rename on the way in; without the column on both sides
+    // there is no join to write.
+    if (!hasColumn(fact.object, rel.fromColumn) || !hasColumn(dim.object, rel.toColumn)) continue
+
+    const cautions: string[] = []
+    if (fact.matchedBy === 'name' || dim.matchedBy === 'name') {
+      cautions.push('matched by name, not by the table’s source query')
+    }
+
+    out.push({
+      id: id(),
+      name: `${rel.fromTable}[${rel.fromColumn}] — orphans in ${rel.toTable}`,
+      kind: 'orphans',
+      table: rel.fromTable,
+      object: `${fact.object.schema}.${fact.object.name}`,
+      matchedBy: fact.matchedBy,
+      caution: cautions.length > 0 ? cautions.join('; ') : undefined,
+      selected: true,
+      queries: orphanKeys({
+        factTable: rel.fromTable,
+        factColumn: rel.fromColumn,
+        factSqlObject: fact.object.name,
+        factSqlSchema: fact.object.schema,
+        factSqlColumn: rel.fromColumn,
+        dimTable: rel.toTable,
+        dimColumn: rel.toColumn,
+        dimSqlObject: dim.object.name,
+        dimSqlSchema: dim.object.schema,
+        dimSqlColumn: rel.toColumn,
+      }),
+    })
   }
 
   return out
