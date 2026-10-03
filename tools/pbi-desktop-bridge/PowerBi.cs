@@ -164,9 +164,21 @@ public static class PowerBi
         return server.Databases[0];
     }
 
-    /// <summary>Run a DAX query (EVALUATE …) and return rows as dictionaries.</summary>
-    public static (List<string> Columns, List<Dictionary<string, object?>> Rows) Query(Instance inst, string dax)
+    /// <summary>
+    /// Run a DAX query (EVALUATE …) and return rows as dictionaries.
+    ///
+    /// `truncated` matters as much as the rows do. Reconciliation compares this
+    /// result against one from SQL Server, and a side that silently stopped at
+    /// the cap makes the comparison invent thousands of differences that do not
+    /// exist — an authoritative-looking, completely wrong answer. The cap was
+    /// previously a hard-coded 10,000 with no signal, while the SQL side allowed
+    /// 200,000 and reported truncation honestly; that asymmetry meant the model
+    /// side ran out first at any realistic grain.
+    /// </summary>
+    public static (List<string> Columns, List<Dictionary<string, object?>> Rows, bool Truncated) Query(
+        Instance inst, string dax, int rowCap = 10_000)
     {
+        rowCap = Math.Clamp(rowCap, 1, 200_000);
         using var conn = new AdomdConnection($"Data Source={inst.DataSource};Catalog={inst.Database}");
         conn.Open();
         using var cmd = new AdomdCommand(dax, conn);
@@ -174,15 +186,16 @@ public static class PowerBi
         var cols = new List<string>();
         for (var i = 0; i < reader.FieldCount; i++) cols.Add(reader.GetName(i));
         var rows = new List<Dictionary<string, object?>>();
+        var truncated = false;
         while (reader.Read())
         {
+            if (rows.Count >= rowCap) { truncated = true; break; }
             var row = new Dictionary<string, object?>();
             for (var i = 0; i < reader.FieldCount; i++)
                 row[cols[i]] = reader.IsDBNull(i) ? null : reader.GetValue(i);
             rows.Add(row);
-            if (rows.Count >= 10_000) break; // safety cap
         }
-        return (cols, rows);
+        return (cols, rows, truncated);
     }
 
     /// <summary>Time a query the way DAX Studio does: clear the engine's caches

@@ -133,14 +133,17 @@ production database.
 
 ### 3.3 Row caps — the sharpest edge in the whole design
 
-`PowerBi.Query` currently does `if (rows.Count >= 10_000) break;`. For displaying query
-results that is sensible. **For comparison it is dangerous.** If the model side truncates at
-10,000 and SQL returns 48,000, the comparator reports ~38,000 false *"only in source"* rows:
-a confident, authoritative, completely wrong answer.
+`PowerBi.Query` used to do `if (rows.Count >= 10_000) break;` — no parameter, no signal —
+while the SQL side already allowed 200,000 and reported truncation honestly. For displaying
+query results that cap is sensible. **For comparison it was dangerous**, in two ways: a model
+side truncating at 10,000 against 48,000 SQL rows reports ~38,000 false *"only in source"*
+rows, and the asymmetry meant the model side ran out first at any realistic grain, so the
+drill matrix refused on datasets it should have handled comfortably.
 
-Therefore:
+Both sides now share one rule:
 
-- Both sides take the same explicit cap (100,000 is comfortable for an in-browser hash join).
+- An explicit `rowCap` per request, clamped to 200,000 (100,000 is comfortable for an
+  in-browser hash join; a row-level compare of 19,658 rows takes ~3s end to end).
 - The bridge returns `truncated: true` rather than silently stopping.
 - **A comparison REFUSES to run if either side is truncated.** Not a warning — a block.
   A truncated comparison looks authoritative and lies, which is worse than no answer.

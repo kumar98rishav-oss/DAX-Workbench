@@ -6,6 +6,7 @@
  * needs to read it.
  */
 import { create } from 'zustand'
+import { useApp } from '@/app/store'
 import { desktopRunDax } from '@/infrastructure/desktop/desktop-client'
 import {
   sqlQuery,
@@ -159,7 +160,11 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
     set({ runningTarget: true, targetError: null, ...invalidate })
     const started = performance.now()
     try {
-      const r = await desktopRunDax(targetQuery)
+      // Name the port explicitly. Without it the bridge picks the only open
+      // model — and refuses outright when the user has two reports open, which
+      // is exactly when they are most likely to be reconciling.
+      const port = useApp.getState().desktop.port
+      const r = await desktopRunDax(targetQuery, port, ROW_CAP)
       set({
         runningTarget: false,
         target: {
@@ -171,9 +176,7 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
           durationMs: Math.round(performance.now() - started),
           columns: r.columns.map((name) => ({ name })),
           rows: r.rows.map((row) => r.columns.map((c) => row[c] ?? null)),
-          // The bridge's DAX path caps at 10k. Treat hitting it as truncation so
-          // the comparator refuses rather than inventing "only in source" rows.
-          truncated: r.rowCount >= 10_000,
+          truncated: r.truncated,
         },
       })
     } catch (e) {

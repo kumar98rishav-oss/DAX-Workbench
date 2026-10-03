@@ -224,7 +224,12 @@ app.MapGet("/model", (int? port) =>
 
 app.MapPost("/dax", (DaxReq req) =>
 {
-    try { var inst = PowerBi.Resolve(req.Port); var (columns, rows) = PowerBi.Query(inst, req.Dax); return Results.Json(new { columns, rowCount = rows.Count, rows }); }
+    try
+    {
+        var inst = PowerBi.Resolve(req.Port);
+        var (columns, rows, truncated) = PowerBi.Query(inst, req.Dax, req.RowCap ?? 10_000);
+        return Results.Json(new { columns, rowCount = rows.Count, rows, truncated });
+    }
     catch (Exception e) { return Fail(e); }
 });
 
@@ -345,7 +350,7 @@ app.MapPost("/preview", (PreviewReq req) =>
     try
     {
         var inst = PowerBi.Resolve(req.Port);
-        var (_, rows) = PowerBi.Query(inst, $"EVALUATE ROW(\"Value\", {req.Expression})");
+        var (_, rows, _) = PowerBi.Query(inst, $"EVALUATE ROW(\"Value\", {req.Expression})");
         return Results.Json(new { value = rows.FirstOrDefault()?.Values.FirstOrDefault() });
     }
     catch (Exception e) { return Fail(e); }
@@ -642,7 +647,7 @@ Tray.Run(new TrayOptions
 
 record NimMessage(string Role, string Content);
 record NimProxyReq(string ApiKey, string Model, NimMessage[] Messages, double Temperature, int MaxTokens);
-record DaxReq(string Dax, int? Port);
+record DaxReq(string Dax, int? Port, int? RowCap);
 record TimeReq(string Dax, int? Runs, bool? ClearCache, int? Port);
 record PreviewReq(string Expression, int? Port);
 record MeasureReq(string Table, string Name, string Dax, string? FormatString, string? DisplayFolder, int? Port);

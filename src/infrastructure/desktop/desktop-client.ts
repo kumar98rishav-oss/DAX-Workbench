@@ -184,12 +184,21 @@ export const desktopTimeDax = (dax: string, runs = 3, clearCache = true, port?: 
     body: JSON.stringify({ dax, runs, clearCache, port }),
   }, 120000)
 
-export const desktopRunDax = (dax: string, port?: number) =>
-  req<{ columns: string[]; rowCount: number; rows: Record<string, unknown>[] }>('/dax', {
+/**
+ * Run a DAX query.
+ *
+ * `rowCap` and `truncated` exist for reconciliation: the result gets compared
+ * against one from SQL Server, and a side that quietly stopped at the cap would
+ * manufacture thousands of differences that are not real. The default stays
+ * modest — callers that genuinely need the whole result ask for it, and the
+ * timeout is generous because they will be waiting on a large one.
+ */
+export const desktopRunDax = (dax: string, port?: number, rowCap?: number) =>
+  req<{ columns: string[]; rowCount: number; rows: Record<string, unknown>[]; truncated: boolean }>('/dax', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ dax, port }),
-  })
+    body: JSON.stringify({ dax, port, rowCap }),
+  }, 180_000)
 
 // ---- VertiPaq Analyzer: the model's storage footprint ----------------------
 // Shapes mirror the bridge's Vertipaq.cs DTO (camelCase over the wire).
