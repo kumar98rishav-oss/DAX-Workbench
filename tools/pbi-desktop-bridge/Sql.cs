@@ -89,7 +89,10 @@ public static class Sql
     }
 
     public record SchemaColumn(string Name, string DataType, bool Nullable);
-    public record SchemaObject(string Schema, string Name, string Kind, List<SchemaColumn> Columns);
+    /// <summary>PrimaryKey is in key order and empty when the object declares none
+    /// (a view never does). It is the only trustworthy statement of a table's
+    /// grain available without asking the user.</summary>
+    public record SchemaObject(string Schema, string Name, string Kind, List<SchemaColumn> Columns, List<string> PrimaryKey);
 
     /// <summary>Every table and view the login can read, with columns. Driven by
     /// INFORMATION_SCHEMA, which only shows what the caller already has rights
@@ -108,7 +111,7 @@ public static class Sql
             while (r.Read())
             {
                 var o = new SchemaObject(r.GetString(0), r.GetString(1),
-                    r.GetString(2) == "VIEW" ? "view" : "table", new List<SchemaColumn>());
+                    r.GetString(2) == "VIEW" ? "view" : "table", new List<SchemaColumn>(), new List<string>());
                 byKey[$"{o.Schema}.{o.Name}"] = o;
             }
         }
@@ -124,6 +127,27 @@ public static class Sql
                 if (byKey.TryGetValue($"{r.GetString(0)}.{r.GetString(1)}", out var o))
                     o.Columns.Add(new SchemaColumn(r.GetString(2), r.GetString(3),
                         string.Equals(r.GetString(4), "YES", StringComparison.OrdinalIgnoreCase)));
+            }
+        }
+
+        // Declared primary keys, in key order. This is the one authoritative
+        // statement of a table's grain we can read without asking — and the
+        // grain is what every duplicate check depends on getting right.
+        using (var cmd = new SqlCommand(
+            "SELECT tc.TABLE_SCHEMA, tc.TABLE_NAME, kcu.COLUMN_NAME " +
+            "FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc " +
+            "JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu " +
+            "  ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME " +
+            " AND tc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA " +
+            "WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY' " +
+            "ORDER BY tc.TABLE_SCHEMA, tc.TABLE_NAME, kcu.ORDINAL_POSITION", conn))
+        {
+            cmd.CommandTimeout = 30;
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                if (byKey.TryGetValue($"{r.GetString(0)}.{r.GetString(1)}", out var o))
+                    o.PrimaryKey.Add(r.GetString(2));
             }
         }
 

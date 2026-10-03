@@ -10,10 +10,15 @@ import { useApp } from '@/app/store'
 import { desktopRunDax } from '@/infrastructure/desktop/desktop-client'
 import {
   sqlQuery,
+  sqlSchema,
   sqlTest,
   type SqlConnection,
   type SqlTestResult,
 } from '@/infrastructure/desktop/sql-client'
+import {
+  proposeChecks, resetProposalIds, unmatched,
+  type Proposal, type ProposeObject, type ProposeSource,
+} from '@/application/reconcile/propose'
 import { compare, type CompareOptions } from '@/application/reconcile/compare'
 import { DEFAULT_NORMALIZE, type NormalizeOptions } from '@/application/reconcile/normalize'
 import {
@@ -84,6 +89,16 @@ interface ReconcileState {
   runningCheckId: string | null
   runs: CheckRun[]
   lastRunAt: string | null
+
+  /** Drafted checks awaiting review. Never applied without a tick. */
+  proposals: Proposal[]
+  proposing: boolean
+  unmatchedTables: { name: string; why: string }[]
+  propose: (sources: ProposeSource[]) => Promise<void>
+  toggleProposal: (id: string) => void
+  setAllProposals: (selected: boolean) => void
+  addSelectedProposals: () => Promise<void>
+  dismissProposals: () => void
 
   loadSuite: () => Promise<void>
   saveCurrentAsCheck: (name?: string) => Promise<void>
@@ -252,6 +267,82 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
   runningCheckId: null,
   runs: [],
   lastRunAt: null,
+
+  proposals: [],
+  proposing: false,
+  unmatchedTables: [],
+
+  propose: async (sources) => {
+    set({ proposing: true, suiteError: null })
+    try {
+      const schema = await sqlSchema(get().connection)
+      const objects: ProposeObject[] = schema.map((o) => ({
+        schema: o.schema, name: o.name, kind: o.kind,
+        columns: o.columns.map((c) => ({ name: c.name, dataType: c.dataType })),
+        primaryKey: o.primaryKey ?? [],
+      }))
+      resetProposalIds()
+      set({
+        proposals: proposeChecks(sources, objects),
+        unmatchedTables: unmatched(sources, objects),
+        proposing: false,
+      })
+    } catch (e) {
+      set({ proposing: false, suiteError: (e as Error).message })
+    }
+  },
+
+  toggleProposal: (id) =>
+    set((s) => ({ proposals: s.proposals.map((p) => (p.id === id ? { ...p, selected: !p.selected } : p)) })),
+
+  setAllProposals: (selected) =>
+    set((s) => ({ proposals: s.proposals.map((p) => ({ ...p, selected })) })),
+
+  dismissProposals: () => set({ proposals: [], unmatchedTables: [] }),
+
+  /**
+   * Turn ticked proposals into saved checks.
+   *
+   * The pairing is written from the generators' own column names rather than
+   * discovered by running the queries: these are OUR queries, so the names are
+   * known up front and a draft suite can be added without touching either
+   * engine. bindCheck still validates them at run time, so a drifted query
+   * surfaces as a named error rather than a wrong comparison.
+   */
+  addSelectedProposals: async () => {
+    const { proposals, suite, connection } = get()
+    const picked = proposals.filter((p) => p.selected)
+    if (picked.length === 0) return
+
+    const PAIRS: Record<Proposal['kind'], { keys: string[]; values: string[] }> = {
+      rowCount: { keys: [], values: ['RowCount'] },
+      dateRange: { keys: [], values: ['First', 'Last', 'Days'] },
+      duplicates: { keys: [], values: ['DuplicateKeys', 'ExtraRows'] },
+    }
+
+    const checks: SavedCheck[] = picked.map((p) => {
+      const shape = PAIRS[p.kind]
+      return {
+        id: newId('chk'),
+        name: p.name,
+        sourceQuery: p.queries.sql,
+        targetQuery: p.queries.dax,
+        keys: shape.keys.map((c) => ({ source: c, target: `[${c}]` })),
+        // DAX brackets its ROW() column names; SQL does not.
+        values: shape.values.map((c) => ({ source: c, target: `[${c}]` })),
+        tolerance: { absolute: 1e-6, relative: 0 },
+        enabled: true,
+      }
+    })
+
+    const next: CheckSuite = {
+      ...suite,
+      builtAgainst: { server: connection.server, database: connection.database },
+      checks: [...suite.checks, ...checks],
+    }
+    set({ suite: next, proposals: [], unmatchedTables: [] })
+    try { await putSuites([next]) } catch (e) { set({ suiteError: (e as Error).message }) }
+  },
 
   loadSuite: async () => {
     try {

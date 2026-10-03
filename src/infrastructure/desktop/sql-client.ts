@@ -40,6 +40,9 @@ export interface SqlSchemaObject {
   name: string
   kind: 'table' | 'view'
   columns: SqlSchemaColumn[]
+  /** Declared primary key in key order; empty for a view. The only trustworthy
+   * statement of a table's grain available without asking the user. */
+  primaryKey?: string[]
 }
 
 export interface SqlQueryResult {

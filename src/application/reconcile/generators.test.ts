@@ -104,10 +104,25 @@ describe('L1 — duplicate business keys', () => {
     expect(g.dax).toContain(`'Fact Sales'[Order Id], 'Fact Sales'[Order Line]`)
     expect(g.dax).not.toContain('&')
   })
-  it('keeps only keys appearing more than once, worst first', () => {
+  it('keeps only keys appearing more than once', () => {
     expect(g.sql).toContain('HAVING COUNT(*) > 1')
-    expect(g.sql).toContain('ORDER BY COUNT(*) DESC')
-    expect(g.dax).toContain('[DupRows] > 1')
+    expect(g.dax).toContain('[Rows] > 1')
+  })
+
+  it('returns COUNTS, so a clean table is a pass rather than "could not run"', () => {
+    // Listing the offending rows composes wrongly: a clean table returns no
+    // rows on EITHER side, both-sides-empty is a refusal, and a passing check
+    // would have been reported as inconclusive.
+    expect(g.sql).toContain('AS [DuplicateKeys]')
+    expect(g.sql).toContain('AS [ExtraRows]')
+    expect(g.dax).toContain('"DuplicateKeys"')
+    expect(g.dax).toContain('"ExtraRows"')
+  })
+  it('coalesces the empty case to 0 on both sides', () => {
+    // COUNTROWS of an empty table is BLANK, which compares as "no value"
+    // rather than as a zero.
+    expect(g.dax).toContain('COALESCE ( COUNTROWS ( _Dups ), 0 )')
+    expect(g.sql).toContain('ISNULL(SUM([Rows]) - COUNT(*), 0)')
   })
 })
 

@@ -8,7 +8,7 @@
  */
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
-  Database, Play, PlayCircle, Plug, Check, X, Trash2, TriangleAlert, Link2, RefreshCw, Table2, Save,
+  Database, Play, PlayCircle, Plug, Check, X, Trash2, TriangleAlert, Link2, RefreshCw, Table2, Save, Wand2,
 } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { useReconcile, ROW_CAP } from '@/app/reconcile-store'
@@ -260,10 +260,68 @@ function runDetail(run?: CheckRun): string {
 
 const STATUS_MARK: Record<CheckStatus, string> = { pass: '✓', fail: '✗', inconclusive: '!' }
 
-function SuitePanel() {
+/** Review the drafted checks before any of them join the suite. A mapping can
+ * be wrong and a deliberate filter produces a correct difference, so this step
+ * is not a formality. */
+function ProposalReview() {
+  const {
+    proposals, unmatchedTables, toggleProposal, setAllProposals,
+    addSelectedProposals, dismissProposals,
+  } = useReconcile()
+  if (proposals.length === 0) return null
+
+  const picked = proposals.filter((p) => p.selected).length
+  const flagged = proposals.filter((p) => p.caution).length
+
+  return (
+    <div className="rec-prop">
+      <header className="rec-prop__head">
+        <strong>{proposals.length} checks drafted</strong>
+        <span className="rec-checks__hint">
+          Read them before adding — a mapping can be wrong, and a table the model
+          deliberately filters will differ on purpose.
+        </span>
+        <span className="rec-conn__spacer" />
+        <button className="rec-btn rec-btn--quiet" onClick={() => setAllProposals(true)}>All</button>
+        <button className="rec-btn rec-btn--quiet" onClick={() => setAllProposals(false)}>None</button>
+        <button className="rec-btn rec-btn--quiet" onClick={dismissProposals}>Cancel</button>
+        <button className="rec-btn rec-btn--primary" disabled={picked === 0} onClick={() => void addSelectedProposals()}>
+          Add {picked}
+        </button>
+      </header>
+
+      {flagged > 0 && (
+        <div className="rec-prop__warn">
+          <TriangleAlert size={12} /> {flagged} need a look before you trust them.
+        </div>
+      )}
+
+      <ul className="rec-prop__list">
+        {proposals.map((p) => (
+          <li key={p.id} className="rec-prop__row" data-caution={!!p.caution}>
+            <input type="checkbox" checked={p.selected} onChange={() => toggleProposal(p.id)} />
+            <span className="rec-prop__kind">{p.kind === 'rowCount' ? 'rows' : p.kind === 'dateRange' ? 'dates' : 'dupes'}</span>
+            <span className="rec-prop__name">{p.name}</span>
+            <span className="rec-prop__obj">{p.object}</span>
+            {p.caution && <span className="rec-prop__caution">{p.caution}</span>}
+          </li>
+        ))}
+      </ul>
+
+      {unmatchedTables.length > 0 && (
+        <footer className="rec-prop__foot">
+          Left out: {unmatchedTables.map((u) => `${u.name} (${u.why})`).join(' · ')}
+        </footer>
+      )}
+    </div>
+  )
+}
+
+function SuitePanel({ sources }: { sources: ModelSource[] }) {
   const {
     suite, suiteError, runs, running, runningCheckId, lastRunAt, connected,
     loadSuite, saveCurrentAsCheck, removeCheck, toggleCheck, openCheck, runAll, values,
+    propose, proposing, proposals,
   } = useReconcile()
   const [name, setName] = useState('')
 
@@ -290,6 +348,14 @@ function SuitePanel() {
         >
           <Save size={12} /> Save current
         </button>
+        <button
+          className="rec-btn"
+          disabled={!connected || proposing || sources.length === 0}
+          title="Draft a baseline suite from the model and the database"
+          onClick={() => void propose(sources.map((s) => ({ name: s.name, kind: s.kind, expression: s.expression })))}
+        >
+          <Wand2 size={12} /> {proposing ? 'Reading…' : 'Propose checks'}
+        </button>
         <span className="rec-conn__spacer" />
         {ran && (
           <span className="rec-suite__verdict">
@@ -313,12 +379,15 @@ function SuitePanel() {
 
       {suiteError && <div className="rec-err rec-err--block">{suiteError}</div>}
 
-      {suite.checks.length === 0 ? (
+      <ProposalReview />
+
+      {suite.checks.length === 0 && proposals.length === 0 ? (
         <div className="rec-suite__empty">
-          Build a check below, then <b>Save current</b>. Saved checks re-run together after every
-          refresh, so you find out what moved instead of hoping.
+          <b>Propose checks</b> drafts a baseline across every table at once, or build one below and
+          <b> Save current</b>. Saved checks re-run together after each refresh, so you find out what
+          moved instead of hoping.
         </div>
-      ) : (
+      ) : suite.checks.length === 0 ? null : (
         <ul className="rec-suite__list">
           {suite.checks.map((c) => {
             const run = runs.find((r) => r.checkId === c.id)
@@ -788,7 +857,7 @@ export function ReconcileView() {
 
       <ConnectionBar />
       {connected && desktop.connected && <CheckBar sources={sources} />}
-      <SuitePanel />
+      <SuitePanel sources={sources} />
 
       <div className="rec-panes">
         <QueryPane

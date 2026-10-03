@@ -114,21 +114,38 @@ export function nullCount(c: ColumnTarget): GeneratedPair {
 export function duplicateKeys(k: BusinessKey): GeneratedPair {
   const daxKeys = k.columns.map((c) => daxColumn(k.table, c.model)).join(', ')
   const sqlKeys = k.columns.map((c) => sqlIdent(c.sql)).join(', ')
+  const T = daxTable(k.table)
   return {
+    // COUNTS, not the offending rows themselves. Listing them reads better in
+    // isolation but composes wrongly: a clean table returns no rows on EITHER
+    // side, both-sides-empty is a refusal, and a passing check would report
+    // "could not run". Counting always returns one row, so clean is 0 vs 0 and
+    // reads as the pass it is.
     dax:
       `EVALUATE\n` +
-      `FILTER (\n` +
-      `    SUMMARIZE ( ${daxTable(k.table)}, ${daxKeys}, "DupRows", COUNTROWS ( ${daxTable(k.table)} ) ),\n` +
-      `    [DupRows] > 1\n` +
-      `)\n` +
-      `ORDER BY [DupRows] DESC`,
+      `VAR _Dups =\n` +
+      `    FILTER (\n` +
+      `        SUMMARIZE ( ${T}, ${daxKeys}, "Rows", COUNTROWS ( ${T} ) ),\n` +
+      `        [Rows] > 1\n` +
+      `    )\n` +
+      `RETURN\n` +
+      `    ROW (\n` +
+      `        "DuplicateKeys", COALESCE ( COUNTROWS ( _Dups ), 0 ),\n` +
+      `        "ExtraRows", COALESCE ( SUMX ( _Dups, [Rows] - 1 ), 0 )\n` +
+      `    )`,
     sql:
-      `SELECT ${sqlKeys}, COUNT(*) AS [DupRows]\n` +
-      `FROM ${sqlObject(k.sqlObject, k.sqlSchema)}\n` +
-      `GROUP BY ${sqlKeys}\n` +
-      `HAVING COUNT(*) > 1\n` +
-      `ORDER BY COUNT(*) DESC;`,
-    note: `Business keys appearing more than once: ${k.columns.map((c) => c.model).join(' + ')}.`,
+      `SELECT COUNT(*) AS [DuplicateKeys],\n` +
+      `       ISNULL(SUM([Rows]) - COUNT(*), 0) AS [ExtraRows]\n` +
+      `FROM (\n` +
+      `    SELECT ${sqlKeys}, COUNT(*) AS [Rows]\n` +
+      `    FROM ${sqlObject(k.sqlObject, k.sqlSchema)}\n` +
+      `    GROUP BY ${sqlKeys}\n` +
+      `    HAVING COUNT(*) > 1\n` +
+      `) d;`,
+    note:
+      `How many ${k.columns.map((c) => c.model).join(' + ')} values occur more than once, and how ` +
+      `many surplus rows that represents. Both zero is the healthy answer; to see WHICH keys, ` +
+      `run By grain on them.`,
   }
 }
 
