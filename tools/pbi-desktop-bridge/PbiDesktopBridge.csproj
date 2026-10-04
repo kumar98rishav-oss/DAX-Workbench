@@ -40,6 +40,15 @@
          on launch populates Location so those libraries work. Still one file to
          ship; it just self-extracts on first run. -->
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+
+    <!-- These three MUST live here, not on the publish command line. End users do
+         not have a .NET runtime; a framework-dependent build greets them with
+         "You must install or update .NET to run this application" and the tool is
+         simply dead. A plain `dotnet publish -c Release` has to produce a shippable
+         exe, because sooner or later that is what someone will run. -->
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
   <ItemGroup>
