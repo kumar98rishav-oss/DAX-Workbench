@@ -16,15 +16,14 @@ import {
   Heart,
   Linkedin,
   Mail,
-  Sigma,
-  Factory,
-  Stethoscope,
   Zap,
-  Gauge,
-  CalendarDays,
   BrainCircuit,
   Lock,
   Workflow,
+  ArrowLeftRight,
+  ListChecks,
+  Link2,
+  ScanSearch,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -54,45 +53,55 @@ const OTHER_WAYS: StartOption[] = [
   { id: 'pbix', title: 'Open PBIX', desc: 'Best-effort — no data', icon: <FileInput size={16} /> },
 ]
 
+// The first card spans two columns (.pbs-feat:first-child), so one featured
+// card plus seven fills three rows of the grid exactly.
 const FEATURES = [
+  {
+    id: 'reconcile',
+    icon: <ArrowLeftRight size={22} />,
+    name: 'Reconciliation',
+    tag: 'New',
+    line: 'Compare the live model against SQL Server and drill to where they part company — total, then year, then month, then the one product that is off. A matching grand total proves very little: offsetting errors cancel, and only the slice shows it.',
+    accent: 'purple',
+  },
+  {
+    id: 'suites',
+    icon: <ListChecks size={22} />,
+    name: 'Check suites',
+    tag: 'New',
+    line: 'Point it at a model and it drafts the checks — row count, date coverage, duplicate keys — for every table at once. Save them and re-run the set after each refresh.',
+    accent: 'purple',
+  },
+  {
+    id: 'integrity',
+    icon: <Link2 size={22} />,
+    name: 'Integrity checks',
+    tag: 'New',
+    line: 'Orphaned keys are the failure nothing else catches: counts agree, totals agree, and revenue sits quietly under (Blank) in the report. One check per relationship.',
+    accent: 'purple',
+  },
+  {
+    id: 'honest',
+    icon: <ScanSearch size={22} />,
+    name: 'It shows its working',
+    tag: null,
+    line: 'Every result carries the two queries that produced it and the numbers each returned. Copy them into SSMS and DAX Studio and get the same answer — nothing has to be taken on trust.',
+    accent: 'purple',
+  },
   {
     id: 'pipeline',
     icon: <Workflow size={22} />,
     name: 'Delivery Pipeline',
-    tag: 'New',
-    line: 'An 11-stage cockpit your AI agent drives over MCP — profile, model, measures, report, QA — with breakpoints, sign-offs, on-fail branches, reusable skills and templates. The agent works; you govern.',
-    accent: 'purple',
-  },
-  {
-    id: 'gates',
-    icon: <ShieldCheck size={22} />,
-    name: 'Verifying Gates',
-    tag: 'New',
-    line: "Gates don't take the AI's word for it. The host re-runs the numbers on your live engine and only goes green when they reconcile — verified, not asserted.",
-    accent: 'purple',
+    tag: null,
+    line: "An 11-stage cockpit your AI agent drives over MCP — profile, model, measures, report, QA — with breakpoints, sign-offs and on-fail branches. The gates don't take the agent's word for it: the host re-runs the numbers on your live engine and only goes green when they reconcile.",
+    accent: 'blue',
   },
   {
     id: 'ai',
     icon: <BrainCircuit size={22} />,
     name: 'AI Generate',
     tag: null,
-    line: 'Describe the measure in plain English. AI reads your live schema and writes schema-grounded DAX — no hallucinated column names.',
-    accent: 'purple',
-  },
-  {
-    id: 'architect',
-    icon: <Sigma size={22} />,
-    name: 'DAX Architect',
-    tag: null,
-    line: 'Ranked pattern suggestions — not one guess, but a scored list. You pick the one that fits your model best.',
-    accent: 'blue',
-  },
-  {
-    id: 'factory',
-    icon: <Factory size={22} />,
-    name: 'Measure Factory',
-    tag: null,
-    line: 'Pick one field and get its full analytical suite: Total, YTD, QTD, YoY, MoM %, moving average, running total, rank.',
+    line: 'Describe a measure in plain English. The AI reads your live schema and writes DAX grounded in it — invented table, column and measure names are caught before anything is written.',
     accent: 'blue',
   },
   {
@@ -100,40 +109,16 @@ const FEATURES = [
     icon: <Zap size={22} />,
     name: 'DAX Optimizer',
     tag: null,
-    line: 'Rewrites slow DAX patterns into the shape the engine handles best — then times before and after on your real data.',
-    accent: 'blue',
-  },
-  {
-    id: 'doctor',
-    icon: <Stethoscope size={22} />,
-    name: 'Model Doctor',
-    tag: null,
-    line: 'Audits the live model for missing formats, dangerous FILTERs, and silent errors. Fixes applied in one click.',
-    accent: 'blue',
-  },
-  {
-    id: 'kpi',
-    icon: <Gauge size={22} />,
-    name: 'Live KPI Board',
-    tag: null,
-    line: "Every measure you create becomes a live answer on a 12-card board. Computed by Power BI's own engine, not estimated.",
-    accent: 'blue',
-  },
-  {
-    id: 'dates',
-    icon: <CalendarDays size={22} />,
-    name: 'Date Table Builder',
-    tag: null,
-    line: 'Build a proper date table over your fact column\'s real range. Pick columns, set fiscal year, deploy as a calculated table.',
+    line: 'Rewrites slow patterns into the shape the engine handles best, then times both versions cold on your real data and refuses to call a win it cannot measure.',
     accent: 'blue',
   },
 ]
 
 const TRUST = [
   { icon: <Lock size={13} />, label: 'No account, ever' },
-  { icon: <ShieldCheck size={13} />, label: 'Data stays on your machine' },
+  { icon: <ShieldCheck size={13} />, label: 'Runs on your machine' },
   { icon: <MonitorCheck size={13} />, label: 'No telemetry' },
-  { icon: <Check size={13} />, label: 'AI drives — you hold the gates' },
+  { icon: <Check size={13} />, label: 'Read-only on your database' },
 ]
 
 export function HomeScreen() {
@@ -265,14 +250,14 @@ export function HomeScreen() {
           </span>
 
           <h1 className="pbs-home__title">
-            AI builds your BI —<br />
-            <em>verified</em> on your real engine
+            Build your Power BI model.<br />
+            <em>Prove</em> it against the source.
           </h1>
           <p className="pbs-home__lede">
-            A Power BI External Tool where an AI agent delivers the whole solution —
-            profile, model, measures, report — through a governed pipeline with human
-            gates, and every number is re-checked on your own engine before a gate
-            goes green. Automated delivery, provable results.
+            A Power BI External Tool that reconciles your live model against SQL Server —
+            row counts, duplicate keys, date coverage, orphaned keys — and saves those
+            checks as a suite you re-run after every refresh. Build measures with AI and
+            deploy them straight into Desktop. All of it on your machine, nothing uploaded.
           </p>
 
           {/* CTA glass */}
@@ -394,6 +379,15 @@ export function HomeScreen() {
               </article>
             ))}
           </div>
+          {/* The grid names the eight worth leading with; the rest are real and
+              shipped, and belong on one line rather than in eight more cards. */}
+          <p className="pbs-alsoline">
+            Also in the box — <strong>Measure Factory</strong> (one field, its whole
+            analytical suite), <strong>DAX Architect</strong> (ranked pattern suggestions,
+            not one guess), <strong>Model Doctor</strong>, <strong>Date Table Builder</strong>,
+            a <strong>cleanup</strong> pass that proves a measure is unused by scanning the
+            report before offering to delete it, and <strong>PBIP / TMDL</strong> import.
+          </p>
         </section>
 
         {/* ── Connect setup ── */}
@@ -429,7 +423,10 @@ export function HomeScreen() {
             <p className="pbs-panel__foot">
               <ShieldCheck size={13} />
               <span>
-                The bridge binds to loopback only and accepts calls from this site alone.{' '}
+                The bridge binds to loopback only and accepts calls from this site alone.
+                Reconciliation connects to SQL Server with your own Windows account and
+                runs read-only: every statement is checked before a connection is opened,
+                and anything but a single <code>SELECT</code> is refused.{' '}
                 <button className="pbs-inlinelink" onClick={() => toggleRemote(true)}>
                   Model on another machine?
                 </button>
