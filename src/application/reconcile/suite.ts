@@ -14,6 +14,7 @@ import type {
   FieldPair,
   Refusal,
   ResultSet,
+  RowStatus,
   Tolerance,
 } from './types'
 
@@ -60,11 +61,65 @@ export interface CheckSuite {
 
 export type CheckStatus = 'pass' | 'fail' | 'inconclusive'
 
+/** What one value pair actually returned, kept so the result can show its
+ * working rather than asserting it. */
+export interface EvidenceValue {
+  label: string
+  source: number | string | null
+  target: number | string | null
+  delta: number | null
+  status: RowStatus
+}
+
+/**
+ * The numbers behind a verdict.
+ *
+ * "1 matched" is a claim; "19,658 = 19,658" is evidence. A reconciliation tool
+ * that reports agreement without showing what agreed is asking for exactly the
+ * trust it exists to replace — so every run keeps the values it compared, and
+ * the row counts each engine returned to produce them.
+ */
+export interface CheckEvidence {
+  /** One entry per value pair. Present only when the comparison produced a
+   * single row: a grain check has no one row to quote, and inventing a
+   * representative would be worse than saying how many were compared. */
+  values?: EvidenceValue[]
+  /** Distinct keys compared. 1 for a scalar check. */
+  comparedRows: number
+  /** Rows each engine actually returned, so a surprising verdict can be traced
+   * back to a query that returned more or less than expected. */
+  sourceRows: number
+  targetRows: number
+}
+
+export function evidenceFrom(
+  result: ComparisonResult,
+  valueLabels: string[],
+  sourceRows: number,
+  targetRows: number,
+): CheckEvidence {
+  const base = { comparedRows: result.rows.length, sourceRows, targetRows }
+  if (result.rows.length !== 1) return base
+  const row = result.rows[0]
+  return {
+    ...base,
+    values: row.cells.map((c, i) => ({
+      label: valueLabels[i] ?? `value ${i + 1}`,
+      source: c.sourceValue,
+      target: c.targetValue,
+      delta: c.delta,
+      status: c.status,
+    })),
+  }
+}
+
 export interface CheckRun {
   checkId: string
   name: string
   status: CheckStatus
   summary?: ComparisonSummary
+  /** The numbers that produced the verdict. */
+  evidence?: CheckEvidence
   refusal?: Refusal
   /** Why it could not run: a query error, a missing column, a lost connection. */
   error?: string

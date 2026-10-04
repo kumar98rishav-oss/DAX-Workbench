@@ -22,7 +22,7 @@ import {
 import { compare, type CompareOptions } from '@/application/reconcile/compare'
 import { DEFAULT_NORMALIZE, type NormalizeOptions } from '@/application/reconcile/normalize'
 import {
-  bindCheck, classify, newId, suggestName, summarize,
+  bindCheck, classify, evidenceFrom, newId, suggestName, summarize,
   type CheckRun, type CheckSuite, type SavedCheck,
 } from '@/application/reconcile/suite'
 import { getSuites, putSuites } from '@/infrastructure/desktop/sql-client'
@@ -451,7 +451,18 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
       const s = mk('source', sq.columns, sq.rows, sq.truncated)
       const t = mk('target', tq.columns, tq.rows, tq.truncated)
       const bound = bindCheck(check, s, t)
-      return compare(s, t, bound.keys, bound.values, { tolerance: check.tolerance, normalize })
+      const result = compare(s, t, bound.keys, bound.values, { tolerance: check.tolerance, normalize })
+      return {
+        result,
+        // Keep the numbers, not just the verdict: a result that cannot show its
+        // working is asking to be taken on faith.
+        evidence: evidenceFrom(
+          result,
+          bound.values.map((v) => v.target.column),
+          s.rows.length,
+          t.rows.length,
+        ),
+      }
     }
 
     /**
@@ -474,11 +485,12 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
 
       for (let tries = 0; tries < 2; tries++) {
         try {
-          const result = await attempt(check)
+          const { result, evidence } = await attempt(check)
           out.push({
             ...base,
             status: classify(result),
             summary: result.summary,
+            evidence,
             refusal: result.refusal,
             durationMs: Math.round(performance.now() - t0),
           })

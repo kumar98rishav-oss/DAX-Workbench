@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import {
-  bindCheck, classify, groupChecks, newId, OTHER_GROUP, suggestName, summarize, verdict,
+  bindCheck, classify, evidenceFrom, groupChecks, newId, OTHER_GROUP, suggestName, summarize, verdict,
   type CheckRun, type SavedCheck,
 } from './suite'
 import type { ComparisonResult, ComparisonSummary, ResultSet } from './types'
@@ -142,6 +142,49 @@ describe('bindCheck', () => {
     const { keys, values } = bindCheck(scalar, rs('a', 'source', ['n']), rs('b', 'target', ['[n]']))
     expect(keys).toEqual([])
     expect(values).toHaveLength(1)
+  })
+})
+
+describe('evidenceFrom', () => {
+  const row = (cells: { s: number | string | null; t: number | string | null; d: number | null; st: 'match' | 'mismatch' }[]) => ({
+    key: [], compositeKey: '', status: 'match' as const, sourceRowCount: 1, targetRowCount: 1,
+    cells: cells.map((c) => ({ sourceValue: c.s, targetValue: c.t, delta: c.d, status: c.st })),
+  })
+
+  it('keeps the actual numbers for a scalar check', () => {
+    // The whole point: a verdict that cannot show its working is asking to be
+    // taken on faith.
+    const r: ComparisonResult = { rows: [row([{ s: 19658, t: 19658, d: 0, st: 'match' }])], summary: emptySummary }
+    const e = evidenceFrom(r, ['[RowCount]'], 1, 1)
+    expect(e.values).toEqual([{ label: '[RowCount]', source: 19658, target: 19658, delta: 0, status: 'match' }])
+    expect(e.comparedRows).toBe(1)
+  })
+
+  it('keeps text values, not just numbers', () => {
+    const r: ComparisonResult = { rows: [row([{ s: '2023-01-01', t: '2024-12-31', d: null, st: 'mismatch' }])], summary: emptySummary }
+    expect(evidenceFrom(r, ['[First]'], 1, 1).values?.[0]).toMatchObject({ source: '2023-01-01', target: '2024-12-31' })
+  })
+
+  it('quotes NO row for a multi-row comparison', () => {
+    // Picking a representative row out of 24 would be worse than saying how
+    // many were compared — it reads like the whole answer.
+    const r: ComparisonResult = {
+      rows: [row([{ s: 1, t: 1, d: 0, st: 'match' }]), row([{ s: 2, t: 2, d: 0, st: 'match' }])],
+      summary: emptySummary,
+    }
+    const e = evidenceFrom(r, ['[v]'], 24, 24)
+    expect(e.values).toBeUndefined()
+    expect(e.comparedRows).toBe(2)
+  })
+
+  it('records what each engine returned, so a surprise can be traced', () => {
+    const r: ComparisonResult = { rows: [], summary: emptySummary }
+    expect(evidenceFrom(r, [], 19658, 10000)).toMatchObject({ sourceRows: 19658, targetRows: 10000 })
+  })
+
+  it('falls back to a positional label when none is supplied', () => {
+    const r: ComparisonResult = { rows: [row([{ s: 1, t: 1, d: 0, st: 'match' }])], summary: emptySummary }
+    expect(evidenceFrom(r, [], 1, 1).values?.[0].label).toBe('value 1')
   })
 })
 

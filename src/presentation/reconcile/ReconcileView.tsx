@@ -9,6 +9,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   Database, Play, PlayCircle, Plug, Check, X, Trash2, TriangleAlert, Link2, RefreshCw, Table2, Save, Wand2,
+  Copy, FileSearch, ChevronUp,
 } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { useReconcile, ROW_CAP } from '@/app/reconcile-store'
@@ -20,7 +21,9 @@ import { getDesktopModel, type DesktopRelationship } from '@/infrastructure/desk
 import {
   byGrain, dateCoverage, distinctValues, duplicateKeys, nullCount, orphanKeys, rowCount, valueSet,
 } from '@/application/reconcile/generators'
-import { groupChecks, summarize, type CheckRun, type CheckStatus } from '@/application/reconcile/suite'
+import {
+  groupChecks, summarize, type CheckRun, type CheckStatus, type SavedCheck,
+} from '@/application/reconcile/suite'
 import type { ProposalKind } from '@/application/reconcile/propose'
 import type { ComparisonRow, ResultSet, RowStatus } from '@/application/reconcile/types'
 import './reconcile.css'
@@ -285,19 +288,127 @@ function CheckBar({ sources, rels }: { sources: ModelSource[]; rels: DesktopRela
 
 // ── Suite ───────────────────────────────────────────────────────────────────
 
-/** One line explaining a result without making the reader open it. */
+/**
+ * One line showing WHAT was compared, not merely that it was.
+ *
+ * "1 matched" is a claim the reader has to take on trust; "19,658 = 19,658" is
+ * the evidence itself. Scalar checks — most of them — quote their numbers
+ * directly. A grain check has no single row to quote, so it reports how many
+ * keys were compared and leaves the detail to the matrix.
+ */
 function runDetail(run?: CheckRun): string {
   if (!run) return 'not run yet'
   if (run.error) return run.error
   if (run.refusal) return run.refusal.message
+
+  const ev = run.evidence
+  if (ev?.values?.length) {
+    return ev.values
+      .map((v) => {
+        const a = fmt(v.source)
+        const b = fmt(v.target)
+        return a === b ? `${v.label.replace(/^\[|\]$/g, '')} ${a}` : `${v.label.replace(/^\[|\]$/g, '')} ${a} vs ${b}`
+      })
+      .join(' · ')
+  }
+
   const s = run.summary
   if (!s) return ''
-  if (run.status === 'pass') return `${s.matched.toLocaleString()} matched`
+  if (run.status === 'pass') return `${s.matched.toLocaleString()} keys compared, all agree`
   const bits: string[] = []
   if (s.mismatched) bits.push(`${s.mismatched.toLocaleString()} mismatched`)
   if (s.onlySource) bits.push(`${s.onlySource.toLocaleString()} only in source`)
   if (s.onlyTarget) bits.push(`${s.onlyTarget.toLocaleString()} only in target`)
   return bits.join(' · ')
+}
+
+/** Everything needed to reproduce a verdict by hand, in a form that pastes
+ * straight into SSMS and DAX Studio. */
+function evidenceText(check: SavedCheck, run?: CheckRun): string {
+  const lines = [
+    `CHECK   ${check.name}`,
+    run ? `RESULT  ${run.status.toUpperCase()} — ${runDetail(run)}` : 'RESULT  not run',
+    run ? `RAN     ${run.ranAt} (${run.durationMs} ms)` : '',
+    '',
+    '-- SOURCE (SQL Server) ------------------------------------------',
+    check.sourceQuery,
+    '',
+    '-- TARGET (Power BI model) --------------------------------------',
+    check.targetQuery,
+  ]
+  if (run?.evidence) {
+    lines.push('', `-- RETURNED ------------------------------------------------------`)
+    lines.push(`source rows: ${run.evidence.sourceRows}   target rows: ${run.evidence.targetRows}`)
+    for (const v of run.evidence.values ?? []) {
+      lines.push(`${v.label}: source=${fmt(v.source)} target=${fmt(v.target)} ${v.status}`)
+    }
+  }
+  return lines.filter((l) => l !== '').join('\n')
+}
+
+/** The proof, on demand: both queries and what each returned, so the number can
+ * be re-derived by hand in SSMS and DAX Studio rather than believed. */
+function Evidence({ check, run }: { check: SavedCheck; run?: CheckRun }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(evidenceText(check, run))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1600)
+    } catch { /* clipboard blocked — the text is on screen either way */ }
+  }
+
+  return (
+    <div className="rec-ev">
+      <div className="rec-ev__bar">
+        <span className="rec-checks__hint">Run these yourself to confirm the numbers.</span>
+        <span className="rec-conn__spacer" />
+        {run?.evidence && (
+          <span className="rec-conn__meta">
+            returned {run.evidence.sourceRows} / {run.evidence.targetRows} row
+            {run.evidence.sourceRows === 1 && run.evidence.targetRows === 1 ? '' : 's'}
+          </span>
+        )}
+        <button className="rec-btn rec-btn--quiet" onClick={() => void copy()}>
+          {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? 'Copied' : 'Copy evidence'}
+        </button>
+      </div>
+
+      {run?.evidence?.values?.length ? (
+        <table className="rec-ev__values">
+          <thead>
+            <tr>
+              <th />
+              <th className="rec-th--source">Source · SQL Server</th>
+              <th className="rec-th--target">Target · Power BI</th>
+              <th className="rec-num">Δ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {run.evidence.values.map((v) => (
+              <tr key={v.label} className={`rec-row rec-row--${v.status}`}>
+                <td>{v.label.replace(/^\[|\]$/g, '')}</td>
+                <td className="rec-num">{fmt(v.source)}</td>
+                <td className="rec-num">{fmt(v.target)}</td>
+                <td className="rec-num rec-num--delta">{fmtDelta(v.delta)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+
+      <div className="rec-ev__queries">
+        <div>
+          <span className="rec-chip rec-chip--source"><Database size={12} /> SQL Server</span>
+          <pre>{check.sourceQuery}</pre>
+        </div>
+        <div>
+          <span className="rec-chip rec-chip--target"><Table2 size={12} /> Power BI model</span>
+          <pre>{check.targetQuery}</pre>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const STATUS_MARK: Record<CheckStatus, string> = { pass: '✓', fail: '✗', inconclusive: '!' }
@@ -448,6 +559,8 @@ function SuitePanel({ sources, rels }: { sources: ModelSource[]; rels: DesktopRe
   const [name, setName] = useState('')
   /** Per-group open state. Undefined means "follow the status" — see below. */
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  /** Which checks are showing their working. */
+  const [shown, setShown] = useState<Record<string, boolean>>({})
 
   useEffect(() => { void loadSuite() }, [loadSuite])
 
@@ -531,26 +644,48 @@ function SuitePanel({ sources, rels }: { sources: ModelSource[]; rels: DesktopRe
                     {g.checks.map((c) => {
                       const run = runs.find((r) => r.checkId === c.id)
                       const active = runningCheckId === c.id
+                      const showing = shown[c.id] ?? false
                       return (
-                        <li key={c.id} className="rec-suite__row" data-status={run?.status ?? 'none'} data-off={!c.enabled}>
-                          <input
-                            type="checkbox"
-                            checked={c.enabled}
-                            onChange={() => void toggleCheck(c.id)}
-                            title={c.enabled ? 'Included in Run all' : 'Skipped'}
-                          />
-                          <span className={`rec-suite__mark rec-suite__mark--${run?.status ?? 'none'}`}>
-                            {active ? '…' : run ? STATUS_MARK[run.status] : '·'}
-                          </span>
-                          <button className="rec-suite__name" onClick={() => openCheck(c.id)} title="Open this check in the builder below">
-                            {shortName(c.name, g.table)}
-                          </button>
-                          <span className="rec-suite__detail">{active ? 'running…' : runDetail(run)}</span>
-                          {run && <span className="rec-suite__ms">{run.durationMs} ms</span>}
-                          <button className="rec-suite__del" onClick={() => void removeCheck(c.id)} title="Remove">
-                            <Trash2 size={12} />
-                          </button>
-                        </li>
+                        <Fragment key={c.id}>
+                          <li className="rec-suite__row" data-status={run?.status ?? 'none'} data-off={!c.enabled}>
+                            <input
+                              type="checkbox"
+                              checked={c.enabled}
+                              onChange={() => void toggleCheck(c.id)}
+                              title={c.enabled ? 'Included in Run all' : 'Skipped'}
+                            />
+                            <span className={`rec-suite__mark rec-suite__mark--${run?.status ?? 'none'}`}>
+                              {active ? '…' : run ? STATUS_MARK[run.status] : '·'}
+                            </span>
+                            <button
+                              className="rec-suite__name"
+                              onClick={() => setShown((s) => ({ ...s, [c.id]: !showing }))}
+                              title="Show the queries and the numbers behind this result"
+                            >
+                              {shortName(c.name, g.table)}
+                            </button>
+                            <span className="rec-suite__detail">{active ? 'running…' : runDetail(run)}</span>
+                            {run && <span className="rec-suite__ms">{run.durationMs} ms</span>}
+                            <button
+                              className="rec-suite__del"
+                              onClick={() => setShown((s) => ({ ...s, [c.id]: !showing }))}
+                              title={showing ? 'Hide the working' : 'Show the working'}
+                            >
+                              {showing ? <ChevronUp size={12} /> : <FileSearch size={12} />}
+                            </button>
+                            <button className="rec-suite__del" onClick={() => void removeCheck(c.id)} title="Remove">
+                              <Trash2 size={12} />
+                            </button>
+                          </li>
+                          {showing && (
+                            <li className="rec-suite__evrow">
+                              <Evidence check={c} run={run} />
+                              <button className="rec-btn rec-btn--quiet" onClick={() => openCheck(c.id)}>
+                                Open in builder
+                              </button>
+                            </li>
+                          )}
+                        </Fragment>
                       )
                     })}
                   </ul>
