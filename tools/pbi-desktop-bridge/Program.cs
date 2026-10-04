@@ -645,7 +645,15 @@ app.MapPost("/nim", async (NimProxyReq req) =>
         max_tokens  = req.MaxTokens,
     });
 
-    using var content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+    // Content-Type must be EXACTLY "application/json". The (string, Encoding,
+    // string) StringContent overload appends "; charset=utf-8", which NVIDIA
+    // rejects with 415 "Unsupported media type ... It must be application/json",
+    // killing every generation regardless of model or key. Set the header
+    // explicitly so no charset parameter is attached. The body is still UTF-8;
+    // JSON is defined as UTF-8, so nothing is lost by not saying so.
+    using var content = new StringContent(payload, System.Text.Encoding.UTF8);
+    content.Headers.ContentType =
+        new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
     HttpResponseMessage resp;
     try { resp = await client.PostAsync("https://integrate.api.nvidia.com/v1/chat/completions", content); }
     catch (Exception ex) { return Results.Json(new { error = ex.Message }, statusCode: 502); }

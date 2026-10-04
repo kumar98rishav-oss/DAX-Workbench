@@ -405,7 +405,13 @@ export function DaxView() {
                           />
                         </div>
                         <span className="dax-ai__modelnote">
-                          {NIM_MODELS.find((m) => m.id === nimModel)?.note ?? 'Custom — paste any model ID from build.nvidia.com'}
+                          {/* An "nvapi-" value is an API key, never a model id. The two
+                              inputs sit side by side and both take opaque strings, so
+                              this is an easy swap to make and a slow one to diagnose:
+                              it surfaces only as a bare HTTP 404 from NVIDIA. */}
+                          {nimModel.startsWith('nvapi-')
+                            ? 'That looks like your API key, not a model ID. Pick a model above — the key is stored separately.'
+                            : NIM_MODELS.find((m) => m.id === nimModel)?.note ?? 'Custom — paste any model ID from build.nvidia.com'}
                         </span>
                       </div>
                       <div className="dax-ai__keyrow">
@@ -416,7 +422,7 @@ export function DaxView() {
                   )}
 
                   {nlToDaxError && (
-                    /end of life|no longer available|end-of-life|eol|retired|410|gone/i.test(nlToDaxError) ? (
+                    /end of life|no longer available|end-of-life|eol|retired|40[49]|gone|not found/i.test(nlToDaxError) ? (
                       <div className="dax-ai__eol">
                         <TriangleAlert size={14} />
                         <div>
