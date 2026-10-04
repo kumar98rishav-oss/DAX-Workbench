@@ -6,7 +6,10 @@
  * prevent, and it would be invisible — the summary would just look good.
  */
 import { describe, it, expect } from 'vitest'
-import { bindCheck, classify, newId, suggestName, summarize, verdict, type CheckRun, type SavedCheck } from './suite'
+import {
+  bindCheck, classify, groupChecks, newId, OTHER_GROUP, suggestName, summarize, verdict,
+  type CheckRun, type SavedCheck,
+} from './suite'
 import type { ComparisonResult, ComparisonSummary, ResultSet } from './types'
 
 const emptySummary: ComparisonSummary = {
@@ -139,6 +142,29 @@ describe('bindCheck', () => {
     const { keys, values } = bindCheck(scalar, rs('a', 'source', ['n']), rs('b', 'target', ['[n]']))
     expect(keys).toEqual([])
     expect(values).toHaveLength(1)
+  })
+})
+
+describe('groupChecks', () => {
+  const c = (id: string, table?: string): SavedCheck => ({
+    id, name: id, sourceQuery: '', targetQuery: '', keys: [], values: [],
+    tolerance: { absolute: 0, relative: 0 }, enabled: true, table,
+  })
+
+  it('groups by table, keeping first-seen order', () => {
+    const g = groupChecks([c('a', 'Fact_Sales'), c('b', 'Dim_Product'), c('c', 'Fact_Sales')])
+    expect(g.map((x) => x.table)).toEqual(['Fact_Sales', 'Dim_Product'])
+    expect(g[0].checks.map((x) => x.id)).toEqual(['a', 'c'])
+  })
+
+  it('collects table-less checks rather than guessing where they belong', () => {
+    // A hand-typed name must not be parsed into somebody else's group.
+    const g = groupChecks([c('a', 'Fact_Sales'), c('my check')])
+    expect(g.find((x) => x.table === OTHER_GROUP)?.checks.map((x) => x.id)).toEqual(['my check'])
+  })
+
+  it('handles an empty suite', () => {
+    expect(groupChecks([])).toEqual([])
   })
 })
 

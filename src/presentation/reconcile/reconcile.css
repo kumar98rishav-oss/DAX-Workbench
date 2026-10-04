@@ -77,6 +77,69 @@
   border-top: 1px solid var(--border);
 }
 
+/* ── Verdict ─────────────────────────────────────────────────────────────── */
+/* The only thing most readers came for, sized accordingly. */
+.rec-verdict {
+  position: relative;
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-4); overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.rec-verdict__mark {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex-shrink: 0;
+  font-size: 17px; font-weight: var(--weight-semibold);
+  border-radius: 50%;
+  color: var(--text-subtle); background: color-mix(in srgb, var(--text-subtle) 12%, transparent);
+}
+.rec-verdict__text { flex: 1; min-width: 0; }
+.rec-verdict__text strong { display: block; font-size: 15px; font-weight: var(--weight-semibold); }
+.rec-verdict__text p { margin: 2px 0 0; font-size: 12px; color: var(--text-subtle); }
+.rec-verdict__ms { font-size: 11px; color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+
+.rec-verdict[data-tone='ok'] { border-color: color-mix(in srgb, var(--success, #30a46c) 45%, var(--border)); }
+.rec-verdict[data-tone='ok'] .rec-verdict__mark { color: var(--success, #30a46c); background: color-mix(in srgb, var(--success, #30a46c) 16%, transparent); }
+.rec-verdict[data-tone='bad'] { border-color: color-mix(in srgb, var(--danger, #e5484d) 45%, var(--border)); }
+.rec-verdict[data-tone='bad'] .rec-verdict__mark { color: var(--danger, #e5484d); background: color-mix(in srgb, var(--danger, #e5484d) 16%, transparent); }
+.rec-verdict[data-tone='warn'] { border-color: color-mix(in srgb, var(--warning, #f5a524) 45%, var(--border)); }
+.rec-verdict[data-tone='warn'] .rec-verdict__mark { color: var(--warning, #f5a524); background: color-mix(in srgb, var(--warning, #f5a524) 16%, transparent); }
+
+.rec-btn--lg { padding: 8px 16px; font-size: 13px; }
+
+.rec-verdict__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.rec-verdict__bar > div { height: 100%; background: var(--accent); transition: width .3s var(--ease, ease); }
+
+/* ── Check groups ────────────────────────────────────────────────────────── */
+.rec-suite__groups { max-height: 420px; overflow-y: auto; }
+.rec-grp { border-bottom: 1px solid var(--border); }
+.rec-grp:last-child { border-bottom: 0; }
+.rec-grp__head {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%;
+  padding: 7px var(--space-3); font-size: 12px; text-align: left;
+  color: var(--text); background: transparent; border: 0; cursor: pointer;
+}
+.rec-grp__head:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.rec-grp__tw { width: 12px; color: var(--text-subtle); font-size: 10px; }
+.rec-grp__name { font-weight: var(--weight-medium); }
+.rec-grp__count { font-size: 11px; color: var(--text-subtle); }
+.rec-grp__state { margin-left: auto; display: inline-flex; gap: 6px; }
+.rec-grp[data-status='fail'] { background: color-mix(in srgb, var(--danger, #e5484d) 4%, transparent); }
+.rec-grp[data-status='inconclusive'] { background: color-mix(in srgb, var(--warning, #f5a524) 4%, transparent); }
+.rec-grp .rec-suite__list { max-height: none; }
+.rec-grp .rec-suite__row { padding-left: var(--space-5); }
+
+/* ── Builder ─────────────────────────────────────────────────────────────── */
+.rec-builder { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.rec-builder__head {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%;
+  padding: var(--space-3); font-size: 12px; text-align: left;
+  color: var(--text); background: transparent; border: 0; cursor: pointer;
+}
+.rec-builder__head:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.rec-builder[data-open='true'] .rec-builder__head { border-bottom: 1px solid var(--border); }
+.rec-builder__body { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3); }
+
 /* ── Suite ───────────────────────────────────────────────────────────────── */
 .rec-suite { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
 .rec-suite__head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-3); border-bottom: 1px solid var(--border); }

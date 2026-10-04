@@ -20,7 +20,7 @@ import { getDesktopModel, type DesktopRelationship } from '@/infrastructure/desk
 import {
   byGrain, dateCoverage, distinctValues, duplicateKeys, nullCount, orphanKeys, rowCount, valueSet,
 } from '@/application/reconcile/generators'
-import { summarize, type CheckRun, type CheckStatus } from '@/application/reconcile/suite'
+import { groupChecks, summarize, type CheckRun, type CheckStatus } from '@/application/reconcile/suite'
 import type { ProposalKind } from '@/application/reconcile/propose'
 import type { ComparisonRow, ResultSet, RowStatus } from '@/application/reconcile/types'
 import './reconcile.css'
@@ -368,6 +368,77 @@ function ProposalReview() {
   )
 }
 
+/**
+ * The headline answer, and the Run button beside it.
+ *
+ * Previously the verdict was a small chip in a toolbar, which is the wrong
+ * weight for the only thing a reader came here to find out. Three outcomes are
+ * always shown apart — a suite that could not evaluate some of its checks is
+ * never described as clear.
+ */
+function VerdictBanner() {
+  const { suite, runs, running, lastRunAt, connected, runAll } = useReconcile()
+  const enabled = suite.checks.filter((c) => c.enabled).length
+  const counts = summarize(runs)
+  const clear = runs.length > 0 && counts.failed === 0 && counts.inconclusive === 0
+  const tone = running ? 'busy' : runs.length === 0 ? 'idle' : clear ? 'ok' : counts.failed > 0 ? 'bad' : 'warn'
+
+  const headline = () => {
+    if (running) return `Running… ${runs.length} of ${enabled}`
+    if (!connected) return 'Connect to your SQL Server to run checks'
+    if (suite.checks.length === 0) return 'No checks yet'
+    if (runs.length === 0) return `${enabled} check${enabled === 1 ? '' : 's'} ready`
+    if (clear) return `All clear — ${counts.passed} check${counts.passed === 1 ? '' : 's'} passed`
+    const bits: string[] = []
+    if (counts.failed > 0) bits.push(`${counts.failed} failed`)
+    if (counts.inconclusive > 0) bits.push(`${counts.inconclusive} could not run`)
+    return bits.join(' · ')
+  }
+
+  const sub = () => {
+    if (running) return 'Both sides of each check run together, so drift cannot look like a difference.'
+    if (!connected) return null
+    if (suite.checks.length === 0) return 'Propose checks drafts a baseline across every table at once.'
+    if (runs.length === 0) return 'Nothing has been run yet.'
+    if (clear) return lastRunAt ? `Model and source agree. Last run ${ago(lastRunAt)}.` : null
+    return `${counts.passed} of ${runs.length} passed. Open the groups below to see what moved.`
+  }
+
+  const totalMs = runs.reduce((a, r) => a + r.durationMs, 0)
+
+  return (
+    <div className="rec-verdict" data-tone={tone}>
+      <span className="rec-verdict__mark">
+        {running ? '…' : tone === 'ok' ? '✓' : tone === 'bad' ? '✗' : tone === 'warn' ? '!' : '·'}
+      </span>
+      <div className="rec-verdict__text">
+        <strong>{headline()}</strong>
+        {sub() && <p>{sub()}</p>}
+      </div>
+      {!running && runs.length > 0 && <span className="rec-verdict__ms">{(totalMs / 1000).toFixed(1)}s</span>}
+      <button
+        className="rec-btn rec-btn--primary rec-btn--lg"
+        disabled={running || !connected || enabled === 0}
+        onClick={() => void runAll()}
+      >
+        <PlayCircle size={15} /> {running ? 'Running…' : 'Run all'}
+      </button>
+      {running && (
+        <div className="rec-verdict__bar">
+          <div style={{ width: `${enabled ? (runs.length / enabled) * 100 : 0}%` }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Drop the group's own name off a check so the list reads as a list, not as
+ * the same prefix forty-five times. */
+function shortName(name: string, table: string): string {
+  const stripped = name.replace(new RegExp(`^${table.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\s*(—\\s*)?`), '')
+  return stripped || name
+}
+
 function SuitePanel({ sources, rels }: { sources: ModelSource[]; rels: DesktopRelationship[] }) {
   const {
     suite, suiteError, runs, running, runningCheckId, lastRunAt, connected,
@@ -375,11 +446,12 @@ function SuitePanel({ sources, rels }: { sources: ModelSource[]; rels: DesktopRe
     propose, proposing, proposals,
   } = useReconcile()
   const [name, setName] = useState('')
+  /** Per-group open state. Undefined means "follow the status" — see below. */
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   useEffect(() => { void loadSuite() }, [loadSuite])
 
-  const counts = summarize(runs)
-  const ran = runs.length > 0
+  const groups = groupChecks(suite.checks)
 
   return (
     <section className="rec-suite">
@@ -414,24 +486,6 @@ function SuitePanel({ sources, rels }: { sources: ModelSource[]; rels: DesktopRe
           <Wand2 size={12} /> {proposing ? 'Reading…' : 'Propose checks'}
         </button>
         <span className="rec-conn__spacer" />
-        {ran && (
-          <span className="rec-suite__verdict">
-            {/* Inconclusive is never folded into passed: a suite that could not
-                evaluate half its checks must not read as healthy. */}
-            <span className="rec-stat rec-stat--ok">{counts.passed} passed</span>
-            {counts.failed > 0 && <span className="rec-stat rec-stat--bad">{counts.failed} failed</span>}
-            {counts.inconclusive > 0 && (
-              <span className="rec-stat rec-stat--warn">{counts.inconclusive} could not run</span>
-            )}
-          </span>
-        )}
-        <button
-          className="rec-btn rec-btn--primary"
-          disabled={running || !connected || suite.checks.every((c) => !c.enabled)}
-          onClick={() => void runAll()}
-        >
-          <PlayCircle size={13} /> {running ? 'Running…' : 'Run all'}
-        </button>
       </header>
 
       {suiteError && <div className="rec-err rec-err--block">{suiteError}</div>}
@@ -445,33 +499,66 @@ function SuitePanel({ sources, rels }: { sources: ModelSource[]; rels: DesktopRe
           moved instead of hoping.
         </div>
       ) : suite.checks.length === 0 ? null : (
-        <ul className="rec-suite__list">
-          {suite.checks.map((c) => {
-            const run = runs.find((r) => r.checkId === c.id)
-            const active = runningCheckId === c.id
+        <div className="rec-suite__groups">
+          {groups.map((g) => {
+            const groupRuns = g.checks.map((c) => runs.find((r) => r.checkId === c.id))
+            const bad = groupRuns.filter((r) => r?.status === 'fail').length
+            const unknown = groupRuns.filter((r) => r?.status === 'inconclusive').length
+            const ok = groupRuns.filter((r) => r?.status === 'pass').length
+            const worst = bad > 0 ? 'fail' : unknown > 0 ? 'inconclusive' : ok > 0 ? 'pass' : 'none'
+            // A group that is fine stays shut: the reader only needs to open
+            // what is unhappy. Anything not passing opens itself.
+            const open = expanded[g.table] ?? (worst === 'fail' || worst === 'inconclusive')
+
             return (
-              <li key={c.id} className="rec-suite__row" data-status={run?.status ?? 'none'} data-off={!c.enabled}>
-                <input
-                  type="checkbox"
-                  checked={c.enabled}
-                  onChange={() => void toggleCheck(c.id)}
-                  title={c.enabled ? 'Included in Run all' : 'Skipped'}
-                />
-                <span className={`rec-suite__mark rec-suite__mark--${run?.status ?? 'none'}`}>
-                  {active ? '…' : run ? STATUS_MARK[run.status] : '·'}
-                </span>
-                <button className="rec-suite__name" onClick={() => openCheck(c.id)} title="Load into the panes">
-                  {c.name}
+              <div key={g.table} className="rec-grp" data-status={worst}>
+                <button className="rec-grp__head" onClick={() => setExpanded((e) => ({ ...e, [g.table]: !open }))}>
+                  <span className="rec-grp__tw">{open ? '▾' : '▸'}</span>
+                  <span className={`rec-suite__mark rec-suite__mark--${worst}`}>
+                    {worst === 'none' ? '·' : STATUS_MARK[worst as CheckStatus]}
+                  </span>
+                  <span className="rec-grp__name">{g.table}</span>
+                  <span className="rec-grp__count">{g.checks.length} check{g.checks.length === 1 ? '' : 's'}</span>
+                  <span className="rec-grp__state">
+                    {bad > 0 && <span className="rec-stat rec-stat--bad">{bad} failed</span>}
+                    {unknown > 0 && <span className="rec-stat rec-stat--warn">{unknown} could not run</span>}
+                    {bad === 0 && unknown === 0 && ok > 0 && <span className="rec-stat rec-stat--ok">all passed</span>}
+                  </span>
                 </button>
-                <span className="rec-suite__detail">{active ? 'running…' : runDetail(run)}</span>
-                {run && <span className="rec-suite__ms">{run.durationMs} ms</span>}
-                <button className="rec-suite__del" onClick={() => void removeCheck(c.id)} title="Remove">
-                  <Trash2 size={12} />
-                </button>
-              </li>
+
+                {open && (
+                  <ul className="rec-suite__list">
+                    {g.checks.map((c) => {
+                      const run = runs.find((r) => r.checkId === c.id)
+                      const active = runningCheckId === c.id
+                      return (
+                        <li key={c.id} className="rec-suite__row" data-status={run?.status ?? 'none'} data-off={!c.enabled}>
+                          <input
+                            type="checkbox"
+                            checked={c.enabled}
+                            onChange={() => void toggleCheck(c.id)}
+                            title={c.enabled ? 'Included in Run all' : 'Skipped'}
+                          />
+                          <span className={`rec-suite__mark rec-suite__mark--${run?.status ?? 'none'}`}>
+                            {active ? '…' : run ? STATUS_MARK[run.status] : '·'}
+                          </span>
+                          <button className="rec-suite__name" onClick={() => openCheck(c.id)} title="Open this check in the builder below">
+                            {shortName(c.name, g.table)}
+                          </button>
+                          <span className="rec-suite__detail">{active ? 'running…' : runDetail(run)}</span>
+                          {run && <span className="rec-suite__ms">{run.durationMs} ms</span>}
+                          <button className="rec-suite__del" onClick={() => void removeCheck(c.id)} title="Remove">
+                            <Trash2 size={12} />
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
             )
           })}
-        </ul>
+        </div>
       )}
 
       {lastRunAt && <footer className="rec-suite__foot">Last run {ago(lastRunAt)}</footer>}
@@ -883,8 +970,21 @@ export function ReconcileView() {
   const {
     connected, sourceQuery, targetQuery, setSourceQuery, setTargetQuery,
     runSource, runTarget, runBoth, runningSource, runningTarget,
-    sourceError, targetError, source, target,
+    sourceError, targetError, source, target, suite, builderNonce, suiteLoaded,
   } = useReconcile()
+  const [builderOpen, setBuilderOpen] = useState(false)
+
+  // Open on an empty suite — with nothing to run, building IS the task. Gated
+  // on suiteLoaded: the suite arrives asynchronously, so before it lands every
+  // suite looks empty and the builder would spring open on every page load.
+  const checkCount = suite.checks.length
+  useEffect(() => {
+    if (suiteLoaded && checkCount === 0) setBuilderOpen(true)
+  }, [suiteLoaded, checkCount])
+  // Open when a saved check is loaded, or clicking it would look like nothing
+  // happened. Keyed off the nonce rather than the query text, which is never
+  // empty and so would hold the builder permanently open.
+  useEffect(() => { if (builderNonce > 0) setBuilderOpen(true) }, [builderNonce])
 
   useEffect(() => {
     if (!desktop.connected) return
@@ -917,35 +1017,55 @@ export function ReconcileView() {
       </header>
 
       <ConnectionBar />
-      {connected && desktop.connected && <CheckBar sources={sources} rels={rels} />}
+      <VerdictBanner />
       <SuitePanel sources={sources} rels={rels} />
 
-      <div className="rec-panes">
-        <QueryPane
-          side="source" title="SQL Server" value={sourceQuery} onChange={setSourceQuery}
-          onRun={() => void runSource()} running={runningSource} error={sourceError} result={source}
-        />
-        <QueryPane
-          side="target" title="Power BI model" value={targetQuery} onChange={setTargetQuery}
-          onRun={() => void runTarget()} running={runningTarget} error={targetError} result={target}
-        />
-      </div>
-
-      <div className="rec-runboth">
-        <button
-          className="rec-btn rec-btn--primary"
-          onClick={() => void runBoth()}
-          disabled={runningSource || runningTarget || !connected}
-        >
-          <Play size={13} /> Run both
+      {/* The builder is the editor, not the dashboard. Once a suite exists the
+          day-to-day job is running it and reading the result, so the two query
+          panes stop occupying the screen until they are asked for — opening a
+          check from the list expands this automatically. */}
+      <section className="rec-builder" data-open={builderOpen}>
+        <button className="rec-builder__head" onClick={() => setBuilderOpen((v) => !v)}>
+          <span className="rec-grp__tw">{builderOpen ? '▾' : '▸'}</span>
+          <span className="rec-grp__name">Build a check</span>
+          <span className="rec-checks__hint">
+            Write both queries, pair the columns, compare — then save it into the suite.
+          </span>
         </button>
-        <span className="rec-checks__hint">
-          Back to back, so the gap between the two reads cannot show up as a difference.
-        </span>
-      </div>
 
-      <PairingBar />
-      <Matrix />
+        {builderOpen && (
+          <div className="rec-builder__body">
+            {connected && desktop.connected && <CheckBar sources={sources} rels={rels} />}
+
+            <div className="rec-panes">
+              <QueryPane
+                side="source" title="SQL Server" value={sourceQuery} onChange={setSourceQuery}
+                onRun={() => void runSource()} running={runningSource} error={sourceError} result={source}
+              />
+              <QueryPane
+                side="target" title="Power BI model" value={targetQuery} onChange={setTargetQuery}
+                onRun={() => void runTarget()} running={runningTarget} error={targetError} result={target}
+              />
+            </div>
+
+            <div className="rec-runboth">
+              <button
+                className="rec-btn rec-btn--primary"
+                onClick={() => void runBoth()}
+                disabled={runningSource || runningTarget || !connected}
+              >
+                <Play size={13} /> Run both
+              </button>
+              <span className="rec-checks__hint">
+                Back to back, so the gap between the two reads cannot show up as a difference.
+              </span>
+            </div>
+
+            <PairingBar />
+            <Matrix />
+          </div>
+        )}
+      </section>
     </div>
   )
 }

@@ -43,6 +43,10 @@ export interface SavedCheck {
   tolerance: Tolerance
   /** Skipped by Run all when false, but kept in the suite. */
   enabled: boolean
+  /** Model table this check belongs to, recorded so the list can group by it.
+   * Absent for hand-built checks — those group under "Other", because guessing
+   * a table from a name the user typed would put checks in the wrong place. */
+  table?: string
 }
 
 export interface CheckSuite {
@@ -152,6 +156,32 @@ export function verdict(run: SuiteRun): string {
   if (run.failed > 0) parts.push(`${run.failed} failed`)
   if (run.inconclusive > 0) parts.push(`${run.inconclusive} could not run`)
   return parts.join(' · ')
+}
+
+export interface CheckGroup {
+  table: string
+  checks: SavedCheck[]
+}
+
+/** Hand-built checks have no table; they collect here rather than being guessed into
+ * someone else's group. */
+export const OTHER_GROUP = 'Other checks'
+
+/**
+ * Group checks by the table they test, preserving first-seen order.
+ *
+ * Forty-five checks in a flat list is a wall. Grouped, the question a reader
+ * actually has — "which table is unhappy?" — is answerable without scrolling.
+ */
+export function groupChecks(checks: SavedCheck[]): CheckGroup[] {
+  const map = new Map<string, SavedCheck[]>()
+  for (const c of checks) {
+    const key = c.table ?? OTHER_GROUP
+    const existing = map.get(key)
+    if (existing) existing.push(c)
+    else map.set(key, [c])
+  }
+  return [...map.entries()].map(([table, group]) => ({ table, checks: group }))
 }
 
 /** A stable id without pulling in a uuid dependency. */

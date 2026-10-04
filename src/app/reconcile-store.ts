@@ -106,6 +106,10 @@ interface ReconcileState {
   toggleCheck: (id: string) => Promise<void>
   /** Put a saved check back into the two panes so it can be inspected or edited. */
   openCheck: (id: string) => void
+  /** Bumped each time a check is loaded into the panes, so the view knows to
+   * reveal the builder. A counter rather than a flag: opening the same check
+   * twice must still open the builder the second time. */
+  builderNonce: number
   runAll: () => Promise<void>
 }
 
@@ -271,6 +275,7 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
   proposals: [],
   proposing: false,
   unmatchedTables: [],
+  builderNonce: 0,
 
   propose: async (sources, relationships) => {
     set({ proposing: true, suiteError: null })
@@ -333,6 +338,7 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
         values: shape.values.map((c) => ({ source: c, target: `[${c}]` })),
         tolerance: { absolute: 1e-6, relative: 0 },
         enabled: true,
+        table: p.table,
       }
     })
 
@@ -408,6 +414,7 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
       // result sets to bind against, so it is cleared rather than left pointing
       // at ids from a previous run.
       keys: [], values: [], source: null, target: null,
+      builderNonce: get().builderNonce + 1,
       ...invalidate,
     })
   },
@@ -428,38 +435,74 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
     const port = useApp.getState().desktop.port
     const out: CheckRun[] = []
 
+    const mk = (origin: 'source' | 'target', cols: string[], rows: Record<string, unknown>[], truncated: boolean): ResultSet => ({
+      id: nextId(), origin, label: origin, query: '', executedAt: new Date().toISOString(),
+      durationMs: 0, columns: cols.map((name) => ({ name })),
+      rows: rows.map((r) => cols.map((c) => r[c] ?? null)), truncated,
+    })
+
+    /** One attempt: both sides together, then compare. Throws on anything that
+     * stopped the check from being evaluated. */
+    const attempt = async (check: SavedCheck) => {
+      const [sq, tq] = await Promise.all([
+        sqlQuery(connection, check.sourceQuery, ROW_CAP),
+        desktopRunDax(check.targetQuery, port, ROW_CAP),
+      ])
+      const s = mk('source', sq.columns, sq.rows, sq.truncated)
+      const t = mk('target', tq.columns, tq.rows, tq.truncated)
+      const bound = bindCheck(check, s, t)
+      return compare(s, t, bound.keys, bound.values, { tolerance: check.tolerance, normalize })
+    }
+
+    /**
+     * A timeout during a long suite is contention, not a verdict.
+     *
+     * Both engines live on this machine and a run fires them together for every
+     * check; under that burst a query that takes 150ms alone can wait past its
+     * command timeout. Observed twice on a 45-check suite, hitting a DIFFERENT
+     * check each time — the signature of load, not of a bad query. Anything
+     * else (a renamed column, broken SQL) is deterministic and retrying it just
+     * wastes another timeout.
+     */
+    const isContention = (e: unknown) => /timeout/i.test((e as Error)?.message ?? '')
+
     for (const check of enabled) {
       set({ runningCheckId: check.id })
       const t0 = performance.now()
       const base = { checkId: check.id, name: check.name, ranAt: new Date().toISOString() }
-      try {
-        const [sq, tq] = await Promise.all([
-          sqlQuery(connection, check.sourceQuery, ROW_CAP),
-          desktopRunDax(check.targetQuery, port, ROW_CAP),
-        ])
-        const mk = (origin: 'source' | 'target', cols: string[], rows: Record<string, unknown>[], truncated: boolean): ResultSet => ({
-          id: nextId(), origin, label: origin, query: '', executedAt: new Date().toISOString(),
-          durationMs: 0, columns: cols.map((name) => ({ name })),
-          rows: rows.map((r) => cols.map((c) => r[c] ?? null)), truncated,
-        })
-        const s = mk('source', sq.columns, sq.rows, sq.truncated)
-        const t = mk('target', tq.columns, tq.rows, tq.truncated)
-        const bound = bindCheck(check, s, t)
-        const result = compare(s, t, bound.keys, bound.values, { tolerance: check.tolerance, normalize })
-        out.push({
-          ...base,
-          status: classify(result),
-          summary: result.summary,
-          refusal: result.refusal,
-          durationMs: Math.round(performance.now() - t0),
-        })
-      } catch (e) {
-        // A query error or a renamed column means the check did not run. That is
-        // inconclusive, never a pass — see classify().
+      let lastError: unknown
+
+      for (let tries = 0; tries < 2; tries++) {
+        try {
+          const result = await attempt(check)
+          out.push({
+            ...base,
+            status: classify(result),
+            summary: result.summary,
+            refusal: result.refusal,
+            durationMs: Math.round(performance.now() - t0),
+          })
+          lastError = undefined
+          break
+        } catch (e) {
+          lastError = e
+          // Let the engines breathe before the second go.
+          if (tries === 0 && isContention(e)) {
+            await new Promise((r) => setTimeout(r, 750))
+            continue
+          }
+          break
+        }
+      }
+
+      if (lastError) {
+        // The check did not run. That is inconclusive, never a pass — see classify().
         out.push({
           ...base,
           status: 'inconclusive',
-          error: (e as Error).message,
+          error: isContention(lastError)
+            ? `Timed out twice — the server was busy. ${(lastError as Error).message}`
+            : (lastError as Error).message,
           durationMs: Math.round(performance.now() - t0),
         })
       }
