@@ -370,8 +370,11 @@ function uniqueId(base: string, taken: Set<string>): string {
 export const useApp = create<AppState>((set, get) => ({
   view: 'home',
   theme: initialTheme,
-  mode: 'dax',
-  panels: { left: true, right: true, bottom: false },
+  mode: 'reconcile',
+  // All shut. The work happens in the centre column — Reconcile in particular
+  // wants the width for two query panes side by side — and a panel the user
+  // never asked for costs more room than it earns. They open what they need.
+  panels: { left: false, right: false, bottom: false },
   bottomTab: 'insights',
   commandPaletteOpen: false,
   projectName: null,
@@ -458,7 +461,7 @@ export const useApp = create<AppState>((set, get) => ({
 
   goHome: () => set({ view: 'home' }),
 
-  openStudio: (projectName) => set({ view: 'studio', projectName, mode: 'dax' }),
+  openStudio: (projectName) => set({ view: 'studio', projectName, mode: 'reconcile' }),
 
   // Panels belong to the user, not to the tab. The old rule forced both
   // sidebars open on the KPI board and shut on every other tab, so switching
@@ -586,7 +589,7 @@ export const useApp = create<AppState>((set, get) => ({
     resetAccent()
     set({
       view: 'studio',
-      mode: 'dax',
+      mode: 'reconcile',
       datasets: load.datasets,
       model: load.model,
       report: load.report,
@@ -844,7 +847,7 @@ export const useApp = create<AppState>((set, get) => ({
       const syncedSignature = activeSignature(s.desktop)
       set({
         view: 'studio',
-        mode: 'dax',
+        mode: 'reconcile',
         datasets: load.datasets,
         model: load.model,
         report: load.report,
@@ -878,7 +881,7 @@ export const useApp = create<AppState>((set, get) => ({
       resetAccent()
       set({
         view: 'studio',
-        mode: 'dax',
+        mode: 'reconcile',
         datasets: load.datasets,
         model: load.model,
         report: load.report,
@@ -950,7 +953,7 @@ export const useApp = create<AppState>((set, get) => ({
         importing: false,
         importError: error,
         view: imported ? 'studio' : s.view,
-        mode: imported ? 'dax' : s.mode,
+        mode: imported ? 'reconcile' : s.mode,
         projectName: s.projectName ?? addedData[0]?.name ?? null,
         selectedVisualId: null,
         past: [],
@@ -1066,7 +1069,7 @@ export const useApp = create<AppState>((set, get) => ({
             ? pending.fileNames[0]?.replace(/\.[^.]+$/, '') ?? selected[0]?.name ?? 'Imported'
             : s.projectName,
         view: 'studio',
-        mode: 'dax',
+        mode: 'reconcile',
         pendingImport: null,
         selectedVisualId: null,
         selectedMeasureId: null,
@@ -1101,7 +1104,7 @@ export const useApp = create<AppState>((set, get) => ({
       return {
         model: artifacts.model,
         report: artifacts.report,
-        mode: 'dax',
+        mode: 'reconcile',
         selectedVisualId: null,
         past: [],
         future: [],
@@ -1115,7 +1118,7 @@ export const useApp = create<AppState>((set, get) => ({
         layoutId,
         model: artifacts.model,
         report: artifacts.report,
-        mode: 'dax',
+        mode: 'reconcile',
         selectedVisualId: null,
         past: [],
         future: [],
