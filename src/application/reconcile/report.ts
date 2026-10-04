@@ -16,8 +16,53 @@
  */
 import {
   groupChecks, summarize, verdict,
-  type CheckRun, type CheckStatus, type CheckSuite, type SavedCheck,
+  type CheckEvidence, type CheckRun, type CheckStatus, type CheckSuite, type SavedCheck,
 } from './suite'
+import type { ComparisonSummary, Refusal } from './types'
+
+/**
+ * A comparison run in the builder rather than saved to the suite.
+ *
+ * Investigation is most of the work and used to leave no trace: the suite
+ * documented itself, while the twenty minutes spent chasing a difference by
+ * hand vanished with the tab. These carry the same shape as a saved check and
+ * its run, so the report can treat them alike.
+ */
+export interface AdhocRecord {
+  id: string
+  name: string
+  sourceQuery: string
+  targetQuery: string
+  ranAt: string
+  durationMs: number
+  status: CheckStatus
+  summary?: ComparisonSummary
+  evidence?: CheckEvidence
+  refusal?: Refusal
+  keys: { source: string; target: string }[]
+  values: { source: string; target: string }[]
+}
+
+/** The heading ad-hoc work appears under, in both outputs. */
+export const ADHOC_GROUP = 'Ad-hoc checks'
+
+/** Present ad-hoc records as checks and runs, so one rendering path serves
+ * both and they cannot drift apart. */
+export function adhocAsSuite(records: AdhocRecord[]): { checks: SavedCheck[]; runs: CheckRun[] } {
+  return {
+    checks: records.map((a) => ({
+      id: a.id, name: a.name, table: ADHOC_GROUP,
+      sourceQuery: a.sourceQuery, targetQuery: a.targetQuery,
+      keys: a.keys, values: a.values,
+      tolerance: { absolute: 0, relative: 0 }, enabled: true,
+    })),
+    runs: records.map((a) => ({
+      checkId: a.id, name: a.name, status: a.status,
+      summary: a.summary, evidence: a.evidence, refusal: a.refusal,
+      durationMs: a.durationMs, ranAt: a.ranAt,
+    })),
+  }
+}
 
 export interface ReportInput {
   /** ISO timestamp of when the report was produced. */

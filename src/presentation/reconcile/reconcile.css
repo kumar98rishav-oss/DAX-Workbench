@@ -253,6 +253,27 @@
 
 .rec-runboth { display: flex; align-items: center; gap: var(--space-3); }
 
+/* ── Translation notice ──────────────────────────────────────────────────── */
+/* A draft is offered with its caveats attached, not silently. */
+.rec-trans {
+  display: flex; gap: var(--space-2); align-items: flex-start;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--warning, #f5a524) 45%, var(--border));
+  background: color-mix(in srgb, var(--warning, #f5a524) 7%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--warning, #f5a524);
+}
+.rec-trans[data-ok='false'] {
+  border-color: color-mix(in srgb, var(--danger, #e5484d) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger, #e5484d) 7%, transparent);
+  color: var(--danger, #e5484d);
+}
+.rec-trans__body { flex: 1; min-width: 0; font-size: 12px; }
+.rec-trans__body strong { color: var(--text); display: block; }
+.rec-trans__body p { margin: 3px 0 0; color: var(--text-subtle); }
+.rec-trans__body ul { margin: 6px 0 0; padding-left: 16px; color: var(--text-subtle); }
+.rec-trans__body li { margin: 3px 0; }
+
 /* ── Pairing ─────────────────────────────────────────────────────────────── */
 .rec-pairing { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
 .rec-pairing__head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-3); border-bottom: 1px solid var(--border); }

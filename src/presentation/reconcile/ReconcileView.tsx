@@ -9,7 +9,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   Database, Play, PlayCircle, Plug, Check, X, Trash2, TriangleAlert, Link2, RefreshCw, Table2, Save, Wand2,
-  Copy, FileSearch, ChevronUp, FileDown,
+  Copy, FileSearch, ChevronUp, FileDown, ArrowRight, ArrowLeft,
 } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { useReconcile, ROW_CAP } from '@/app/reconcile-store'
@@ -18,7 +18,7 @@ import {
   type ModelSource, type SqlSchemaObject,
 } from '@/infrastructure/desktop/sql-client'
 import { getDesktopModel, modelLabel, type DesktopRelationship } from '@/infrastructure/desktop/desktop-client'
-import { buildCsv, buildReportHtml, reportFilename, type ReportInput } from '@/application/reconcile/report'
+import { adhocAsSuite, buildCsv, buildReportHtml, reportFilename, type ReportInput } from '@/application/reconcile/report'
 import {
   byGrain, dateCoverage, distinctValues, duplicateKeys, nullCount, orphanKeys, rowCount, valueSet,
 } from '@/application/reconcile/generators'
@@ -504,21 +504,24 @@ function downloadText(filename: string, mime: string, text: string): void {
 }
 
 function VerdictBanner({ modelLabel, modelRefreshedAt }: { modelLabel?: string; modelRefreshedAt?: string }) {
-  const { suite, runs, running, lastRunAt, connected, runAll } = useReconcile()
+  const { suite, runs, running, lastRunAt, connected, runAll, adhoc } = useReconcile()
   const sqlInfo = useReconcile((s) => s.connected)
   const enabled = suite.checks.filter((c) => c.enabled).length
 
   /** Build the report from what is on screen right now. Pure builders do the
    * work; this only gathers inputs and hands the file to the browser. */
   const download = (kind: 'html' | 'csv') => {
+    // Ad-hoc comparisons join the suite under their own heading: the report
+    // should document the investigation, not only the checks that were saved.
+    const extra = adhocAsSuite(adhoc)
     const input: ReportInput = {
       generatedAt: new Date().toISOString(),
       source: sqlInfo
         ? { server: sqlInfo.server, database: sqlInfo.database, login: sqlInfo.login, collation: sqlInfo.collation, version: sqlInfo.version }
         : null,
       model: { label: modelLabel, refreshedAt: modelRefreshedAt },
-      suite,
-      runs,
+      suite: { ...suite, checks: [...suite.checks, ...extra.checks] },
+      runs: [...runs, ...extra.runs],
     }
     downloadText(
       reportFilename(kind, input),
@@ -1154,7 +1157,18 @@ export function ReconcileView() {
     connected, sourceQuery, targetQuery, setSourceQuery, setTargetQuery,
     runSource, runTarget, runBoth, runningSource, runningTarget,
     sourceError, targetError, source, target, suite, builderNonce, suiteLoaded,
+    translate, translation, dismissTranslation,
   } = useReconcile()
+
+  // What the translator needs to spell table names the model's way and to
+  // justify a RELATED() with a real relationship.
+  const translateCtx = useMemo(() => ({
+    modelTables: sources.map((s) => s.name),
+    relationships: rels.filter((r) => r.isActive).map((r) => ({
+      fromTable: r.fromTable, fromColumn: r.fromColumn, toTable: r.toTable, toColumn: r.toColumn,
+    })),
+    schema: 'dbo',
+  }), [sources, rels])
   const [builderOpen, setBuilderOpen] = useState(false)
 
   // Open on an empty suite — with nothing to run, building IS the task. Gated
@@ -1242,7 +1256,48 @@ export function ReconcileView() {
               <span className="rec-checks__hint">
                 Back to back, so the gap between the two reads cannot show up as a difference.
               </span>
+              <span className="rec-conn__spacer" />
+              {/* A draft, not an authority. It saves typing; what runs is still
+                  what you read and approve in the pane. */}
+              <span className="rec-checks__hint">Draft from the other side</span>
+              <button className="rec-btn" title="Draft DAX from this SQL" onClick={() => translate('sqlToDax', translateCtx)}>
+                <ArrowRight size={12} /> SQL to DAX
+              </button>
+              <button className="rec-btn" title="Draft SQL from this DAX" onClick={() => translate('daxToSql', translateCtx)}>
+                <ArrowLeft size={12} /> DAX to SQL
+              </button>
             </div>
+
+            {translation && (
+              <div className="rec-trans" data-ok={translation.ok}>
+                <TriangleAlert size={14} />
+                <div className="rec-trans__body">
+                  {translation.ok ? (
+                    <>
+                      <strong>
+                        Drafted into the {translation.direction === 'sqlToDax' ? 'Power BI' : 'SQL Server'} pane —
+                        read it before running.
+                      </strong>
+                      <p>
+                        The two engines do not mean the same thing by a join or a blank, and no translator can see
+                        filter context. This is a starting point you own, not a guarantee that the two agree.
+                      </p>
+                      {translation.notes.length > 0 && (
+                        <ul>{translation.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <strong>Not translated — {translation.reason}</strong>
+                      {translation.hint && <p>{translation.hint}</p>}
+                    </>
+                  )}
+                </div>
+                <button className="rec-suite__del" onClick={dismissTranslation} title="Dismiss">
+                  <X size={12} />
+                </button>
+              </div>
+            )}
 
             <PairingBar />
             <Matrix />

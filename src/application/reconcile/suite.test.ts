@@ -222,6 +222,15 @@ describe('suggestName', () => {
     expect(suggestName('SELECT 1 FROM [dbo].[Fact_Sales]', 'EVALUATE SUMMARIZE(x)'))
       .toContain('by grain')
   })
+  it('does not take the alias as part of the table name', () => {
+    // Named a check "Fact_sales AS FS — by grain" before the pattern was bounded.
+    expect(suggestName('SELECT a FROM dbo.Fact_sales AS FS GROUP BY a', 'EVALUATE SUMMARIZE(x)'))
+      .toBe('Fact_sales — by grain')
+  })
+  it('reads a bracketed table name with spaces', () => {
+    expect(suggestName('SELECT 1 FROM [dbo].[Fact Sales]', 'EVALUATE ROW("n", COUNTROWS(x))'))
+      .toBe('Fact Sales — row count')
+  })
   it('falls back without throwing on unparseable input', () => {
     expect(suggestName('', '')).toBe('check')
   })

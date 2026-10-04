@@ -245,7 +245,12 @@ export const newId = (prefix: string): string =>
 
 /** Suggest a name from the queries, so saving does not demand typing. */
 export function suggestName(sourceQuery: string, targetQuery: string): string {
-  const from = sourceQuery.match(/FROM\s+(\[?[\w ]+\]?\.)?\[?([\w ]+)\]?/i)?.[2]
+  // The table name is a bracketed name or a bare word — never a run of words.
+  // A looser pattern swallowed the alias too, naming a check after
+  // "Fact_Sales AS FS".
+  const from = sourceQuery
+    .match(/FROM\s+(?:(?:\[[^\]]+\]|\w+)\s*\.\s*)?(\[[^\]]+\]|\w+)/i)?.[1]
+    ?.replace(/^\[|\]$/g, '')
   const dax = targetQuery.match(/\b(COUNTROWS|DISTINCTCOUNTNOBLANK|COUNTBLANK|SUMMARIZE|SUM)\b/i)?.[1]
   const what =
     dax === 'COUNTROWS' ? 'row count'

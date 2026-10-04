@@ -26,6 +26,8 @@ import {
   type CheckRun, type CheckSuite, type SavedCheck,
 } from '@/application/reconcile/suite'
 import { getSuites, putSuites } from '@/infrastructure/desktop/sql-client'
+import { daxToSql, sqlToDax, type TranslateContext } from '@/application/reconcile/translate'
+import type { AdhocRecord } from '@/application/reconcile/report'
 import type { ComparisonResult, FieldPair, ResultSet, Tolerance } from '@/application/reconcile/types'
 
 /** How many rows either side may return before a comparison is refused.
@@ -79,6 +81,24 @@ interface ReconcileState {
   setTolerance: (t: Partial<Tolerance>) => void
   setNormalize: (n: Partial<NormalizeOptions>) => void
   recompute: () => void
+
+  // ── Drafting one query from the other ─────────────────────────────────────
+  /** The outcome of the last translate. Cleared as soon as either query is
+   * edited, so advice never outlives the text it was about. */
+  translation:
+    | { ok: true; direction: 'sqlToDax' | 'daxToSql'; notes: string[] }
+    | { ok: false; reason: string; hint?: string }
+    | null
+  translate: (direction: 'sqlToDax' | 'daxToSql', ctx: TranslateContext) => void
+  dismissTranslation: () => void
+
+  // ── Ad-hoc comparisons ────────────────────────────────────────────────────
+  /** Every comparison run in the builder this session, so a report documents
+   * the investigation and not only the saved suite. Keyed by the query pair:
+   * re-comparing the same pair updates its entry instead of adding another. */
+  adhoc: AdhocRecord[]
+  removeAdhoc: (id: string) => void
+  clearAdhoc: () => void
 
   // ── Suite ─────────────────────────────────────────────────────────────────
   suite: CheckSuite
@@ -167,8 +187,10 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
 
   disconnect: () => set({ connected: null, source: null, ...invalidate }),
 
-  setSourceQuery: (sql) => set({ sourceQuery: sql, ...invalidate }),
-  setTargetQuery: (dax) => set({ targetQuery: dax, ...invalidate }),
+  // Editing a query drops any translation advice with it: a note about what a
+  // draft did or did not handle is worthless once the text has moved on.
+  setSourceQuery: (sql) => set({ sourceQuery: sql, translation: null, ...invalidate }),
+  setTargetQuery: (dax) => set({ targetQuery: dax, translation: null, ...invalidate }),
   loadPair: (dax, sql) =>
     set({ targetQuery: dax, sourceQuery: sql, keys: [], values: [], ...invalidate }),
 
@@ -524,6 +546,30 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
     set({ running: false, runningCheckId: null, lastRunAt: new Date().toISOString() })
   },
 
+  translation: null,
+  dismissTranslation: () => set({ translation: null }),
+
+  translate: (direction, ctx) => {
+    const { sourceQuery, targetQuery } = get()
+    const t = direction === 'sqlToDax' ? sqlToDax(sourceQuery, ctx) : daxToSql(targetQuery, ctx)
+    if (!t.ok) {
+      // Leave the other pane untouched: a refusal must not half-write something.
+      set({ translation: { ok: false, reason: t.reason, hint: t.hint } })
+      return
+    }
+    set({
+      ...(direction === 'sqlToDax' ? { targetQuery: t.query } : { sourceQuery: t.query }),
+      translation: { ok: true, direction, notes: t.notes },
+      // The drafted query has not run, so any standing result is now about
+      // something else.
+      keys: [], values: [], source: null, target: null, ...invalidate,
+    })
+  },
+
+  adhoc: [],
+  removeAdhoc: (id) => set((s) => ({ adhoc: s.adhoc.filter((a) => a.id !== id) })),
+  clearAdhoc: () => set({ adhoc: [] }),
+
   recompute: () => {
     const { source, target, keys, values, tolerance, normalize } = get()
     // No keys is legitimate, not an incomplete setup: a row count or a grand
@@ -535,7 +581,36 @@ export const useReconcile = create<ReconcileState>((set, get) => ({
     }
     const opts: CompareOptions = { tolerance, normalize }
     try {
-      set({ result: compare(source, target, keys, values, opts) })
+      const result = compare(source, target, keys, values, opts)
+      const { sourceQuery, targetQuery, adhoc } = get()
+
+      // Record it so the report covers the investigation too. Keyed by the
+      // query pair, so tightening a tolerance and comparing again revises the
+      // entry rather than filling the report with near-duplicates.
+      const record: AdhocRecord = {
+        id: newId('adh'),
+        name: suggestName(sourceQuery, targetQuery),
+        sourceQuery,
+        targetQuery,
+        ranAt: new Date().toISOString(),
+        durationMs: (source.durationMs ?? 0) + (target.durationMs ?? 0),
+        status: classify(result),
+        summary: result.summary,
+        refusal: result.refusal,
+        evidence: evidenceFrom(result, values.map((v) => v.target.column), source.rows.length, target.rows.length),
+        keys: keys.map((k) => ({ source: k.source.column, target: k.target.column })),
+        values: values.map((v) => ({ source: v.source.column, target: v.target.column })),
+      }
+      const sameQueries = (a: AdhocRecord) =>
+        a.sourceQuery === sourceQuery && a.targetQuery === targetQuery
+      const existing = adhoc.findIndex(sameQueries)
+
+      set({
+        result,
+        adhoc: existing >= 0
+          ? adhoc.map((a, i) => (i === existing ? { ...record, id: a.id } : a))
+          : [...adhoc, record],
+      })
     } catch (e) {
       set({
         result: {
