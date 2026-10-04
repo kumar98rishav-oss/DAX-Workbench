@@ -9,7 +9,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   Database, Play, PlayCircle, Plug, Check, X, Trash2, TriangleAlert, Link2, RefreshCw, Table2, Save, Wand2,
-  Copy, FileSearch, ChevronUp,
+  Copy, FileSearch, ChevronUp, FileDown,
 } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { useReconcile, ROW_CAP } from '@/app/reconcile-store'
@@ -17,7 +17,8 @@ import {
   getModelSources, suggestSqlObject, sqlSchema,
   type ModelSource, type SqlSchemaObject,
 } from '@/infrastructure/desktop/sql-client'
-import { getDesktopModel, type DesktopRelationship } from '@/infrastructure/desktop/desktop-client'
+import { getDesktopModel, modelLabel, type DesktopRelationship } from '@/infrastructure/desktop/desktop-client'
+import { buildCsv, buildReportHtml, reportFilename, type ReportInput } from '@/application/reconcile/report'
 import {
   byGrain, dateCoverage, distinctValues, duplicateKeys, nullCount, orphanKeys, rowCount, valueSet,
 } from '@/application/reconcile/generators'
@@ -487,9 +488,44 @@ function ProposalReview() {
  * always shown apart — a suite that could not evaluate some of its checks is
  * never described as clear.
  */
-function VerdictBanner() {
+/** Hand a string to the browser as a file. A BOM goes on CSV so Excel reads it as
+ * UTF-8 rather than guessing a legacy code page and mangling the dashes. */
+function downloadText(filename: string, mime: string, text: string): void {
+  const body = mime.startsWith('text/csv') ? `﻿${text}` : text
+  const url = URL.createObjectURL(new Blob([body], { type: `${mime};charset=utf-8` }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  // Revoked on the next tick: revoking inside the click can cancel the download.
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function VerdictBanner({ modelLabel, modelRefreshedAt }: { modelLabel?: string; modelRefreshedAt?: string }) {
   const { suite, runs, running, lastRunAt, connected, runAll } = useReconcile()
+  const sqlInfo = useReconcile((s) => s.connected)
   const enabled = suite.checks.filter((c) => c.enabled).length
+
+  /** Build the report from what is on screen right now. Pure builders do the
+   * work; this only gathers inputs and hands the file to the browser. */
+  const download = (kind: 'html' | 'csv') => {
+    const input: ReportInput = {
+      generatedAt: new Date().toISOString(),
+      source: sqlInfo
+        ? { server: sqlInfo.server, database: sqlInfo.database, login: sqlInfo.login, collation: sqlInfo.collation, version: sqlInfo.version }
+        : null,
+      model: { label: modelLabel, refreshedAt: modelRefreshedAt },
+      suite,
+      runs,
+    }
+    downloadText(
+      reportFilename(kind, input),
+      kind === 'html' ? 'text/html' : 'text/csv',
+      kind === 'html' ? buildReportHtml(input) : buildCsv(input),
+    )
+  }
   const counts = summarize(runs)
   const clear = runs.length > 0 && counts.failed === 0 && counts.inconclusive === 0
   const tone = running ? 'busy' : runs.length === 0 ? 'idle' : clear ? 'ok' : counts.failed > 0 ? 'bad' : 'warn'
@@ -527,6 +563,18 @@ function VerdictBanner() {
         {sub() && <p>{sub()}</p>}
       </div>
       {!running && runs.length > 0 && <span className="rec-verdict__ms">{(totalMs / 1000).toFixed(1)}s</span>}
+      {/* Documentation: what was tested, and what came back. Only offered once a
+          run exists — a report with no results would document nothing. */}
+      {!running && runs.length > 0 && (
+        <span className="rec-verdict__dl">
+          <button className="rec-btn" onClick={() => download('html')} title="A readable report: results, the numbers compared, and every query. Opens anywhere and prints to PDF.">
+            <FileDown size={13} /> Report
+          </button>
+          <button className="rec-btn rec-btn--quiet" onClick={() => download('csv')} title="One row per metric, for Excel">
+            CSV
+          </button>
+        </span>
+      )}
       <button
         className="rec-btn rec-btn--primary rec-btn--lg"
         disabled={running || !connected || enabled === 0}
@@ -1152,7 +1200,7 @@ export function ReconcileView() {
       </header>
 
       <ConnectionBar />
-      <VerdictBanner />
+      <VerdictBanner modelLabel={modelLabel(desktop.database) ?? undefined} modelRefreshedAt={refreshed} />
       <SuitePanel sources={sources} rels={rels} />
 
       {/* The builder is the editor, not the dashboard. Once a suite exists the

@@ -106,6 +106,7 @@
 .rec-verdict[data-tone='warn'] .rec-verdict__mark { color: var(--warning, #f5a524); background: color-mix(in srgb, var(--warning, #f5a524) 16%, transparent); }
 
 .rec-btn--lg { padding: 8px 16px; font-size: 13px; }
+.rec-verdict__dl { display: inline-flex; gap: 6px; }
 
 .rec-verdict__bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .rec-verdict__bar > div { height: 100%; background: var(--accent); transition: width .3s var(--ease, ease); }
