@@ -14,13 +14,19 @@ statement. That translation is the hard problem in reconciliation: a measure's v
 depends on filter context, relationships, RLS and time intelligence, and a tool that
 guesses the SQL equivalent will eventually declare a correct measure wrong.
 
-**This design does not translate.** The user writes the DAX and writes the SQL, and asserts
-that the two should agree. Each runs on its own engine. The tool's only job is to execute
-both faithfully, join the results on a user-defined key, and report the difference —
+**This design never infers equivalence.** The user writes the DAX and writes the SQL, and
+asserts that the two should agree. Each runs on its own engine. The tool's only job is to
+execute both faithfully, join the results on a user-defined key, and report the difference —
 accurately and with full provenance.
 
 That boundary is what makes the feature trustworthy: we are never wrong about *semantics*,
 only ever about *execution and comparison*, both of which are testable.
+
+The distinction worth holding on to is **behind your back** versus **in front of you**.
+DirectQuery's translation is invisible and binding. A draft that lands in a pane, carrying
+the caveats for that particular translation, is neither: the user reads it, edits it, and
+runs what they approved — so equivalence remains their assertion. That is why §12 can offer
+a translator without undoing this section.
 
 ```
 ┌─ ◆ MODEL ──────────────┐     ┌─ ▣ SOURCE ─────────────┐
@@ -382,7 +388,60 @@ reconciliation report.
 
 ---
 
-## 12. Decisions, and what building it changed
+## 12. Drafting one query from the other
+
+Writing the same question twice is the tax this design charges. §1 is why that tax is worth
+paying, but it does not follow that the user should type both from scratch — and the cost is
+real: an early session lost time to DAX requiring a single `ROW()` with alternating
+name/expression pairs, which is not guessable from the SQL.
+
+So `translate.ts` drafts one side from the other. Three rules keep it inside §1.
+
+**It is a draft, never an authority.** The output lands in the pane as editable text and the
+user runs what they approved. The tool still never asserts that the two agree.
+
+**It refuses by name rather than guessing.** Outer joins, CTEs, window functions, `HAVING`,
+subqueries, `CASE`, `UNION`, `TOP`; and on the DAX side `VAR`/`RETURN`, `CALCULATE`, time
+intelligence, `USERELATIONSHIP`. A confident wrong draft is worse than no draft, because the
+user would run it believing the tool had understood it. The refusal names the construct that
+stopped it, so the reader knows what to write by hand.
+
+**Its warnings are specific to the translation it just made**, not a generic disclaimer
+nobody reads — which relationship a `RELATED()` leaned on and whether it could be verified
+against the model, that `INNER JOIN` drops unmatched rows where `RELATED` keeps the fact row
+and returns blank, that a `WHERE` became a `FILTER` where SQL's `NULL` and DAX's `BLANK`
+part company, and that `ORDER BY` was dropped because the comparison matches on keys.
+
+Scope is the shape mid-level reconciliation actually uses: one table, optional `INNER JOIN`s
+on a key, `GROUP BY`, simple aggregates and date parts. It also emits the model's own
+capitalisation — `dbo.Fact_sales` becomes `'Fact_Sales'` — since the model's spelling is the
+authority on its own table names.
+
+Verified against the live model: a three-key grain with a join drafts to the DAX a person had
+already written by hand, and returns the same 144 rows and the same total as the SQL it came
+from.
+
+---
+
+## 13. Documenting a run
+
+A run used to die with the browser tab, which made the tool useless for writing up a body of
+testing. `report.ts` builds two files from a run: a self-contained HTML document that opens
+offline and prints to PDF, and a CSV with one row per metric.
+
+Two things shape it. It **must not flatter the run** — a could-not-run check is never folded
+into the passed count, and only an unqualified pass reads as "All clear". And it is a file
+that **leaves the app**, so everything a person typed is escaped, and a CSV cell starting
+`=`, `+`, `-` or `@` is prefixed so Excel does not execute it on open.
+
+Ad-hoc comparisons from the builder are recorded and appear under their own heading. The
+investigation is most of the work, and documenting only the saved suite would leave out the
+part that was actually hard. They are rendered through the same path as saved checks, so the
+two cannot drift apart.
+
+---
+
+## 14. Decisions, and what building it changed
 
 **Settled.** The panel *replaces* the KPI tab rather than becoming a 7th — which also
 sidesteps the top-bar overflow. Windows Integrated is the default, so no credential storage

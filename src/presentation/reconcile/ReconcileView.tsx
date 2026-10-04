@@ -1201,8 +1201,8 @@ export function ReconcileView() {
         <div>
           <h2>Reconcile</h2>
           <p>
-            Compare the Power BI model against its SQL Server source. Nothing is translated —
-            you write both queries, and the tool reports the difference.
+            Compare the Power BI model against its SQL Server source. Nothing is translated behind
+            your back — you own both queries, and the tool reports the difference.
           </p>
         </div>
         <div className="rec-head__target">

@@ -1,9 +1,11 @@
 /**
  * APPLICATION — Reconciliation types
  *
- * Two engines, two result sets, one comparison layer. The tool never translates
- * DAX into SQL: the user writes both and asserts they should agree. We only ever
- * execute faithfully and compare accurately.
+ * Two engines, two result sets, one comparison layer. Nothing is translated
+ * behind the user's back: equivalence is theirs to assert, never ours to infer.
+ * One query can be DRAFTED from the other to save typing (see translate.ts),
+ * but the draft lands in a pane to be read and edited, and what runs is what
+ * they approved. We only ever execute faithfully and compare accurately.
  *
  * SOURCE = SQL Server (the system of record).
  * TARGET = the Power BI model (what we are validating).

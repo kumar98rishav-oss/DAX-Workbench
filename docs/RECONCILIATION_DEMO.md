@@ -38,10 +38,15 @@ Lead with the problem, not the tool.
 
 Then run the suite. 47 checks, about 80 seconds, one green line.
 
-Say what it is *not*: "It doesn't translate DAX into SQL. I write both queries;
-the tool executes them faithfully and compares. That's deliberate — a tool that
-guesses the SQL equivalent of a measure will eventually tell me a correct
-measure is wrong."
+Say what it is *not*: "It never assumes the two queries are equivalent — I assert
+that, and the tool just executes both faithfully and compares. That's deliberate:
+anything that guesses the SQL equivalent of a measure will eventually tell me a
+correct measure is wrong."
+
+If they ask whether you type everything twice, there is a button that drafts one
+side from the other — and the useful part of the answer is what it does when it
+*cannot*: "it refuses and names the construct, rather than handing me something
+plausible I'd run without reading."
 
 ---
 
@@ -265,7 +270,17 @@ statement, not just its first word.
 **"Why not just translate the DAX to SQL automatically?"**
 Because a measure's value depends on filter context, relationships, RLS and time
 intelligence, and a tool that guesses will eventually declare a correct measure
-wrong. The user owning both queries is what makes the result trustworthy.
+wrong. Owning both queries is what makes the result trustworthy.
+
+The distinction I'd draw is *behind your back* versus *in front of you*. There
+**is** a translate button — it drafts the other side to save typing, and for a
+grouped join it produces exactly the DAX I'd have written. But the draft lands
+in the pane with its caveats attached, I read it, and I run what I approved. It
+also refuses rather than guesses: outer joins, CTEs, window functions, `HAVING`,
+`CALCULATE`, time intelligence. It names the construct that stopped it.
+
+That's the whole difference. DirectQuery's translation is invisible and binding;
+this one is visible and mine to overrule.
 
 **"Does it work with views / stored procedures?"**
 Views yes, including indexed views — they query identically. Stored procedures
