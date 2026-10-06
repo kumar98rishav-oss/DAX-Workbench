@@ -165,7 +165,12 @@ app.Use(async (ctx, next) =>
         // not follow that they are trusted with every database this machine can
         // reach, which is a categorically larger blast radius. Opting in is a
         // deliberate act, not a side effect of enabling sharing.
-        if (path.StartsWith("/sql", StringComparison.OrdinalIgnoreCase) && !allowRemoteSql)
+        // Both prefixes, because the rule is about what the endpoint CAN DO,
+        // not what it is called: /reconcile/run opens exactly the same database
+        // connections as /sql/query. A guard that matched only the URL spelling
+        // would have been silently bypassed the day this endpoint was added.
+        if ((path.StartsWith("/sql", StringComparison.OrdinalIgnoreCase) ||
+             path.StartsWith("/reconcile", StringComparison.OrdinalIgnoreCase)) && !allowRemoteSql)
         {
             ctx.Response.StatusCode = 403;
             await ctx.Response.WriteAsJsonAsync(new
@@ -353,6 +358,29 @@ app.MapPost("/sql/test", (SqlTestReq req) =>
 app.MapPost("/sql/schema", (SqlTestReq req) =>
 {
     try { return Results.Json(Sql.Schema(req.Connection)); }
+    catch (Exception e) { return SqlFail(e); }
+});
+
+/// <summary>
+/// Run both sides and compare them HERE, returning a verdict instead of rows.
+///
+/// This is the endpoint the row cap existed because of. /sql/query and /dax
+/// each serialise every row to the client so the browser can compare them; this
+/// one streams both engines straight into the comparison and sends back the
+/// summary plus a page of findings. The payload stops scaling with the data and
+/// starts scaling with the number of DIFFERENCES, which is the quantity anyone
+/// actually wanted.
+/// </summary>
+app.MapPost("/reconcile/run", (ReconcileRun.Request req) =>
+{
+    try { return Results.Json(ReconcileRun.Run(req)); }
+    catch (InvalidOperationException e)
+    {
+        // The read-only guard refusing, a model that is not open, or a column
+        // that is not in its result set: all understood and deliberately
+        // declined, all with a message meant for a person.
+        return Results.Json(new { error = Sql.Redact(e.Message) }, statusCode: 400);
+    }
     catch (Exception e) { return SqlFail(e); }
 });
 

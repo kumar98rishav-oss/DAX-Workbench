@@ -20,7 +20,9 @@
 
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="ReconcileTests.cs" />
     <Compile Include="..\pbi-desktop-bridge\ReadOnlySql.cs" />
+    <Compile Include="..\pbi-desktop-bridge\Reconcile.cs" />
   </ItemGroup>
 
 </Project>

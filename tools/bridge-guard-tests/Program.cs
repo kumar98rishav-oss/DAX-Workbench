@@ -103,12 +103,22 @@ Equal("identifiers become inert", ReadOnlySql.Scrub("SELECT [DROP]"), "~id~");
 Equal("line comments vanish", ReadOnlySql.Scrub("SELECT 1 -- DROP TABLE t"), "SELECT 1 ");
 Equal("block comments vanish", ReadOnlySql.Scrub("SELECT /* DROP */ 1"), "SELECT   1");
 
+// ── Comparison engine ───────────────────────────────────────────────────────
+var (rPassed, rFailed) = ReconcileTests.Run();
+
 // ── Report ──────────────────────────────────────────────────────────────────
 Console.WriteLine();
 foreach (var f in failed) Console.WriteLine($"  FAIL  {f}");
 var total = passed + failed.Count;
 Console.WriteLine(failed.Count == 0
-    ? $"  read-only guard: {passed}/{total} passed"
-    : $"\n  read-only guard: {passed}/{total} passed, {failed.Count} FAILED");
+    ? $"  read-only guard:    {passed}/{total} passed"
+    : $"  read-only guard:    {passed}/{total} passed, {failed.Count} FAILED");
+
+foreach (var f in rFailed) Console.WriteLine($"  FAIL  {f}");
+var rTotal = rPassed + rFailed.Count;
+Console.WriteLine(rFailed.Count == 0
+    ? $"  comparison engine:  {rPassed}/{rTotal} passed"
+    : $"  comparison engine:  {rPassed}/{rTotal} passed, {rFailed.Count} FAILED");
+
 Console.WriteLine();
-return failed.Count == 0 ? 0 : 1;
+return failed.Count == 0 && rFailed.Count == 0 ? 0 : 1;

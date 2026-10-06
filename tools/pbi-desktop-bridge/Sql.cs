@@ -58,6 +58,13 @@ public static class Sql
         return b.ConnectionString;
     }
 
+    /// <summary>
+    /// Open a connection for a streaming read. Same builder, same read-only
+    /// intent as every other path — exposed so ReconcileRun can stream a reader
+    /// rather than go through Query(), which materialises every row.
+    /// </summary>
+    internal static SqlConnection OpenForRead(SqlConn c) => Open(c);
+
     private static SqlConnection Open(SqlConn c)
     {
         var conn = new SqlConnection(Build(c));
