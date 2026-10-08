@@ -21,6 +21,7 @@ import { getDesktopModel, modelLabel, type DesktopRelationship } from '@/infrast
 import { adhocAsSuite, buildCsv, buildReportHtml, reportFilename, type ReportInput } from '@/application/reconcile/report'
 import { formatSql } from '@/application/reconcile/sql-format'
 import { formatDaxQuery } from '@/application/reconcile/dax-query-format'
+import { CodeEditor } from './CodeEditor'
 import {
   byGrain, dateCoverage, distinctValues, duplicateKeys, nullCount, orphanKeys, rowCount, valueSet,
 } from '@/application/reconcile/generators'
@@ -797,11 +798,11 @@ function QueryPane({
           <Play size={12} /> {running ? 'Running…' : 'Run'}
         </button>
       </header>
-      <textarea
-        className="rec-code"
-        spellCheck={false}
+      <CodeEditor
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
+        dialect={side === 'source' ? 'sql' : 'dax'}
+        ariaLabel={side === 'source' ? 'SQL query' : 'DAX query'}
         onKeyDown={(e) => {
           // The shortcut the DAX tab already uses, so the muscle memory carries.
           if (e.shiftKey && e.altKey && (e.key === 'F' || e.key === 'f')) {

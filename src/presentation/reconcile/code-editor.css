@@ -1,0 +1,109 @@
+/* ── Syntax-highlighted query editor ───────────────────────────────────────
+ *
+ * A <pre> painted under a transparent textarea. The single most important rule
+ * here is .ce__layer: every property that can move a glyph is declared ONCE and
+ * applied to both layers. Set a padding on one and not the other and the caret
+ * separates from the text — subtly at first, then badly by line twenty.
+ */
+
+.ce {
+  position: relative;
+  width: 100%;
+  min-height: 128px;
+  resize: vertical;
+  overflow: hidden;          /* the resize handle belongs to .ce, not a layer */
+  display: grid;             /* one cell: both layers stack and share its size */
+}
+
+/* Everything affecting glyph metrics lives here and nowhere else. */
+.ce__layer {
+  grid-area: 1 / 1;
+  margin: 0;
+  padding: var(--space-3);
+  border: 0;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: normal;
+  tab-size: 4;
+  /* The wrapping mode must match exactly, or long lines break in different
+   * places on each layer and the colours detach from the characters. */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.ce__hl {
+  pointer-events: none;      /* clicks belong to the textarea underneath it */
+  user-select: none;
+  color: var(--text);
+  background: transparent;
+}
+
+.ce__input {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  color: transparent;        /* the <pre> provides every visible glyph */
+  caret-color: var(--text);  /* …except the caret, which must stay visible */
+  resize: none;
+  outline: none;
+}
+
+/* A selection over transparent text would be invisible, so give it a wash the
+ * highlighted glyphs still read through. */
+.ce__input::selection {
+  background: color-mix(in srgb, var(--accent, #6366f1) 32%, transparent);
+}
+
+/* ── Token colours ─────────────────────────────────────────────────────────
+ *
+ * Declared as tokens on :root with LIGHT as the base, then redefined for dark
+ * under both of the ways dark can arrive — the explicit attribute and the OS
+ * preference. That ordering is not arbitrary: written the other way round (dark
+ * as the fallback, light as an override) a page that sets no data-theme and
+ * prefers light gets light inks on a dark surface. That is not hypothetical —
+ * it is exactly what the alignment harness rendered, keyword #0000c0 on a near
+ * black background, effectively invisible.
+ */
+:root {
+  --syntax-keyword:    #0000c0;
+  --syntax-function:   #795e26;
+  --syntax-string:     #a31515;
+  --syntax-number:     #098658;
+  --syntax-comment:    #008000;
+  --syntax-identifier: #0070c1;
+  --syntax-operator:   #383838;
+}
+
+:root[data-theme='dark'] {
+  --syntax-keyword:    #569cd6;
+  --syntax-function:   #dcdcaa;
+  --syntax-string:     #ce9178;
+  --syntax-number:     #b5cea8;
+  --syntax-comment:    #6a9955;
+  --syntax-identifier: #9cdcfe;
+  --syntax-operator:   #d4d4d4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --syntax-keyword:    #569cd6;
+    --syntax-function:   #dcdcaa;
+    --syntax-string:     #ce9178;
+    --syntax-number:     #b5cea8;
+    --syntax-comment:    #6a9955;
+    --syntax-identifier: #9cdcfe;
+    --syntax-operator:   #d4d4d4;
+  }
+}
+
+.tok--keyword    { color: var(--syntax-keyword); font-weight: 600; }
+.tok--function   { color: var(--syntax-function); }
+.tok--string     { color: var(--syntax-string); }
+.tok--number     { color: var(--syntax-number); }
+.tok--comment    { color: var(--syntax-comment); font-style: italic; }
+.tok--identifier { color: var(--syntax-identifier); }
+.tok--operator   { color: var(--syntax-operator); }
