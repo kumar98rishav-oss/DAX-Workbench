@@ -9,7 +9,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   Database, Play, PlayCircle, Plug, Check, X, Trash2, TriangleAlert, Link2, RefreshCw, Table2, Save, Wand2,
-  Copy, FileSearch, ChevronUp, FileDown, ArrowRight, ArrowLeft,
+  Copy, FileSearch, ChevronUp, FileDown, ArrowRight, ArrowLeft, WrapText,
 } from 'lucide-react'
 import { useApp } from '@/app/store'
 import { useReconcile, ROW_CAP } from '@/app/reconcile-store'
@@ -19,6 +19,8 @@ import {
 } from '@/infrastructure/desktop/sql-client'
 import { getDesktopModel, modelLabel, type DesktopRelationship } from '@/infrastructure/desktop/desktop-client'
 import { adhocAsSuite, buildCsv, buildReportHtml, reportFilename, type ReportInput } from '@/application/reconcile/report'
+import { formatSql } from '@/application/reconcile/sql-format'
+import { formatDaxQuery } from '@/application/reconcile/dax-query-format'
 import {
   byGrain, dateCoverage, distinctValues, duplicateKeys, nullCount, orphanKeys, rowCount, valueSet,
 } from '@/application/reconcile/generators'
@@ -766,6 +768,11 @@ function QueryPane({
   error: string | null
   result: ResultSet | null
 }) {
+  // Both formatters are meaning-preserving and fail safe — on anything they
+  // cannot parse they hand the text back untouched — so this needs no
+  // confirmation and no undo beyond the browser's own.
+  const format = () => onChange(side === 'source' ? formatSql(value) : formatDaxQuery(value))
+
   return (
     <section className={`rec-pane rec-pane--${side}`}>
       <header className="rec-pane__head">
@@ -778,6 +785,14 @@ function QueryPane({
           </span>
         )}
         <span className="rec-conn__spacer" />
+        <button
+          className="rec-btn"
+          onClick={format}
+          disabled={running || !value.trim()}
+          title={`Format ${side === 'source' ? 'SQL' : 'DAX'} (Shift+Alt+F)`}
+        >
+          <WrapText size={12} /> Format
+        </button>
         <button className="rec-btn rec-btn--primary" onClick={onRun} disabled={running}>
           <Play size={12} /> {running ? 'Running…' : 'Run'}
         </button>
@@ -787,6 +802,13 @@ function QueryPane({
         spellCheck={false}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          // The shortcut the DAX tab already uses, so the muscle memory carries.
+          if (e.shiftKey && e.altKey && (e.key === 'F' || e.key === 'f')) {
+            e.preventDefault()
+            format()
+          }
+        }}
       />
       {error && <div className="rec-err rec-err--block">{error}</div>}
       {result?.truncated && (
