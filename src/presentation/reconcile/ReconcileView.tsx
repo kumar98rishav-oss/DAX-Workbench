@@ -550,7 +550,14 @@ function VerdictBanner({ modelLabel, modelRefreshedAt }: { modelLabel?: string; 
 
   const sub = () => {
     if (running) return 'Both sides of each check run together, so drift cannot look like a difference.'
-    if (!connected) return null
+    // Before connecting, a saved suite shows table names and looks like content
+    // the tool came with. Name where it came from, so the first thing a new user
+    // sees is not a wrong impression of what this tool knows.
+    if (!connected) {
+      return suite.checks.length > 0
+        ? `${suite.checks.length} checks saved on this machine from an earlier session. Connect to run them.`
+        : null
+    }
     if (suite.checks.length === 0) return 'Propose checks drafts a baseline across every table at once.'
     if (runs.length === 0) return 'Nothing has been run yet.'
     if (clear) return lastRunAt ? `Model and source agree. Last run ${ago(lastRunAt)}.` : null
@@ -623,7 +630,16 @@ function SuitePanel({ sources, rels }: { sources: ModelSource[]; rels: DesktopRe
   return (
     <section className="rec-suite">
       <header className="rec-suite__head">
-        <span className="rec-checks__label">Checks ({suite.checks.length})</span>
+        {/* "Checks (47)" alone reads as content that shipped with the tool —
+            a new user sees their own table names before connecting anything and
+            assumes the list is canned. It is the opposite: these are checks THIS
+            user saved, on THIS machine, and nothing here knows a table name
+            until someone's own model has been read. Say whose they are. */}
+        <span className="rec-checks__label">
+          {suite.checks.length === 0
+            ? 'Checks'
+            : `Your saved checks (${suite.checks.length})`}
+        </span>
         <input
           className="rec-input rec-input--sm"
           placeholder="Name this check…"
